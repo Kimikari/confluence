@@ -90,6 +90,57 @@ namespace Confluence.Arena.Generation
             }
         }
 
+        // ---- Checkpoints ------------------------------------------------------------------------------
+
+        /// <summary>Element counts and next ids at a moment, for undoing a tentative placement.</summary>
+        public struct Checkpoint
+        {
+            internal int Solids;
+            internal int Materials;
+            internal int Props;
+            internal int Modules;
+            internal int Lights;
+            internal int NextSolidId;
+            internal int NextPropId;
+        }
+
+        public Checkpoint Mark()
+        {
+            return new Checkpoint
+            {
+                Solids = Layout.Solids.Count,
+                Materials = Layout.Materials.Count,
+                Props = Layout.Props.Count,
+                Modules = Layout.Modules.Count,
+                Lights = Layout.LightShafts.Count,
+                NextSolidId = _nextSolidId,
+                NextPropId = _nextPropId,
+            };
+        }
+
+        /// <summary>
+        /// Drops everything appended since the mark and restores the id counters, so a rejected placement leaves the
+        /// layout (and every later id) exactly as if it had never been tried. Only valid with no removals since the mark.
+        /// </summary>
+        public void Rollback(Checkpoint mark)
+        {
+            Truncate(Layout.Solids, mark.Solids);
+            Truncate(Layout.Materials, mark.Materials);
+            Truncate(Layout.Props, mark.Props);
+            Truncate(Layout.Modules, mark.Modules);
+            Truncate(Layout.LightShafts, mark.Lights);
+            _nextSolidId = mark.NextSolidId;
+            _nextPropId = mark.NextPropId;
+        }
+
+        private static void Truncate<T>(List<T> list, int count)
+        {
+            if (list.Count > count)
+            {
+                list.RemoveRange(count, list.Count - count);
+            }
+        }
+
         // ---- Patches ----------------------------------------------------------------------------------
 
         public MaterialPatch AddPatchPair(MaterialPatch patch)

@@ -40,6 +40,23 @@ namespace Confluence.Arena.Generation
         public const float CenterGap = 1.0f;
 
         private const int PlacementTries = 160;
+
+        /// <summary>Module picks tried for an optional island before the category gives up.</summary>
+        private const int IslandAttempts = 3;
+
+        /// <summary>Best-scoring poses re-measured on the navigation grid per module pick.</summary>
+        private const int IslandSiteChecks = 3;
+
+        /// <summary>Score penalty for a pose whose pieces stand in a bastion exit or crossover strip.</summary>
+        private const float IslandRoutePenalty = 1.5f;
+
+        /// <summary>Poses re-measured for a required module, and the lattice step of its fallback scan.</summary>
+        private const int IslandRequiredSiteChecks = 8;
+
+        private const float IslandScanStep = 0.5f;
+
+        /// <summary>Clear floor every module piece keeps inside the contour: a capsule passage with margin (spec L676).</summary>
+        private const float IslandContourMargin = 1.25f;
         private const int BastionTuningPasses = 4;
         private const int FillerPasses = 12;
 
@@ -116,6 +133,9 @@ namespace Confluence.Arena.Generation
         /// <summary>Free space a rock inside a skeleton zone keeps around itself: a full 2.5 m route plus quantization.</summary>
         private const float RouteGap = 2.75f;
 
+        /// <summary>Open floor a rock keeps around a material patch (beds, pools, and tracks stay open floor).</summary>
+        private const float RockPatchMargin = 0.5f;
+
         private const float FillerMinHalfDiagonal = 0.6f;
         private const float FillerMaxHalfDiagonal = 3.0f;
 
@@ -130,6 +150,13 @@ namespace Confluence.Arena.Generation
 
         private readonly List<Rect2> _keepOut = new List<Rect2>();
         private readonly List<Rect2> _occupied = new List<Rect2>();
+        private readonly List<Rect2> _islands = new List<Rect2>();
+        private readonly List<Rect2> _hardZones = new List<Rect2>();
+        private readonly List<Rect2> _softZones = new List<Rect2>();
+        private bool[] _routeBaseline;
+        private Rect2 _laneZone;
+        private List<Vec3> _openRays;
+        private Rect2 _centerFootprint;
         private readonly List<Vec3> _sites = new List<Vec3>(); // placed features and props (side 0), x/z plus radius in Y
         private SpawnBastion _bastion;
         private float _wingMax;
@@ -179,12 +206,21 @@ namespace Confluence.Arena.Generation
             TuneBastions();
             AddSkeletonKeepOuts();
             PlaceLaneEnds();
+
+            // On the small arenas the required elevation modules take the open floor first, where they leave every
+            // bulwark its room: their decks and ramps are the hardest pieces to fit (spec L660), and the bulwark rings
+            // would leave none. Larger arenas keep open floor beyond the rings, so there they come with the others.
+            ReserveBiomeSources();
+            if (_p.Diameter <= GlobalRules.Arena.DiameterMedium)
+            {
+                PlaceRequiredElevation();
+            }
+
             PlaceBulwarks();
             PlaceSkeletonLanePosts();
 
-            // The biome rule's sources and objects come first: the rest of the arena is built around them.
+            // The biome rule's sources and objects come next, then the remaining catalogue modules.
             DressBiome(ArenaNav.Build(_layout, NoProps));
-            ReserveBiomeSources();
             PlaceIslands();
             CutFloor();
             PlaceOutcrops(_p.OutcropPairs);
@@ -286,6 +322,8 @@ namespace Confluence.Arena.Generation
             _w.PlaceCenterModule(_center, quarter);
             Rect2 footprint = LayoutWriter.Footprint(_center, Vec2.Zero, quarter);
             _keepOut.Add(footprint.Expanded(CenterGap));
+            _hardZones.Add(footprint);
+            _centerFootprint = footprint;
 
             for (int i = 0; i < _center.Patches.Count; i++)
             {
@@ -384,14 +422,19 @@ namespace Confluence.Arena.Generation
         private void AddSkeletonKeepOuts()
         {
             // Bastion, its exits, and the crossover strip in front of the screen.
-            foreach (Rect2 zone in _bastion.Zones(ExitWidth))
+            Rect2[] zones = _bastion.Zones(ExitWidth);
+            for (int i = 0; i < zones.Length; i++)
             {
-                AddKeepOut(zone);
+                AddKeepOut(zones[i]);
+                List<Rect2> kind = i == 0 ? _hardZones : _softZones; // the core is hard; exits and the crossover are soft
+                kind.Add(zones[i]);
+                kind.Add(zones[i].Mirrored());
             }
 
             // Firing lane zone along X (both halves of it are in the side-0 list after mirroring).
             float laneHalf = _p.LaneHalfLength > 0f ? _p.LaneHalfLength + LaneEndThickness : _p.Radius + 2f;
             AddKeepOut(new Rect2(-laneHalf, -LaneZoneHalf, laneHalf, LaneZoneHalf));
+            _laneZone = new Rect2(-laneHalf, -LaneZoneHalf, laneHalf, LaneZoneHalf);
         }
 
         private void AddKeepOut(Rect2 r)
@@ -410,34 +453,194 @@ namespace Confluence.Arena.Generation
             }
         }
 
+        /// <summary>
+        /// Catalogue module pairs (spec L660 "two to four elevation modules, and three to six cover modules"; L318).
+        /// The required categories come first so they get the open floor; approach, topology, and material modules
+        /// then dress what is left. The central soft cover pair, when present, counts toward the cover modules.
+        /// </summary>
+        private void PlaceRequiredElevation()
+        {
+            _routeBaseline = RouteConditions();
+            _openRays = OpenBulwarkRays();
+            int pairs = (GlobalRules.Arena.ElevationModulesMin + 1) / 2;
+            for (int i = 0; i < pairs; i++)
+            {
+                PlaceOneIsland(ModuleCategory.Elevation, true);
+            }
+
+            _openRays = null;
+        }
+
+        /// <summary>
+        /// Rays from the center that the bulwarks will have to close (as in <see cref="PlaceBulwarks"/>): direction in
+        /// X/Y and the radius where the bulwark band starts in Z. Empty for the smallest arena.
+        /// </summary>
+        private List<Vec3> OpenBulwarkRays()
+        {
+            var rays = new List<Vec3>();
+            if (_p.Diameter <= GlobalRules.Arena.DiameterSmall)
+            {
+                return rays;
+            }
+
+            for (int i = 0; i < 90; i++)
+            {
+                Vec2 dir = Vec2.FromYaw(RayAngle(i));
+                if (FirstTallHit(Vec2.Zero, dir) > BulwarkRadius - BulwarkThickness * 0.5f)
+                {
+                    rays.Add(new Vec3(dir.X, dir.Y, Math.Max(BulwarkMinRadius, KeepOutExit(Vec2.Zero, dir) + BulwarkThickness * 0.5f + 0.25f)));
+                }
+            }
+
+            return rays;
+        }
+
+        /// <summary>
+        /// Open bulwark rays a module pose would take the bulwark room from: a piece too low to close the lane band
+        /// itself, within a bulwark's gap of the ray inside the band. Elevation decks there would leave the lane open.
+        /// </summary>
+        private int BulwarkConflicts(ModuleGeometry g, Vec2 c, int q)
+        {
+            if (_openRays == null || _openRays.Count == 0)
+            {
+                return 0;
+            }
+
+            List<YawBox> boxes = LayoutWriter.PieceBoxes(g, c, q);
+            float bandEnd = BulwarkRadius + 0.5f;
+            int conflicts = 0;
+            var blocked = new List<Vec2>();
+            for (int r = 0; r < _openRays.Count; r++)
+            {
+                Vec3 ray = _openRays[r];
+                var dir = new Vec2(ray.X, ray.Y);
+                blocked.Clear();
+                bool closes = false;
+                for (int i = 0; i < boxes.Count && !closes; i++)
+                {
+                    ModulePiece piece = g.Pieces[i];
+                    YawBox b = boxes[i];
+                    if (piece.Kind == SolidKind.Floor)
+                    {
+                        continue;
+                    }
+
+                    // A tall piece inside the band closes the ray by itself.
+                    bool tall = piece.BlocksSight && b.Bottom <= ArenaRules.LaneBandLow && b.Top >= ArenaRules.LaneBandHigh;
+                    if (tall && LaneMeter.LineVsBox(Vec2.Zero, dir, b, out float h0, out float _) && h0 >= 0f && h0 <= BulwarkRadius)
+                    {
+                        closes = true;
+                        continue;
+                    }
+
+                    var grown = new YawBox(b.Center, b.HalfExtents + new Vec3(IslandGap + BulwarkThickness * 0.5f, 0f, IslandGap + BulwarkThickness * 0.5f), b.YawDeg);
+                    if (LaneMeter.LineVsBox(Vec2.Zero, dir, grown, out float t0, out float t1) && t1 >= ray.Z && t0 <= bandEnd)
+                    {
+                        blocked.Add(new Vec2(t0, t1));
+                    }
+                }
+
+                if (!closes && blocked.Count > 0 && !HasFreeStretch(ray.Z, bandEnd, blocked, BulwarkThickness))
+                {
+                    conflicts++;
+                }
+            }
+
+            return conflicts;
+        }
+
+        /// <summary>True when [from, to] minus the blocked intervals keeps a stretch at least the given length.</summary>
+        private static bool HasFreeStretch(float from, float to, List<Vec2> blocked, float length)
+        {
+            blocked.Sort((a, b) => a.X.CompareTo(b.X));
+            float cursor = from;
+            for (int i = 0; i < blocked.Count; i++)
+            {
+                if (blocked[i].X - cursor >= length)
+                {
+                    return true;
+                }
+
+                cursor = Math.Max(cursor, blocked[i].Y);
+            }
+
+            return to - cursor >= length;
+        }
+
         private void PlaceIslands()
         {
-            ModuleCategory[] order = { ModuleCategory.Topology, ModuleCategory.Elevation, ModuleCategory.Approach, ModuleCategory.Material, ModuleCategory.Cover };
+            _routeBaseline = RouteConditions();
+            int softCover = CountModules(ModuleCategory.Cover);
+            int coverPairsMin = Math.Max(0, (GlobalRules.Arena.CoverModulesMin - softCover + 1) / 2);
+            int coverPairsMax = Math.Max(0, (GlobalRules.Arena.CoverModulesMax - softCover) / 2);
+            int elevationPairsMin = (GlobalRules.Arena.ElevationModulesMin + 1) / 2;
+            int elevationPairsMax = GlobalRules.Arena.ElevationModulesMax / 2;
+
+            ModuleCategory[] order = { ModuleCategory.Elevation, ModuleCategory.Cover, ModuleCategory.Approach, ModuleCategory.Topology, ModuleCategory.Material };
             for (int k = 0; k < order.Length; k++)
             {
                 ModuleCategory category = order[k];
                 int quota = _p.QuotaFor(category);
-                if (_conservative && category != ModuleCategory.Cover)
+                int required = 0;
+                if (category == ModuleCategory.Elevation)
+                {
+                    quota = Math.Max(elevationPairsMin, Math.Min(quota, elevationPairsMax));
+                    if (quota > elevationPairsMin)
+                    {
+                        quota = elevationPairsMin + _rng.NextInt(quota - elevationPairsMin + 1);
+                    }
+
+                    if (_conservative)
+                    {
+                        quota = elevationPairsMin;
+                    }
+
+                    // Pairs that already stood before the bulwarks (PlaceRequiredElevation) count toward both numbers.
+                    int placedPairs = CountModules(ModuleCategory.Elevation) / 2;
+                    required = Math.Max(0, elevationPairsMin - placedPairs);
+                    quota -= placedPairs;
+                }
+                else if (category == ModuleCategory.Cover)
+                {
+                    quota = Math.Max(coverPairsMin, Math.Min(quota, coverPairsMax));
+                    required = coverPairsMin;
+                }
+                else if (_conservative)
                 {
                     quota = Math.Min(quota, category == ModuleCategory.Approach ? 1 : 0);
                 }
 
-                if (category == ModuleCategory.Elevation && quota > 1)
-                {
-                    quota = 1 + _rng.NextInt(quota); // 1..quota per half: 2-4 elevation modules in all (spec L660)
-                }
-
                 for (int i = 0; i < quota; i++)
                 {
-                    if (!PlaceOneIsland(category))
+                    if (!PlaceOneIsland(category, i < required))
                     {
                         Notes.Add("no room for " + category);
                     }
                 }
             }
+
+            if (CountModules(ModuleCategory.Elevation) < GlobalRules.Arena.ElevationModulesMin
+                || CountModules(ModuleCategory.Cover) < GlobalRules.Arena.CoverModulesMin)
+            {
+                Notes.Add("module composition short");
+            }
         }
 
-        private bool PlaceOneIsland(ModuleCategory category)
+        private int CountModules(ModuleCategory category)
+        {
+            int n = 0;
+            foreach (ModuleInstance m in _layout.Modules)
+            {
+                if (_content.Modules.Get(m.ModuleId).Category == category)
+                {
+                    n++;
+                }
+            }
+
+            return n;
+        }
+
+        private bool PlaceOneIsland(ModuleCategory category, bool required)
         {
             IReadOnlyList<ModuleGeometry> all = _content.ModulesOf(category);
             var candidates = new List<ModuleGeometry>(all.Count);
@@ -455,26 +658,14 @@ namespace Confluence.Arena.Generation
                 weights.Add(ArenaContent.ModuleWeight(g, _content.Catalogue.Module(g.ModuleId), _biome));
             }
 
-            for (int attempt = 0; attempt < 3 && candidates.Count > 0; attempt++)
+            // A required module keeps trying the whole category: the composition is a validation rule (spec L660).
+            int attempts = required ? candidates.Count : IslandAttempts;
+            for (int attempt = 0; attempt < attempts && candidates.Count > 0; attempt++)
             {
                 int pick = ArenaContent.WeightedPick(_rng, weights);
                 ModuleGeometry g = candidates[pick];
-                if (TryPlaceIsland(g, category, out Vec2 position, out int turns))
+                if (TryPlaceIsland(g, category, required))
                 {
-                    _w.PlaceModulePair(g, position, turns);
-                    foreach (LocalRect cut in g.FloorCutouts)
-                    {
-                        Vec3 a = LayoutWriter.ToWorld(new Vec3(cut.MinX, 0f, cut.MinZ), position, turns);
-                        Vec3 b = LayoutWriter.ToWorld(new Vec3(cut.MaxX, 0f, cut.MaxZ), position, turns);
-                        var world = new Rect2(a.X, a.Z, b.X, b.Z);
-                        _cutouts.Add(world);
-                        _cutouts.Add(world.Mirrored());
-                    }
-
-                    Rect2 r = LayoutWriter.Footprint(g, position, turns);
-                    _occupied.Add(r);
-                    _occupied.Add(r.Mirrored());
-                    _sourceBudget -= 2 * CountSources(g);
                     return true;
                 }
 
@@ -499,58 +690,267 @@ namespace Confluence.Arena.Generation
             return n;
         }
 
-        private bool TryPlaceIsland(ModuleGeometry g, ModuleCategory category, out Vec2 position, out int turns)
+        private struct IslandSite
         {
-            position = default(Vec2);
-            turns = 0;
-            float bestScore = float.NegativeInfinity;
+            public Vec2 Position;
+            public int Turns;
+            public float Score;
+            public bool OnRoute;
+        }
+
+        /// <summary>
+        /// Samples poses for one module pair and commits the best that keeps the skeleton routes: pieces stay out of
+        /// the bastion cores, the firing lane, and the center; open module floor may overlap the bastion exits and
+        /// crossover strip, and then the routes are re-measured on the navigation grid before the pair is kept.
+        /// </summary>
+        private bool TryPlaceIsland(ModuleGeometry g, ModuleCategory category, bool required)
+        {
+            var sites = new List<IslandSite>();
             float reach = _p.Radius;
             for (int i = 0; i < PlacementTries; i++)
             {
                 int q = _rng.NextInt(4);
-                Vec2 c = new Vec2(_rng.Range(-reach, reach), _rng.Range(-reach, -LaneZoneHalf));
-                Rect2 r = LayoutWriter.Footprint(g, c, q);
-                if (!IslandFits(r))
+                Vec2 c = new Vec2(_rng.Range(-reach, reach), _rng.Range(-reach, 0f));
+                float noise = _rng.NextFloat() * 0.5f;
+                if (!IslandFits(g, c, q, out bool onRoute) || BulwarkConflicts(g, c, q) > 0)
                 {
                     continue;
                 }
 
-                float score = Preference(category, r) + _rng.NextFloat() * 0.5f;
-                if (score > bestScore)
+                Rect2 r = LayoutWriter.Footprint(g, c, q);
+                float score = Preference(category, r) + noise - (onRoute ? IslandRoutePenalty : 0f);
+                sites.Add(new IslandSite { Position = c, Turns = q, Score = score, OnRoute = onRoute });
+            }
+
+            if ((required || category == ModuleCategory.Cover) && sites.Count < IslandSiteChecks)
+            {
+                // Required modules (spec L660) and cover modules fall back to a scan of every pose on a fine lattice:
+                // the smallest arenas leave only slivers of floor beside the skeleton.
+                for (float x = -reach; x <= reach; x += IslandScanStep)
                 {
-                    bestScore = score;
-                    position = c;
-                    turns = q;
+                    for (float z = -reach; z <= 0f; z += IslandScanStep)
+                    {
+                        for (int q = 0; q < 4; q++)
+                        {
+                            var c = new Vec2(x, z);
+                            if (IslandFits(g, c, q, out bool onRoute) && BulwarkConflicts(g, c, q) == 0)
+                            {
+                                float score = Preference(category, LayoutWriter.Footprint(g, c, q)) - (onRoute ? IslandRoutePenalty : 0f);
+                                sites.Add(new IslandSite { Position = c, Turns = q, Score = score, OnRoute = onRoute });
+                            }
+                        }
+                    }
                 }
             }
 
-            return !float.IsNegativeInfinity(bestScore);
+            // Best first; equal scores keep sampling order (List.Sort is unstable, so sort indices explicitly).
+            var order = new List<int>(sites.Count);
+            for (int i = 0; i < sites.Count; i++)
+            {
+                order.Add(i);
+            }
+
+            order.Sort((a, b) => sites[a].Score != sites[b].Score ? sites[b].Score.CompareTo(sites[a].Score) : a.CompareTo(b));
+            int checks = required ? IslandRequiredSiteChecks : IslandSiteChecks;
+            for (int k = 0; k < order.Count && k < checks; k++)
+            {
+                IslandSite site = sites[order[k]];
+                LayoutWriter.Checkpoint mark = _w.Mark();
+                _w.PlaceModulePair(g, site.Position, site.Turns);
+                if (!RoutesIntact())
+                {
+                    _w.Rollback(mark);
+                    continue;
+                }
+
+                foreach (LocalRect cut in g.FloorCutouts)
+                {
+                    Rect2 world = CutoutRect(cut, site.Position, site.Turns);
+                    _cutouts.Add(world);
+                    _cutouts.Add(world.Mirrored());
+                }
+
+                Rect2 footprint = LayoutWriter.Footprint(g, site.Position, site.Turns);
+                _islands.Add(footprint);
+                _islands.Add(footprint.Mirrored());
+                _occupied.Add(footprint);
+                _occupied.Add(footprint.Mirrored());
+                _sourceBudget -= 2 * CountSources(g);
+                return true;
+            }
+
+            return false;
         }
 
-        private bool IslandFits(Rect2 r)
+        private static Rect2 CutoutRect(LocalRect cut, Vec2 position, int turns)
         {
-            if (!InAuthoredHalf(r.Center) || !BoundaryBuilder.ContainsRect(_layout.Boundary, r, ArenaRules.ContourStripWidth))
+            Vec3 a = LayoutWriter.ToWorld(new Vec3(cut.MinX, 0f, cut.MinZ), position, turns);
+            Vec3 b = LayoutWriter.ToWorld(new Vec3(cut.MaxX, 0f, cut.MaxZ), position, turns);
+            return new Rect2(a.X, a.Z, b.X, b.Z);
+        }
+
+        /// <summary>
+        /// Piece-level fit of a module pose. Footprints keep <see cref="IslandGap"/> from other modules and their own
+        /// image; every piece keeps the gap from all other solids and the contour strip; no piece, cutout, or patch
+        /// enters a hard skeleton zone. onRoute reports pieces standing in the soft zones (exits and crossovers).
+        /// </summary>
+        private bool IslandFits(ModuleGeometry g, Vec2 c, int q, out bool onRoute)
+        {
+            onRoute = false;
+            Rect2 r = LayoutWriter.Footprint(g, c, q);
+            if (!InAuthoredHalf(r.Center) || r.DistanceTo(r.Mirrored()) < IslandGap || _layout.Boundary.RadialMargin(r.Center.ToXZ(), 0f) < 0f
+                || r.Overlaps(_centerFootprint))
             {
                 return false;
             }
 
-            for (int i = 0; i < _keepOut.Count; i++)
+            for (int i = 0; i < _islands.Count; i++)
             {
-                if (r.Overlaps(_keepOut[i]))
+                if (r.DistanceTo(_islands[i]) < IslandGap)
                 {
                     return false;
                 }
             }
 
-            for (int i = 0; i < _occupied.Count; i++)
+            List<YawBox> boxes = LayoutWriter.PieceBoxes(g, c, q);
+            for (int i = 0; i < boxes.Count; i++)
             {
-                if (r.DistanceTo(_occupied[i]) < IslandGap)
+                if (g.Pieces[i].Kind == SolidKind.Floor)
+                {
+                    continue; // sunken floors are tested through their cutouts
+                }
+
+                YawBox box = boxes[i];
+                for (int k = 0; k < 4; k++)
+                {
+                    if (_layout.Boundary.RadialMargin(box.FootprintCorner(k).ToXZ(), 0f) < IslandContourMargin)
+                    {
+                        return false;
+                    }
+                }
+
+                // Low walkable pieces (ramps and 1 m decks) may cross the lane zone: they block neither the lane band nor the route.
+                if (Footprint2D.Overlap(box, ZoneBox(_laneZone)) && !(g.Pieces[i].Walkable && box.Top <= ArenaRules.LaneBandLow - 0.2f))
+                {
+                    return false;
+                }
+
+                if (OverlapsZone(box, _hardZones))
+                {
+                    return false;
+                }
+
+                onRoute |= OverlapsZone(box, _softZones);
+                Rect2 near = Rect2.Around(box).Expanded(IslandGap);
+                foreach (Solid s in _layout.Solids)
+                {
+                    if (s.Kind != SolidKind.Floor && near.Overlaps(Rect2.Around(s.Box)) && Footprint2D.Distance(box, s.Box) < IslandGap)
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            foreach (LocalRect cut in g.FloorCutouts)
+            {
+                Rect2 world = CutoutRect(cut, c, q);
+                if (OverlapsAny(world, _hardZones) || OverlapsAny(world, _softZones) || world.Overlaps(_laneZone))
                 {
                     return false;
                 }
             }
 
-            return r.DistanceTo(r.Mirrored()) >= IslandGap;
+            foreach (ModulePatch patch in g.Patches)
+            {
+                Vec3 p = LayoutWriter.ToWorld(patch.Center.ToXZ(), c, q);
+                float extent = patch.Radius > 0f ? patch.Radius : patch.HalfSize.Length();
+                Rect2 bounds = Rect2.FromCenter(new Vec2(p.X, p.Z), extent * 2f, extent * 2f);
+                if (OverlapsAny(bounds, _hardZones) || !BoundaryBuilder.ContainsRect(_layout.Boundary, bounds, 0f))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool OverlapsZone(YawBox box, List<Rect2> zones)
+        {
+            for (int i = 0; i < zones.Count; i++)
+            {
+                if (Footprint2D.Overlap(box, ZoneBox(zones[i])))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static YawBox ZoneBox(Rect2 k)
+        {
+            return new YawBox(new Vec3(k.Center.X, 1f, k.Center.Y), new Vec3(k.Width * 0.5f, 1f, k.Depth * 0.5f), 0f);
+        }
+
+        private static bool OverlapsAny(Rect2 r, List<Rect2> zones)
+        {
+            for (int i = 0; i < zones.Count; i++)
+            {
+                if (r.Overlaps(zones[i]))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// The skeleton guarantees on the bare-terrain grid (spec L308-L312): a 2.5 m route from the spawn to the final
+        /// floor and to the other spawn, two disjoint approaches, the spawn path band, and the central reach window.
+        /// Mirroring makes side 0 sufficient.
+        /// </summary>
+        private bool[] RouteConditions()
+        {
+            var result = new bool[5];
+            ArenaNav nav = ArenaNav.Build(_layout, NoProps);
+            var survey = new ArenaSurvey(_layout, nav);
+            int s0 = survey.SpawnNode(0);
+            int s1 = survey.SpawnNode(1);
+            if (s0 < 0 || s1 < 0)
+            {
+                return result;
+            }
+
+            bool[] route = nav.Reachable(new[] { s0 }, NavQuery.Route);
+            foreach (int node in survey.FinalFloorNodes)
+            {
+                result[0] |= route[node];
+            }
+
+            result[1] = route[s1];
+            result[2] = survey.DisjointApproaches(0).Count >= GlobalRules.Arena.MinCrossoverRoutes;
+            ArenaRules.SpawnPathBand(_p.Diameter, out float pathMin, out float pathMax);
+            float path = survey.SpawnPathLength();
+            result[3] = path >= pathMin && path <= pathMax;
+            float reach = survey.CentralReachSeconds(0);
+            result[4] = reach >= GlobalRules.Arena.CentralReachMinSec && reach <= GlobalRules.Arena.CentralReachMaxSec;
+            return result;
+        }
+
+        /// <summary>True when no guarantee that held on the skeleton before the islands has been lost.</summary>
+        private bool RoutesIntact()
+        {
+            bool[] now = RouteConditions();
+            for (int i = 0; i < now.Length; i++)
+            {
+                if (_routeBaseline[i] && !now[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -1293,6 +1693,7 @@ namespace Confluence.Arena.Generation
             }
 
             int touching = 0;
+            int touchedModule = -1;
             foreach (Solid s in _layout.Solids)
             {
                 if (s.Kind == SolidKind.Floor || s.Box.Bottom > ArenaRules.Headroom)
@@ -1307,28 +1708,48 @@ namespace Confluence.Arena.Generation
                 }
 
                 // One attachment per original obstacle, never to another attached rock: an obstacle grows into an L or
-                // T at most, never a cup that could trap floor as the boundary contracts (spec L676).
-                // A rock may stand against a deck or ramp side but never on or into it.
-                if ((s.Walkable && d <= 0.05f) || ++touching > 1 || _attached.Contains(s.Id) || AttachmentsOf(s.Id) >= attachLimit)
+                // T at most, never a cup that could trap floor as the boundary contracts (spec L676). The pieces of
+                // one module instance are one obstacle. A rock may stand against a deck or ramp side but never on or into it.
+                if (s.Walkable && d <= 0.05f)
+                {
+                    return false;
+                }
+
+                if (s.ModuleIndex >= 0 && s.ModuleIndex == touchedModule)
+                {
+                    continue;
+                }
+
+                if (++touching > 1 || _attached.Contains(s.Id) || AttachmentsOf(s.Id) >= attachLimit)
                 {
                     return false;
                 }
 
                 touchedId = s.Id;
+                touchedModule = s.ModuleIndex;
             }
 
-            Vec2 center = box.Center.XZ();
-            float radius = box.HalfExtents.X + box.HalfExtents.Z;
             foreach (MaterialPatch m in _layout.Materials)
             {
-                float extent = m.IsCircle ? m.Radius : m.HalfSize.Length();
-                if (Vec2.Distance(m.Center, center) < extent + radius)
+                if (BoxTouchesPatch(box, m, RockPatchMargin))
                 {
                     return false;
                 }
             }
 
             return true;
+        }
+
+        /// <summary>True when a footprint comes within the margin of a material patch's actual shape.</summary>
+        private static bool BoxTouchesPatch(YawBox box, MaterialPatch m, float margin)
+        {
+            if (m.IsCircle)
+            {
+                return Vec2.Distance(box.ClosestPointXZ(m.Center), m.Center) < m.Radius + margin;
+            }
+
+            var patch = new YawBox(new Vec3(m.Center.X, 0.5f, m.Center.Y), new Vec3(m.HalfSize.X, 0.5f, m.HalfSize.Y), m.YawDeg);
+            return Footprint2D.Distance(box, patch) < margin;
         }
 
         private void AddAttachedPair(YawBox box, int touchedId)

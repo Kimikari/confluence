@@ -66,7 +66,7 @@ namespace Confluence.Arena.Validation
             {
                 Action[] groups =
                 {
-                    CheckContour, CheckMirrorParity, CheckSpawns, CheckReachability, CheckPaths, CheckApproaches,
+                    CheckContour, CheckComposition, CheckMirrorParity, CheckSpawns, CheckReachability, CheckPaths, CheckApproaches,
                     CheckLanes, CheckCover, CheckElevation, CheckSourcesAndProps, CheckFinalFloor, CheckContraction,
                     CheckFieldPlacements, CheckSingleCover, CheckDestruction,
                 };
@@ -133,6 +133,53 @@ namespace Confluence.Arena.Validation
                 if (MathF.Abs(area - target) > target * GlobalRules.Arena.UsableAreaTolerance)
                 {
                     Fail("area", "contour area " + F(area) + " is not within 10% of " + F(target));
+                }
+            }
+
+            // ---- Module composition (spec L660) -----------------------------------------------------------
+
+            /// <summary>
+            /// "Each size selects one center module ... two to four elevation modules, and three to six cover
+            /// modules" (spec L660), counted over the recorded module instances. Skipped without a module library.
+            /// </summary>
+            private void CheckComposition()
+            {
+                if (_owner._modules == null)
+                {
+                    return;
+                }
+
+                var counts = new int[Enum.GetValues(typeof(ModuleCategory)).Length];
+                foreach (ModuleInstance m in _layout.Modules)
+                {
+                    if (!_owner._modules.TryGet(m.ModuleId, out ModuleGeometry g))
+                    {
+                        Fail("composition", "unknown module " + m.ModuleId);
+                        return;
+                    }
+
+                    counts[(int)g.Category]++;
+                }
+
+                int center = counts[(int)ModuleCategory.Center];
+                int elevation = counts[(int)ModuleCategory.Elevation];
+                int cover = counts[(int)ModuleCategory.Cover];
+                Metric("modules", _layout.Modules.Count);
+                Metric("elevation_modules", elevation);
+                Metric("cover_modules", cover);
+                if (center != GlobalRules.Arena.CenterModules)
+                {
+                    Fail("composition", center + " center modules");
+                }
+
+                if (elevation < GlobalRules.Arena.ElevationModulesMin || elevation > GlobalRules.Arena.ElevationModulesMax)
+                {
+                    Fail("composition", elevation + " elevation modules");
+                }
+
+                if (cover < GlobalRules.Arena.CoverModulesMin || cover > GlobalRules.Arena.CoverModulesMax)
+                {
+                    Fail("composition", cover + " cover modules");
                 }
             }
 

@@ -60,7 +60,7 @@ namespace Confluence.Arena.Generation
             switch (diameter)
             {
                 case GlobalRules.Arena.DiameterSmall:
-                    return new SizeProfile(diameter, 8.25f, 0f, 4.5f, new[] { 0, 2, 1, 1, 1, 0 }, 8f, 6);
+                    return new SizeProfile(diameter, 8.25f, 0f, 4.5f, new[] { 0, 2, 1, 1, 1, 0 }, 0f, 6);
                 case GlobalRules.Arena.DiameterMedium:
                     return new SizeProfile(diameter, 9.75f, 0f, 4.0f, new[] { 1, 2, 1, 1, 1, 0 }, 7f, 6);
                 case GlobalRules.Arena.DiameterLarge:
