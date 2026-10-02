@@ -1,11 +1,13 @@
 using System;
+using System.Collections.Generic;
 
 namespace Confluence.Core.Rules
 {
     /// <summary>
     /// Global rule numbers from the design (spec §2-§7, §14 and the rule chapters, lines 1-717). Content may be
     /// stricter than these values but never looser (spec L128, L300). Units: meters, seconds, degrees; fractions
-    /// are 0-1. Each constant cites its source line in docs/confluence/confluence-design.md.
+    /// are 0-1. Each constant cites its source line in docs/confluence/confluence-design.md; the few numbers the spec
+    /// leaves open cite the docs/DECISIONS.md entry that chose them instead.
     /// </summary>
     public static class GlobalRules
     {
@@ -39,6 +41,28 @@ namespace Confluence.Core.Rules
             public const float DodgeDurationSec = 0.22f;       // spec L82
             public const float DodgeCooldownSec = 1.6f;        // spec L82
             public const bool DodgeGrantsInvulnerability = false; // spec L82
+
+            // The values below are not stated in the spec; they are chosen once in docs/DECISIONS.md D-024 so the
+            // Sim motor, client prediction, and the arena validator share one source.
+            public const float Gravity = 18f;                  // D-024, m/s^2 (Laboratory may edit it, spec L69)
+            public const float JumpApexHeight = 1.1f;          // D-024, feet rise of a standing common jump
+            public const float GroundAcceleration = 50f;       // D-024, m/s^2 toward the wished velocity
+            public const float AirAcceleration = 8f;           // D-024, m/s^2: "moderate" air steering (spec L80)
+            public const float CrouchSpeed = 2.75f;            // D-024, m/s (half of walk speed)
+            public const float CapsuleRadius = 0.4f;           // D-024
+            public const float StandingHeight = 1.8f;          // D-024, capsule height
+            public const float CrouchHeight = 1.2f;            // D-024, capsule height
+            public const float StandingEyeHeight = 1.6f;       // D-024, sightline origin above the feet
+            public const float CrouchEyeHeight = 1.0f;         // D-024
+            public const float StepHeight = 0.35f;             // D-024, automatic step-up; standardized stair risers stay below it
+            public const float MaxCommonJumpLedge = 1.0f;      // D-024, highest ledge a common jump must reach (MOD-030, MOD-066)
+            public const float MaxCommonJumpGap = 1.5f;        // D-024, widest gap a traversable route may contain (spec L312, MOD-033)
+
+            /// <summary>Vertical launch speed of the common jump: sqrt(2 g h), about 6.29 m/s (D-024).</summary>
+            public static readonly float JumpLaunchSpeed = MathF.Sqrt(2f * Gravity * JumpApexHeight);
+
+            /// <summary>Time a common jump spends airborne over level ground, about 0.70 s (D-024).</summary>
+            public static readonly float JumpAirtimeSec = 2f * JumpLaunchSpeed / Gravity;
         }
 
         /// <summary>Cast phases, interruption, recovery, and telegraphs (spec §3 L86-L96, L472, L525, L535).</summary>
@@ -204,7 +228,7 @@ namespace Confluence.Core.Rules
         {
             // Representation (L136)
             public const float CellSize = 0.5f;             // spec L136
-            public const int MaxUnitsPerCell = 4;           // spec L136, L163: water, heat, frost, dust 0-4
+            public const int MaxUnitsPerCell = 4;           // spec L136, L163: water, heat, frost, dust (and sand, growth: D-025) 0-4
             public const int MaxActiveCellRegions = 128;    // spec L136, L421
 
             // Default deposits (L163)
@@ -250,8 +274,9 @@ namespace Confluence.Core.Rules
             // Water and anchored conductor (L150)
             public const int GroundedBranchesRedirected = 1; // spec L150
 
-            // Wind and steam or dust (L151)
-            public const int WindTranslateMinStrength = 1;   // spec L151 "above strength 1"; read as >= 1 (BIO gusts of strength 1 move clouds)
+            // Wind and steam or dust (L151). Strength 1 never moves a cloud under the global rule; the few
+            // strength-1 sources that do (SPL-105, SPL-110, BIO-011) state it locally (D-023).
+            public const int WindTranslateStrengthAbove = 1; // spec L151 "above strength 1": translation needs strength > 1
             public const float WindTranslateMaxSpeed = 3f;   // spec L151, m/s
             public const int WindDisperseMinStrength = 2;    // spec L151
             public const float WindDisperseSliceDepth = 2f;  // spec L151, front slice
@@ -286,6 +311,25 @@ namespace Confluence.Core.Rules
 
             // Arcane and active field (L161)
             public const int DispelLayersRemoved = 1;        // spec L161
+
+            /// <summary>
+            /// Fixed processing order for reactions eligible in the same simulation step (spec L165). Each phase
+            /// consumes its inputs before the next phase reads the cell.
+            /// </summary>
+            public static readonly IReadOnlyList<ReactionPhase> ReactionOrder = Array.AsReadOnly(new[]
+            {
+                ReactionPhase.DirectImpacts,
+                ReactionPhase.MaterialConsumption,
+                ReactionPhase.ElectricityConnectivity,
+                ReactionPhase.WindMovement,
+                ReactionPhase.Decay,
+            });
+
+            /// <summary>A directional force translates steam or dust only above strength 1 (spec L151).</summary>
+            public static bool WindTranslatesClouds(int strength) => strength > WindTranslateStrengthAbove;
+
+            /// <summary>Strength 2 or more also disperses the front 2 m slice (spec L151).</summary>
+            public static bool WindDispersesClouds(int strength) => strength >= WindDisperseMinStrength;
         }
 
         /// <summary>Destruction, props, knockback, falls, and recall (spec §4 L171-L175).</summary>
@@ -303,6 +347,7 @@ namespace Confluence.Core.Rules
             public const float AnchoredPropPushDistance = 0f; // spec L173: anchored objects only shake or take durability damage
 
             public const float DamagingPropVelocityCap = 8f; // spec L173, m/s
+            public const float PropDamageImpactSpeedMin = 3f; // D-024: "above their threshold" (spec L173), relative impact speed in m/s, every mass class
 
             public const float LightPropCollisionDamage = 5f;   // spec L173
             public const float MediumPropCollisionDamage = 15f; // spec L173
@@ -377,9 +422,9 @@ namespace Confluence.Core.Rules
             public const bool BypassesMitigation = true;    // spec L51: shields, resistance, guard, healing reduction, invulnerability
             public const bool TriggersItemsOrAugments = false; // spec L51
 
-            public const float ContractionStartSec = 55f;   // spec L48
+            public const float ContractionStartSec = 55f;   // spec L48; the radial profile between start and end is a smoothstep (D-026)
             public const float ContractionEndSec = 85f;     // spec L48
-            public const float FinalFloorDiameter = 8f;     // spec L48, L678
+            public const float FinalFloorDiameter = 8f;     // spec L48 "8 meter duel space", L678 "eight-meter floor": a diameter (D-027)
             public const float FinalFloorRadius = FinalFloorDiameter / 2f;
             public const float FinalCoverWarningSec = 83f;  // spec L678
             public const float FinalCoverRetireSec = 85f;   // spec L678
@@ -458,6 +503,15 @@ namespace Confluence.Core.Rules
             public const int EquippedSpellSlots = 6;      // spec L292, L462: defaults to the first six
             public const int Signatures = 1;              // spec L292
             public const int Passives = 1;                // spec L292
+            public const int EquipmentSlots = 8;          // spec L210: main focus, sidearm, armor, clothing, boots, two trinkets, consumable
+        }
+
+        /// <summary>Wizard roster (spec §6 L462-L464).</summary>
+        public static class Roster
+        {
+            public const int WizardCount = 36;            // spec L462
+            public const int DifficultyMin = 1;           // spec L464: a learning estimate from 1 to 5
+            public const int DifficultyMax = 5;           // spec L464
         }
 
         /// <summary>Match structure for Conclave and Duel (spec §2 L34-L71, L391).</summary>

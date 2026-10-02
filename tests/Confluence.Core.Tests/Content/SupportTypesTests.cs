@@ -39,6 +39,51 @@ namespace Confluence.Core.Tests.Content
             Assert.Equal(rows, Feats.All.Select(f => (f.Id, f.Description)));
         }
 
+        private static readonly string[] NumberWords = { "zero", "one", "two", "three", "four", "five" };
+        private static readonly string[] Multiplicatives = { "never", "once", "twice" };
+
+        // Every number written in a description, as typed: digits, number words, and "N percent" as a fraction.
+        private static System.Collections.Generic.List<float> NumbersIn(string text)
+        {
+            var numbers = new System.Collections.Generic.List<float>();
+            foreach (Match m in Regex.Matches(text, @"(\d+(?:\.\d+)?)( percent)?|\b(one|two|three|four|five)\b|\b(once|twice)\b"))
+            {
+                if (m.Groups[1].Success)
+                {
+                    float value = float.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+                    numbers.Add(m.Groups[2].Success ? value / 100f : value);
+                }
+                else
+                {
+                    numbers.Add(m.Groups[3].Success ? Array.IndexOf(NumberWords, m.Groups[3].Value) : Array.IndexOf(Multiplicatives, m.Groups[4].Value));
+                }
+            }
+            return numbers;
+        }
+
+        [Fact]
+        public void TypedThresholdsAreExactlyTheNumbersOfEachDescription()
+        {
+            // The feat tracker reads the typed parameters; they must be the description's numbers and nothing else.
+            foreach (var feat in Feats.All)
+            {
+                var typed = new[] { feat.Count, feat.Amount, feat.WindowSec, feat.MinRangeMeters, feat.HealthFractionBelow }
+                    .Where(v => v != 0f).OrderBy(v => v).ToArray();
+                Assert.Equal(NumbersIn(feat.Description).OrderBy(v => v).ToArray(), typed);
+            }
+
+            Assert.Equal(100f, Feats.Get("FEAT-001").Amount);
+            Assert.Equal(2, Feats.Get("FEAT-008").Count);
+            Assert.Equal(1f, Feats.Get("FEAT-008").WindowSec);
+            Assert.Equal(15f, Feats.Get("FEAT-009").MinRangeMeters);
+            Assert.Equal(0.25f, Feats.Get("FEAT-010").HealthFractionBelow);
+            Assert.True(Feats.Get("FEAT-010").RequiresWin);
+            Assert.Equal(2, Feats.Get("FEAT-012").Count);
+            Assert.Equal(30f, Feats.Get("FEAT-012").Amount);
+            Assert.True(Feats.Get("FEAT-016").RequiresWin);
+            Assert.Equal(new[] { "FEAT-010", "FEAT-016" }, Feats.All.Where(f => f.RequiresWin).Select(f => f.Id));
+        }
+
         [Fact]
         public void EveryFeatReferencedByContentExists()
         {
@@ -51,6 +96,7 @@ namespace Confluence.Core.Tests.Content
         }
     }
 
+    [Collection("StructuralDeltas")] // shares the process-wide registry with CatalogueValidatorTests
     public class StructuralDeltasTests : IDisposable
     {
         public StructuralDeltasTests()

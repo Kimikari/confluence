@@ -9,7 +9,7 @@ namespace Confluence.Core.Arena
     /// final circle (spec L48, L306, L674-L679). The contour is a star-shaped polar curve: InitialRadii holds N
     /// radii sampled clockwise from +Z (sample i at yaw i * 360 / N, the same yaw convention as everything else),
     /// interpolated linearly in angle. Between ContractStartSec and ContractEndSec every radius moves radially
-    /// toward FinalRadius along a smoothstep, so the final contour is exactly the FinalRadius circle.
+    /// toward FinalRadius along a smoothstep (DECISIONS D-026), so the final contour is exactly the FinalRadius circle.
     /// Times are seconds since combat started. The boundary is a vertical column; Y is ignored.
     /// </summary>
     public sealed class BoundaryContour
@@ -56,7 +56,7 @@ namespace Confluence.Core.Arena
         /// <summary>Yaw of sample i in degrees.</summary>
         public float SampleAngleDeg(int index) => SampleCount == 0 ? 0f : index * 360f / SampleCount;
 
-        /// <summary>Contraction progress: 0 before ContractStartSec, 1 from ContractEndSec, smoothstep between.</summary>
+        /// <summary>Contraction progress: 0 before ContractStartSec, 1 from ContractEndSec, smoothstep between (D-026).</summary>
         public float ContractionProgress(float timeSec) => CMath.SmoothStep(ContractStartSec, ContractEndSec, timeSec);
 
         /// <summary>Initial (uncontracted) radius at a yaw, interpolated linearly between samples.</summary>
@@ -130,8 +130,10 @@ namespace Confluence.Core.Arena
         }
 
         /// <summary>
-        /// Returns p if it is at least margin inside the boundary; otherwise moves it radially toward the center
-        /// until it is (keeping Y). A margin larger than the local inradius yields the center.
+        /// Returns p if it is at least margin inside the boundary; otherwise the farthest point on the segment from
+        /// the center to p that is (keeping Y), so forced displacement and teleports stop as close to their intended
+        /// destination as the boundary allows (spec L51). Only a margin larger than the inradius along that ray
+        /// yields the center.
         /// </summary>
         public Vec3 ClampInside(Vec3 p, float timeSec, float margin)
         {
@@ -144,35 +146,55 @@ namespace Confluence.Core.Arena
             float dx = p.X - Center.X;
             float dz = p.Z - Center.Z;
             float dist = MathF.Sqrt(dx * dx + dz * dz);
+            Vec3 center = new Vec3(Center.X, p.Y, Center.Z);
             if (dist < CMath.Epsilon)
             {
-                return new Vec3(Center.X, p.Y, Center.Z);
+                return center;
             }
 
             float ux = dx / dist;
             float uz = dz / dist;
             float angle = CMath.YawOf(new Vec3(dx, 0f, dz));
-            float target = MathF.Min(dist, RadiusAt(angle, timeSec) - margin);
-            const float tolerance = 1e-4f;
-            for (int iteration = 0; iteration < 8; iteration++)
+
+            // The Euclidean distance never exceeds the radial margin, so nothing beyond RadiusAt - margin qualifies.
+            float hi = MathF.Min(dist, RadiusAt(angle, timeSec) - margin);
+            if (hi <= 0f)
             {
-                if (target <= 0f)
-                {
-                    return new Vec3(Center.X, p.Y, Center.Z);
-                }
-
-                Vec3 q = new Vec3(Center.X + ux * target, p.Y, Center.Z + uz * target);
-                float sd = SignedDistance(q, timeSec);
-                if (sd >= margin - tolerance)
-                {
-                    return q;
-                }
-
-                target -= MathF.Max(margin - sd, tolerance);
+                return center;
             }
 
-            return new Vec3(Center.X, p.Y, Center.Z);
+            Vec3 candidate = new Vec3(Center.X + ux * hi, p.Y, Center.Z + uz * hi);
+            if (SignedDistance(candidate, timeSec) >= margin - ClampTolerance)
+            {
+                return candidate;
+            }
+
+            if (SignedDistance(center, timeSec) < margin - ClampTolerance)
+            {
+                return center; // the margin exceeds the inradius along this ray
+            }
+
+            // Bisect for the largest qualifying radius on [0, hi]: lo always qualifies, hi never does.
+            float lo = 0f;
+            for (int iteration = 0; iteration < ClampBisectionSteps; iteration++)
+            {
+                float mid = 0.5f * (lo + hi);
+                Vec3 q = new Vec3(Center.X + ux * mid, p.Y, Center.Z + uz * mid);
+                if (SignedDistance(q, timeSec) >= margin - ClampTolerance)
+                {
+                    lo = mid;
+                }
+                else
+                {
+                    hi = mid;
+                }
+            }
+
+            return new Vec3(Center.X + ux * lo, p.Y, Center.Z + uz * lo);
         }
+
+        private const float ClampTolerance = 1e-4f;
+        private const int ClampBisectionSteps = 24; // about 1e-6 of the initial bracket (sub-millimeter at 48 m)
 
         /// <summary>Exact enclosed area at a time (the polar curve is piecewise linear in angle).</summary>
         public float AreaAt(float timeSec)

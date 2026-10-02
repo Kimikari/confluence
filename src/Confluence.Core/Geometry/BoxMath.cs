@@ -282,32 +282,39 @@ namespace Confluence.Core.Geometry
         /// Moving sphere (center from o along unit direction d for up to maxT meters) against the box.
         /// The rounded box equals the union of three axis-expanded boxes and twelve edge capsules, so the
         /// earliest entry among those shapes is the exact first contact. Returns false if starting in contact.
+        /// localNormal comes from the primitive that was hit (a face axis or the edge-to-center direction), so it
+        /// stays exact for a zero radius, where the contact center lies on the box surface.
         /// </summary>
-        public static bool SweepSphere(Vec3 o, Vec3 d, float maxT, float r, Vec3 half, out float t)
+        public static bool SweepSphere(Vec3 o, Vec3 d, float maxT, float r, Vec3 half, out float t, out Vec3 localNormal)
         {
             t = float.PositiveInfinity;
+            localNormal = Vec3.Zero;
             bool hit = false;
 
-            if (Raycast(o, d, new Vec3(half.X + r, half.Y, half.Z), maxT, out float tx, out _, out bool inX) && !inX && tx < t)
+            if (Raycast(o, d, new Vec3(half.X + r, half.Y, half.Z), maxT, out float tx, out Vec3 nx, out bool inX) && !inX && tx < t)
             {
                 t = tx;
+                localNormal = nx;
                 hit = true;
             }
 
-            if (Raycast(o, d, new Vec3(half.X, half.Y + r, half.Z), maxT, out float ty, out _, out bool inY) && !inY && ty < t)
+            if (Raycast(o, d, new Vec3(half.X, half.Y + r, half.Z), maxT, out float ty, out Vec3 ny, out bool inY) && !inY && ty < t)
             {
                 t = ty;
+                localNormal = ny;
                 hit = true;
             }
 
-            if (Raycast(o, d, new Vec3(half.X, half.Y, half.Z + r), maxT, out float tz, out _, out bool inZ) && !inZ && tz < t)
+            if (Raycast(o, d, new Vec3(half.X, half.Y, half.Z + r), maxT, out float tz, out Vec3 nz, out bool inZ) && !inZ && tz < t)
             {
                 t = tz;
+                localNormal = nz;
                 hit = true;
             }
 
             if (r > 0f)
             {
+                int edge = -1;
                 for (int i = 0; i < EdgeCorners.Length; i += 2)
                 {
                     Vec3 e0 = Corner(EdgeCorners[i], half);
@@ -315,8 +322,16 @@ namespace Confluence.Core.Geometry
                     if (Intersections.RayCapsule(o, d, e0, e1, r, maxT, out float tc) && tc < t)
                     {
                         t = tc;
+                        edge = i;
                         hit = true;
                     }
+                }
+
+                if (edge >= 0)
+                {
+                    Vec3 center = o + d * t;
+                    Vec3 onEdge = Intersections.ClosestPointOnSegment(center, Corner(EdgeCorners[edge], half), Corner(EdgeCorners[edge + 1], half));
+                    localNormal = (center - onEdge).NormalizedOr(-d);
                 }
             }
 

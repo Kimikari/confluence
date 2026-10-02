@@ -7,8 +7,9 @@ namespace Confluence.Core.Content
 {
     /// <summary>
     /// Semantic validation of a loaded catalogue (spec L435 "Automated validation rejects dangling IDs, invalid tiers,
-    /// unsupported slots, negative durations/costs, missing counterplay"). Errors break binding rules; warnings mark
-    /// departures from descriptive distribution statements in the design text.
+    /// unsupported slots, negative durations/costs, missing counterplay"), plus acquisition witnesses and draft-schedule
+    /// feasibility for every eligibility condition (spec L600, L643; DECISIONS D-032). Errors break binding rules;
+    /// warnings mark departures from descriptive statements in the design text and are recorded in DECISIONS.md.
     /// </summary>
     public sealed class CatalogueValidator
     {
@@ -45,10 +46,21 @@ namespace Confluence.Core.Content
 
         private readonly Catalogue _cat;
         private readonly List<ValidationIssue> _issues = new List<ValidationIssue>();
+        private readonly PredicateWitnessFinder _witness;
+        private readonly AcquisitionPlanner _planner;
+        private readonly HashSet<string> _spellTags = new HashSet<string>(StringComparer.Ordinal);
+        private readonly HashSet<string> _equipmentTags = new HashSet<string>(StringComparer.Ordinal);
+        private readonly HashSet<string> _augmentTags = new HashSet<string>(StringComparer.Ordinal);
 
         private CatalogueValidator(Catalogue catalogue)
         {
             _cat = catalogue;
+            _witness = new PredicateWitnessFinder(catalogue);
+            _planner = new AcquisitionPlanner(catalogue);
+            foreach (var spell in catalogue.Spells) _spellTags.UnionWith(spell.Tags);
+            foreach (var delta in StructuralDeltas.All) _spellTags.UnionWith(delta.AddTags);
+            foreach (var item in catalogue.EquipmentItems) _equipmentTags.UnionWith(item.Tags);
+            foreach (var augment in catalogue.Augments) _augmentTags.UnionWith(augment.Tags);
         }
 
         public static List<ValidationIssue> Validate(Catalogue catalogue)
@@ -70,6 +82,8 @@ namespace Confluence.Core.Content
             CheckTransformationDistribution();
             CheckSharedDistribution();
             CheckPredicates();
+            CheckWitnesses();
+            CheckAcquisitionSchedules();
             CheckDependencyGraph();
             CheckExclusiveGroups();
             CheckBuilds();
@@ -173,7 +187,9 @@ namespace Confluence.Core.Content
                 if (!SameSequence(wizard.DefaultSpellIds, expectedDefaults))
                     Error(ValidationChecks.DefaultSpells, wizard.Id, "default_spell_ids must be the first six spell_ids (spec L292)");
 
-                if (wizard.Difficulty < 1) Warning(ValidationChecks.NumericRange, wizard.Id, "difficulty " + wizard.Difficulty + " is below 1");
+                if (wizard.Difficulty < GlobalRules.Roster.DifficultyMin || wizard.Difficulty > GlobalRules.Roster.DifficultyMax)
+                    Error(ValidationChecks.NumericRange, wizard.Id, "difficulty " + wizard.Difficulty + " is outside "
+                        + GlobalRules.Roster.DifficultyMin + "-" + GlobalRules.Roster.DifficultyMax + " (spec L464)");
             }
 
             foreach (var spell in _cat.Spells)
@@ -198,12 +214,28 @@ namespace Confluence.Core.Content
                     if (!spell.HasTag("school:" + school)) Error(ValidationChecks.SpellTags, spell.Id, "missing namespaced tag 'school:" + school + "' (spec L533)");
                     if (!spell.HasTag(school)) Warning(ValidationChecks.SpellTags, spell.Id, "missing bare school affinity tag '" + school + "' (spec L533)");
                 }
-                if (spell.IsDamaging && spell.HasValidChannel && spell.Channel != DamageChannel.None)
-                {
-                    string tag = "channel:" + ContentText.ChannelName(spell.Channel);
-                    if (!spell.HasTag(tag)) Error(ValidationChecks.SpellTags, spell.Id, "damaging spell lacks channel tag '" + tag + "' (spec L533)");
-                }
+                if (spell.HasValidChannel) CheckChannelTags(spell);
             }
+        }
+
+        /// <summary>A damaging spell has a damage channel and exactly its channel tag; channel tags never disagree with the record (spec L533, L637).</summary>
+        private void CheckChannelTags(SpellDef spell)
+        {
+            string expected = spell.Channel == DamageChannel.None ? null : "channel:" + ContentText.ChannelName(spell.Channel);
+            if (spell.IsDamaging)
+            {
+                if (expected == null) Error(ValidationChecks.SpellTags, spell.Id, "damaging spell has damage_channel 'none' (spec L533)");
+                else if (!spell.HasTag(expected)) Error(ValidationChecks.SpellTags, spell.Id, "damaging spell lacks channel tag '" + expected + "' (spec L533)");
+            }
+
+            foreach (var tag in spell.Tags)
+            {
+                if (!tag.StartsWith("channel:", StringComparison.Ordinal) || tag == expected) continue;
+                Error(ValidationChecks.SpellTags, spell.Id, "tag '" + tag + "' contradicts damage_channel '" + spell.DamageChannel + "' (spec L533)");
+            }
+
+            if (!spell.IsDamaging && expected != null && spell.HasTag(expected))
+                Warning(ValidationChecks.SpellTags, spell.Id, "non-damaging spell carries '" + expected + "', so damage predicates would count it (spec L637)");
         }
 
         private void NonNegative(string id, string field, double value)
@@ -262,8 +294,8 @@ namespace Confluence.Core.Content
             {
                 if (!augment.HasValidRarity)
                     Error(ValidationChecks.AugmentRarity, augment.Id, "rarity '" + augment.Rarity + "' is not Silver, Gold, or Prismatic");
-                if (augment.Cost.HasValue && augment.Cost.Value < 0)
-                    Error(ValidationChecks.AugmentCost, augment.Id, "cost " + Num(augment.Cost.Value) + " is negative; augments are free (spec L594)");
+                if (augment.Cost.HasValue && augment.Cost.Value != 0)
+                    Error(ValidationChecks.AugmentCost, augment.Id, "cost " + Num(augment.Cost.Value) + " is not 0; every augmentation and rank is free (spec L594)");
                 if (augment.IsTransformation) CheckTransformation(augment);
                 else
                 {
@@ -310,15 +342,23 @@ namespace Confluence.Core.Content
                     Warning(ValidationChecks.Transformation, id, "target_spell_name '" + augment.TargetSpellName + "' differs from " + spellId + " name '" + spell.Name + "'");
             }
 
+            // The owner and target must be compulsory: at the root or reached through 'all' only (spec L286, L288, L508).
             bool hasWizard = false;
             bool hasSpell = false;
-            foreach (var node in augment.Eligibility.DescendantsAndSelf())
+            foreach (var node in PredicatePaths.MandatoryNodes(augment.Eligibility))
             {
                 if (node is WizardLeaf w && w.WizardId == wizardId) hasWizard = true;
                 if (node is SpellLeaf s && s.SpellId == spellId) hasSpell = true;
             }
-            if (!hasWizard) Error(ValidationChecks.Transformation, id, "eligibility does not require its wizard " + wizardId);
-            if (!hasSpell) Error(ValidationChecks.Transformation, id, "eligibility does not require its target spell " + spellId);
+            if (!hasWizard) Error(ValidationChecks.Transformation, id, "eligibility does not require its wizard " + wizardId + " on every path (spec L508)");
+            if (!hasSpell) Error(ValidationChecks.Transformation, id, "eligibility does not require its target spell " + spellId + " on every path (spec L286)");
+
+            foreach (var node in augment.Eligibility.DescendantsAndSelf())
+                if (node is WizardLeaf other && other.WizardId != wizardId)
+                    Error(ValidationChecks.Transformation, id, "eligibility names another wizard " + other.WizardId + "; only " + wizardId + " can draft it (spec L288)");
+            foreach (var node in PredicatePaths.NodesUnderNot(augment.Eligibility))
+                if ((node is WizardLeaf w && w.WizardId == wizardId) || (node is SpellLeaf s && s.SpellId == spellId))
+                    Error(ValidationChecks.Transformation, id, "eligibility negates its own " + (node is WizardLeaf ? "wizard " + wizardId : "target spell " + spellId));
 
             if (augment.RawSpellId != null && augment.RawSpellId != spellId)
                 Error(ValidationChecks.Transformation, id, "raw_spell_id " + augment.RawSpellId + " differs from target " + spellId);
@@ -362,30 +402,21 @@ namespace Confluence.Core.Content
 
             var unconditional = new int[3];
             int compound = 0;
-            int allAny = 0;
-            var notRoots = new List<string>();
             foreach (var augment in _cat.SharedAugments)
             {
                 var root = augment.Eligibility;
                 if (augment.IsUnconditional && augment.TryGetRarity(out var rarity)) unconditional[(int)rarity]++;
-                if (root.IsComposite) compound++;
-                if (root.Kind == PredicateKind.All || root.Kind == PredicateKind.Any) allAny++;
-                if (root.Kind == PredicateKind.Not) notRoots.Add(augment.Id);
+                if (root.Kind == PredicateKind.All || root.Kind == PredicateKind.Any) compound++;
             }
             for (int i = 0; i < 3; i++)
             {
                 if (unconditional[i] == UnconditionalPoolTarget[i]) continue;
                 Warning(ValidationChecks.UnconditionalPool, "augments", "unconditional shared " + (Rarity)i + " pool has " + unconditional[i] + "; spec L596 states " + UnconditionalPoolTarget[i]);
             }
-            // A compound acquisition predicate is one whose root is all, any, or not.
+            // A compound acquisition predicate combines conditions: its root is all or any. A 'not' over one leaf is a
+            // single negated condition (AUG-241, AUG-245, AUG-246), so the supplied 121 matches spec L596 (D-031).
             if (compound != CompoundSharedPredicates)
-            {
-                string detail = allAny == CompoundSharedPredicates
-                    ? "; roots of all/any alone number " + allAny + ", matching the spec, and the remaining " + notRoots.Count + " are 'not' roots [" + Join(notRoots) + "]"
-                    : "; all/any roots alone number " + allAny;
-                Warning(ValidationChecks.CompoundPredicates, "augments", compound + " shared augments have a compound (all/any/not) eligibility root; spec L596 states "
-                    + CompoundSharedPredicates + detail);
-            }
+                Warning(ValidationChecks.CompoundPredicates, "augments", compound + " shared augments have an all/any eligibility root; spec L596 states " + CompoundSharedPredicates);
         }
 
         // ---- Predicates -------------------------------------------------------------------------
@@ -432,32 +463,71 @@ namespace Confluence.Core.Content
                         if (f.AtLeast < 1) Error(ValidationChecks.PredicateValue, owner, "feat " + f.FeatId + " at_least must be at least 1");
                         break;
                     case AugmentTagCountLeaf t:
+                    {
                         References(owner, t.Ids, "augment_tag_count");
                         PositiveCount(owner, "augment_tag_count", t.Count);
+                        ParentCapacity(owner, "augment_tag_count", t.Count);
+                        AugmentTag(owner, "augment_tag_count", t.Tag);
+                        if (t.IsRestricted)
+                        {
+                            int tagged = CountListed(t.Ids, a => a.HasTag(t.Tag), false);
+                            if (t.Count > tagged)
+                                Error(ValidationChecks.PredicateValue, owner, "augment_tag_count needs " + t.Count + " parents tagged '" + t.Tag + "' but only " + tagged + " listed IDs carry it");
+                        }
                         break;
+                    }
                     case AugmentRankCountLeaf r:
                         References(owner, r.Ids, "augment_rank_count");
                         PositiveCount(owner, "augment_rank_count", r.Count);
+                        ParentCapacity(owner, "augment_rank_count", r.Count);
                         if (r.RankAtLeast < 1 || r.RankAtLeast > maxRank) Error(ValidationChecks.PredicateValue, owner, "augment_rank_count rank_at_least " + r.RankAtLeast + " is outside 1-" + maxRank);
                         if (r.IsRestricted && r.Count > r.Ids.Count) Error(ValidationChecks.PredicateValue, owner, "augment_rank_count needs " + r.Count + " parents from only " + r.Ids.Count + " listed IDs");
+                        if (r.IsRestricted && r.DistinctFamilies)
+                        {
+                            int families = CountListed(r.Ids, a => true, true);
+                            if (r.Count > families)
+                                Error(ValidationChecks.PredicateValue, owner, "augment_rank_count needs " + r.Count + " different families but the listed IDs span " + families);
+                        }
                         break;
                     case AugmentFamilyCountLeaf fam:
                         References(owner, fam.Ids, "augment_family_count");
                         PositiveCount(owner, "augment_family_count", fam.Count);
+                        ParentCapacity(owner, "augment_family_count", fam.Count);
+                        if (fam.IsRestricted)
+                        {
+                            int families = CountListed(fam.Ids, a => true, true);
+                            if (fam.Count > families)
+                                Error(ValidationChecks.PredicateValue, owner, "augment_family_count needs " + fam.Count + " families but the listed IDs span " + families + " (spec L635)");
+                        }
                         break;
                     case EquippedTagLeaf et:
+                    {
                         PositiveCount(owner, "equipped_tag", et.Count);
+                        int equippable = _witness.EquipmentTagCapacity(et.Tag);
+                        if (et.Count > GlobalRules.Loadout.EquipmentSlots)
+                            Error(ValidationChecks.PredicateValue, owner, "equipped_tag needs " + et.Count + " items; there are " + GlobalRules.Loadout.EquipmentSlots + " equipment slots (spec L210)");
+                        else if (!_equipmentTags.Contains(et.Tag))
+                            Warning(ValidationChecks.PredicateWitness, owner, "equipped_tag '" + et.Tag + "' is carried by no equipment definition");
+                        else if (et.Count > equippable)
+                            Error(ValidationChecks.PredicateValue, owner, "equipped_tag needs " + et.Count + " items tagged '" + et.Tag + "' but at most "
+                                + equippable + " can be equipped together (one per Unique group and slot; spec L210)");
                         break;
+                    }
                     case SpellTagLeaf st:
                         PositiveCount(owner, "spell_tag", st.Count);
                         SpellSlots(owner, "spell_tag", st.Count, spellSlots);
+                        SpellTag(owner, "spell_tag", st.Tag);
+                        foreach (var tag in st.Also) SpellTag(owner, "spell_tag also", tag);
                         break;
                     case SpellTagExactLeaf ste:
                         SpellSlots(owner, "spell_tag_exact", ste.Count, spellSlots);
+                        SpellTag(owner, "spell_tag_exact", ste.Tag);
                         break;
                     case SpellDistinctTagsLeaf sd:
                         PositiveCount(owner, "spell_distinct_tags", sd.Count);
                         if (sd.Count > sd.Set.Count) Error(ValidationChecks.PredicateValue, owner, "spell_distinct_tags needs " + sd.Count + " distinct tags from a set of " + sd.Set.Count);
+                        foreach (var tag in sd.Set) SpellTag(owner, "spell_distinct_tags", tag);
+                        foreach (var tag in sd.Also) SpellTag(owner, "spell_distinct_tags also", tag);
                         break;
                     case SpellCooldownCountLeaf sc:
                         PositiveCount(owner, "spell_cooldown_count", sc.Count);
@@ -496,6 +566,92 @@ namespace Confluence.Core.Content
             }
         }
 
+        // ---- Acquisition witnesses and draft schedules ----------------------------------------------
+
+        /// <summary>
+        /// Every eligibility, and every alternative of a compulsory 'any', has a concrete acquisition witness: some wizard
+        /// and legal loadout can meet it (spec L643). Impossible conditions are errors; conditions that only lack a
+        /// spell profile not yet supplied by a declared structural delta are warnings.
+        /// </summary>
+        private void CheckWitnesses()
+        {
+            var allWizards = new List<string>();
+            foreach (var wizard in _cat.Wizards) allWizards.Add(wizard.Id);
+
+            foreach (var augment in _cat.Augments)
+            {
+                IReadOnlyList<string> wizards = augment.IsTransformation
+                    ? (augment.OwnerWizardId != null ? new[] { augment.OwnerWizardId } : new string[0])
+                    : (IReadOnlyList<string>)allWizards;
+                CheckWitness(augment.Id, augment.Eligibility, wizards, true);
+            }
+
+            foreach (var build in _cat.Builds)
+                if (build.Eligibility != null && _cat.WizardsById.ContainsKey(build.WizardId))
+                    CheckWitness(build.Id, build.Eligibility, new[] { build.WizardId }, false); // a demonstration for one wizard
+        }
+
+        private void CheckWitness(string owner, Predicate root, IReadOnlyList<string> wizards, bool checkAlternatives)
+        {
+            if (wizards.Count == 0) return; // ownership errors are reported elsewhere
+            Witness overall = _witness.Best(root, wizards, owner, out _);
+            if (overall != Witness.Found)
+            {
+                // Name the compulsory leaves that no candidate wizard can meet.
+                List<Predicate> failing = null;
+                foreach (var wizard in wizards)
+                {
+                    var forWizard = _witness.FailingMandatoryLeaves(root, wizard, owner);
+                    if (failing == null) failing = forWizard;
+                    else failing.RemoveAll(leaf => !forWizard.Contains(leaf));
+                }
+                string detail = failing == null || failing.Count == 0 ? "" : "; unmet: " + JoinLeaves(failing);
+                if (overall == Witness.None)
+                    Error(ValidationChecks.PredicateWitness, owner, "eligibility can never be met by " + WizardScope(wizards) + detail + " (spec L643)");
+                else
+                    Warning(ValidationChecks.PredicateWitness, owner, "no base spell profile or declared structural delta meets the eligibility for "
+                        + WizardScope(wizards) + detail + " (spec L543, L643)");
+                return;
+            }
+
+            if (!checkAlternatives) return;
+            foreach (var node in PredicatePaths.MandatoryNodes(root))
+            {
+                if (!(node is AnyNode any)) continue;
+                for (int i = 0; i < any.Children.Count; i++)
+                {
+                    Witness branch = _witness.Best(root, wizards, owner, any, any.Children[i], out _);
+                    if (branch == Witness.Found) continue;
+                    string text = "alternative " + (i + 1) + " " + any.Children[i] + " has no acquisition witness for " + WizardScope(wizards);
+                    if (branch == Witness.None) Error(ValidationChecks.PredicateWitness, owner, text + " (spec L643)");
+                    else Warning(ValidationChecks.PredicateWitness, owner, text + " among base spell profiles and declared structural deltas (spec L543, L643)");
+                }
+            }
+        }
+
+        private static string WizardScope(IReadOnlyList<string> wizards) => wizards.Count == 1 ? wizards[0] : "any wizard";
+
+        private static string JoinLeaves(List<Predicate> leaves)
+        {
+            var parts = new List<string>();
+            for (int i = 0; i < leaves.Count && i < 3; i++) parts.Add(leaves[i].ToString());
+            if (leaves.Count > 3) parts.Add("...");
+            return string.Join(", ", parts);
+        }
+
+        /// <summary>Each augment's compulsory parents, ranks, and round/feat thresholds fit each mode's draft schedule (spec L600, L643).</summary>
+        private void CheckAcquisitionSchedules()
+        {
+            foreach (var augment in _cat.Augments)
+            {
+                foreach (MatchMode mode in new[] { MatchMode.Conclave, MatchMode.Duel })
+                {
+                    if (!_planner.CanAcquire(augment, mode, out string reason))
+                        Error(ValidationChecks.AcquisitionSchedule, augment.Id, reason);
+                }
+            }
+        }
+
         private void Reference(string owner, string id, ContentType expected, string leaf)
         {
             if (_cat.TryGet(id, out var def))
@@ -522,6 +678,34 @@ namespace Confluence.Core.Content
             if (count > slots) Error(ValidationChecks.PredicateValue, owner, leaf + " needs " + count + " equipped spells but only " + slots + " can be equipped");
         }
 
+        // A child occupies one of the six augment slots, so at most five other augments can qualify it.
+        private void ParentCapacity(string owner, string leaf, int count)
+        {
+            int parents = _cat.RuleFlags.MaxAugmentSlots - 1;
+            if (count > parents)
+                Error(ValidationChecks.PredicateValue, owner, leaf + " needs " + count + " active parents but at most " + parents + " fit beside the child in " + _cat.RuleFlags.MaxAugmentSlots + " slots (spec L231)");
+        }
+
+        private int CountListed(IReadOnlyList<string> ids, Func<AugmentDef, bool> filter, bool distinctFamilies)
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var id in ids)
+                if (_cat.TryGetAugment(id, out var augment) && filter(augment)) seen.Add(distinctFamilies ? augment.Family : augment.Id);
+            return seen.Count;
+        }
+
+        private void SpellTag(string owner, string leaf, string tag)
+        {
+            if (!_spellTags.Contains(tag))
+                Warning(ValidationChecks.PredicateWitness, owner, leaf + " tag '" + tag + "' is carried by no spell or declared structural delta");
+        }
+
+        private void AugmentTag(string owner, string leaf, string tag)
+        {
+            if (!_augmentTags.Contains(tag))
+                Warning(ValidationChecks.PredicateWitness, owner, leaf + " tag '" + tag + "' is carried by no augment");
+        }
+
         private static int CategoryCapacity(EquipmentCategory category)
         {
             switch (category)
@@ -537,21 +721,13 @@ namespace Confluence.Core.Content
         private void CheckParentRarity(AugmentDef augment)
         {
             if (!augment.TryGetRarity(out var childRarity)) return;
-            foreach (var leaf in MandatoryAugmentLeaves(augment.Eligibility))
+            foreach (var node in PredicatePaths.MandatoryNodes(augment.Eligibility))
             {
+                if (!(node is AugmentLeaf leaf)) continue;
                 if (!_cat.TryGetAugment(leaf.AugmentId, out var parent) || !parent.TryGetRarity(out var parentRarity)) continue;
                 if (parentRarity > childRarity)
                     Error(ValidationChecks.ParentRarity, augment.Id, "requires " + parent.Id + " (" + parentRarity + ") before its own first acquisition at " + childRarity + " (spec L247)");
             }
-        }
-
-        private static IEnumerable<AugmentLeaf> MandatoryAugmentLeaves(Predicate node)
-        {
-            if (node is AugmentLeaf leaf) yield return leaf;
-            else if (node is AllNode all)
-                foreach (var child in all.Children)
-                    foreach (var found in MandatoryAugmentLeaves(child))
-                        yield return found;
         }
 
         // ---- Dependency graph -------------------------------------------------------------------
@@ -699,6 +875,7 @@ namespace Confluence.Core.Content
                     Error(ValidationChecks.Build, id, "lists " + build.AugmentIds.Count + " augments; there are " + rules.MaxAugmentSlots + " augment slots (spec L231)");
                 var rarity = new int[3];
                 var transformed = new HashSet<string>(StringComparer.Ordinal);
+                var exclusive = new Dictionary<string, string>(StringComparer.Ordinal);
                 int transformations = 0;
                 foreach (var augmentId in build.AugmentIds)
                 {
@@ -708,6 +885,12 @@ namespace Confluence.Core.Content
                         continue;
                     }
                     if (augment.TryGetRarity(out var r)) rarity[(int)r]++;
+                    if (augment.HasExclusiveGroup)
+                    {
+                        if (exclusive.TryGetValue(augment.ExclusiveGroup, out string first))
+                            Error(ValidationChecks.Build, id, "equips " + first + " and " + augmentId + " from exclusive group '" + augment.ExclusiveGroup + "', which cannot be equipped together (spec L510)");
+                        else exclusive.Add(augment.ExclusiveGroup, augmentId);
+                    }
                     if (!augment.IsTransformation) continue;
                     transformations++;
                     if (wizardExists && augment.OwnerWizardId != wizard.Id)

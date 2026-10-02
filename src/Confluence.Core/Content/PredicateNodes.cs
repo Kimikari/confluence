@@ -529,7 +529,10 @@ namespace Confluence.Core.Content
 
     // ---- Match history (acquisition-only) ---------------------------------------------------
 
-    /// <summary>The scheduled round number meets the threshold (acquisition-only).</summary>
+    /// <summary>
+    /// The scheduled round number meets the threshold (acquisition-only). Thresholds use the Conclave schedule;
+    /// evaluators compare against <see cref="Schedules.PredicateRound"/> so Duel maps by draft (DECISIONS D-029).
+    /// </summary>
     public sealed class RoundAtLeastLeaf : Predicate
     {
         public RoundAtLeastLeaf(int round)

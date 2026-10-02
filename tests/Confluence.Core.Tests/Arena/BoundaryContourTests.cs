@@ -205,6 +205,63 @@ namespace Confluence.Core.Tests.Arena
             }
         }
 
+        private static BoundaryContour FromRadii(Func<int, float> radius)
+        {
+            var contour = new BoundaryContour { Center = Center, InitialRadii = new float[BoundaryContour.DefaultSampleCount] };
+            for (int i = 0; i < contour.InitialRadii.Length; i++)
+            {
+                contour.InitialRadii[i] = radius(i);
+            }
+
+            return contour;
+        }
+
+        public static TheoryData<string> SlantedContours() => new TheoryData<string> { "irregular", "wavy", "stepped" };
+
+        private static BoundaryContour Slanted(string name)
+        {
+            switch (name)
+            {
+                case "irregular": return Irregular(9);
+                case "wavy": return FromRadii(i => 20f + 3f * MathF.Sin(1.7f * i));
+                default: return FromRadii(i => (i / 4) % 2 == 0 ? 12f : 14.5f); // 2.5 m square-wave steps
+            }
+        }
+
+        [Theory]
+        [MemberData(nameof(SlantedContours))]
+        public void ClampInside_Stops_At_The_Farthest_Legal_Point_On_The_Ray(string name)
+        {
+            // Regression: a fixed-step walk used to give up on slanted contour segments and return the center,
+            // 10-20 m from the destination, although a legal point existed within a meter or two.
+            BoundaryContour contour = Slanted(name);
+            const float margin = 0.3f;
+            const float t = 0f;
+            for (float yaw = -180f; yaw < 180f; yaw += 2.5f)
+            {
+                Vec3 p = At(yaw, contour.RadiusAt(yaw, t) + 0.2f, 1f);
+                Vec3 q = contour.ClampInside(p, t, margin);
+                Assert.True(contour.SignedDistance(q, t) >= margin - 1e-3f);
+                float reached = Vec3.DistanceXZ(q, Center);
+
+                // Brute force: the farthest radius on the ray that keeps the margin, scanning inward in 5 mm steps.
+                Vec2 dir = (p - Center).XZ().Normalized();
+                float best = 0f;
+                for (float s = MathF.Min(Vec3.DistanceXZ(p, Center), contour.RadiusAt(yaw, t) - margin); s > 0f; s -= 0.005f)
+                {
+                    Vec3 probe = Center + new Vec3(dir.X * s, 1f, dir.Y * s);
+                    if (contour.SignedDistance(probe, t) >= margin)
+                    {
+                        best = s;
+                        break;
+                    }
+                }
+
+                Assert.True(reached >= best - 0.006f, $"{name} yaw {yaw}: clamped to {reached} m, but {best} m keeps the margin");
+                Assert.True(reached > 5f, $"{name} yaw {yaw}: snapped toward the center ({reached} m)");
+            }
+        }
+
         [Fact]
         public void ClampInside_Final_Circle_And_Oversized_Margin()
         {

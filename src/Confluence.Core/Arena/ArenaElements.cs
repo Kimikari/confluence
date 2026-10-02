@@ -75,8 +75,10 @@ namespace Confluence.Core.Arena
     }
 
     /// <summary>
-    /// Initial material cells on the ground: water beds, heat, frost, dust, conductors, growth (spec L136, L664,
-    /// L668). A rectangle (Center, HalfSize, YawDeg) unless Radius &gt; 0, in which case a circle.
+    /// Initial material cells on the ground: water beds, heat, frost, dust, sand, growth, conductors (spec L136, L664,
+    /// L668). A rectangle (Center, HalfSize, YawDeg) unless Radius &gt; 0, in which case a circle. Unit counts are
+    /// per covered cell, 0 to GlobalRules.World.MaxUnitsPerCell. Biome text such as "Sand 2 Water 1" (BIO-007) or
+    /// "Heat 1 and Growth 1" (BIO-002) maps one-to-one onto these counts (DECISIONS D-025).
     /// </summary>
     public sealed class MaterialPatch
     {
@@ -92,6 +94,13 @@ namespace Confluence.Core.Arena
         public int Heat { get; set; }
         public int Frost { get; set; }
         public int Dust { get; set; }
+
+        /// <summary>Sand units; equal water and sand units make damp sand (spec L154).</summary>
+        public int Sand { get; set; }
+
+        /// <summary>Combustible growth units; at least two heat units ignite growth (spec L153).</summary>
+        public int Growth { get; set; }
+
         public MaterialFlags Flags { get; set; }
 
         /// <summary>Map-owned natural source; does not count against either player's field allocation (spec L668).</summary>
@@ -105,6 +114,17 @@ namespace Confluence.Core.Arena
         public bool IsCircle => Radius > 0f;
 
         public float Area => IsCircle ? MathF.PI * Radius * Radius : 4f * HalfSize.X * HalfSize.Y;
+
+        /// <summary>True when every unit count lies within 0..GlobalRules.World.MaxUnitsPerCell (spec L136, L163).</summary>
+        public bool HasValidUnits
+        {
+            get
+            {
+                return InRange(Water) && InRange(Heat) && InRange(Frost) && InRange(Dust) && InRange(Sand) && InRange(Growth);
+            }
+        }
+
+        private static bool InRange(int units) => units >= 0 && units <= GlobalRules.World.MaxUnitsPerCell;
 
         public bool ContainsXZ(Vec2 point)
         {

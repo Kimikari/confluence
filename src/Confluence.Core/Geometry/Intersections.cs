@@ -348,18 +348,203 @@ namespace Confluence.Core.Geometry
             Vec3 dir = delta / len;
             Vec3 o = box.ToLocal(start);
             Vec3 d = box.DirectionToLocal(dir);
-            if (!BoxMath.SweepSphere(o, d, len, radius, box.HalfExtents, out float t))
+            if (!BoxMath.SweepSphere(o, d, len, radius, box.HalfExtents, out float t, out Vec3 localNormal))
             {
                 hit = default;
                 return false;
             }
 
             t01 = t / len;
-            Vec3 center = start + dir * t;
-            Vec3 normal = (center - box.ClosestPoint(center)).NormalizedOr(-dir);
-            hit = new RayHit(t, center, normal);
+            hit = new RayHit(t, start + dir * t, box.DirectionToWorld(localNormal));
             return true;
         }
+
+        /// <summary>
+        /// Moving sphere vs ramp wedge: exact first contact of a sphere whose center travels from start to end.
+        /// The wedge grown by the radius is the union of one prism per face (the face swept outward along its
+        /// normal) and one capsule per edge, so the earliest entry among those shapes is the exact first contact.
+        /// Returns t01 = 0 with the separation normal when the sphere already touches the ramp.
+        /// hit.Point is the sphere center at contact; hit.Normal points out of the ramp.
+        /// </summary>
+        public static bool SphereSweepVsRamp(Vec3 start, Vec3 end, float radius, RampShape ramp, out float t01, out RayHit hit)
+        {
+            if (ramp.Rise <= 0f)
+            {
+                return SphereSweepVsYawBox(start, end, radius, ramp.Box, out t01, out hit);
+            }
+
+            t01 = 0f;
+            radius = MathF.Max(0f, radius);
+            Vec3 closest = ramp.ClosestPoint(start);
+            if (Vec3.DistanceSquared(start, closest) <= radius * radius || ramp.Contains(start))
+            {
+                Vec3 n = CapsuleVsRamp(new Capsule(start, start, radius), ramp, out Penetration pen) && pen.Depth > 0f
+                    ? pen.Normal
+                    : (start - closest).NormalizedOr(Vec3.Up);
+                hit = new RayHit(0f, start, n);
+                return true;
+            }
+
+            Vec3 delta = end - start;
+            float len = delta.Length();
+            if (len < CMath.Epsilon)
+            {
+                hit = default;
+                return false;
+            }
+
+            Vec3 dir = delta / len;
+            Vec3 o = ramp.Box.ToLocal(start);
+            Vec3 d = ramp.Box.DirectionToLocal(dir);
+            float t;
+            Vec3 localNormal;
+            bool found = radius > 0f
+                ? SweepSphereLocal(ramp, o, d, len, radius, out t, out localNormal)
+                : ramp.LocalRaycast(o, d, len, out t, out localNormal, out _);
+            if (!found)
+            {
+                hit = default;
+                return false;
+            }
+
+            t01 = t / len;
+            hit = new RayHit(t, start + dir * t, ramp.Box.DirectionToWorld(localNormal));
+            return true;
+        }
+
+        // Ramp sweep in the ramp's local frame with a unit direction; the start is known to be clear of the ramp.
+        private static bool SweepSphereLocal(RampShape ramp, Vec3 o, Vec3 d, float maxT, float r, out float t, out Vec3 normal)
+        {
+            t = float.PositiveInfinity;
+            normal = Vec3.Zero;
+            Vec3 h = ramp.Box.HalfExtents;
+            ramp.CrossSection(out Vec2 p0, out Vec2 p1, out Vec2 p2, out Vec2 p3);
+            Vec2[] section = { p0, p1, p2, p3 }; // counter-clockwise in (z, y)
+
+            // Prisms over the four faces that run along local X (bottom, high end, slope, low end).
+            for (int i = 0; i < 4; i++)
+            {
+                Vec2 a = section[i];
+                Vec2 b = section[(i + 1) & 3];
+                Vec2 edge = b - a;
+                float length = edge.Length();
+                if (length < CMath.Epsilon)
+                {
+                    continue; // the low end vanishes on a full wedge
+                }
+
+                Vec3 u = ZY(edge / length);
+                Vec3 m = OutwardNormal(edge / length);
+                Vec3 a3 = ZY(a);
+                float tEnter = float.NegativeInfinity;
+                float tExit = float.PositiveInfinity;
+                if (ClipHalfSpace(o, d, Vec3.Right, h.X, ref tEnter, ref tExit)
+                    && ClipHalfSpace(o, d, Vec3.Left, h.X, ref tEnter, ref tExit)
+                    && ClipHalfSpace(o, d, m, Vec3.Dot(m, a3) + r, ref tEnter, ref tExit)
+                    && ClipHalfSpace(o, d, -m, -Vec3.Dot(m, a3), ref tEnter, ref tExit)
+                    && ClipHalfSpace(o, d, -u, -Vec3.Dot(u, a3), ref tEnter, ref tExit)
+                    && ClipHalfSpace(o, d, u, Vec3.Dot(u, a3) + length, ref tEnter, ref tExit))
+                {
+                    ConsiderEntry(tEnter, tExit, maxT, m, ref t, ref normal);
+                }
+            }
+
+            // Prisms over the two cross-section faces at local x = +hx and -hx.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                Vec3 n = new Vec3(side, 0f, 0f);
+                float tEnter = float.NegativeInfinity;
+                float tExit = float.PositiveInfinity;
+                bool inside = ClipHalfSpace(o, d, n, h.X + r, ref tEnter, ref tExit)
+                    && ClipHalfSpace(o, d, -n, -h.X, ref tEnter, ref tExit);
+                for (int i = 0; i < 4 && inside; i++)
+                {
+                    Vec2 edge = section[(i + 1) & 3] - section[i];
+                    float length = edge.Length();
+                    if (length < CMath.Epsilon)
+                    {
+                        continue;
+                    }
+
+                    Vec3 m = OutwardNormal(edge / length);
+                    inside = ClipHalfSpace(o, d, m, Vec3.Dot(m, ZY(section[i])), ref tEnter, ref tExit);
+                }
+
+                if (inside)
+                {
+                    ConsiderEntry(tEnter, tExit, maxT, n, ref t, ref normal);
+                }
+            }
+
+            // Capsules around the twelve edges (a vanished low end leaves a sphere at the shared vertex).
+            int bestEdge = -1;
+            for (int i = 0; i < RampEdgeVertices.Length; i += 2)
+            {
+                Vec3 e0 = ramp.LocalVertex(RampEdgeVertices[i]);
+                Vec3 e1 = ramp.LocalVertex(RampEdgeVertices[i + 1]);
+                if (RayCapsule(o, d, e0, e1, r, maxT, out float tc) && tc < t)
+                {
+                    t = tc;
+                    bestEdge = i;
+                }
+            }
+
+            if (bestEdge >= 0)
+            {
+                Vec3 center = o + d * t;
+                Vec3 onEdge = ClosestPointOnSegment(center, ramp.LocalVertex(RampEdgeVertices[bestEdge]), ramp.LocalVertex(RampEdgeVertices[bestEdge + 1]));
+                normal = (center - onEdge).NormalizedOr(-d);
+            }
+
+            return t <= maxT;
+        }
+
+        private static void ConsiderEntry(float tEnter, float tExit, float maxT, Vec3 faceNormal, ref float best, ref Vec3 normal)
+        {
+            if (tExit < 0f || tEnter > maxT)
+            {
+                return;
+            }
+
+            float entry = MathF.Max(0f, tEnter);
+            if (entry < best)
+            {
+                best = entry;
+                normal = faceNormal;
+            }
+        }
+
+        // Cyrus-Beck clip of the ray o + t d against the half-space dot(n, p) <= offset.
+        private static bool ClipHalfSpace(Vec3 o, Vec3 d, Vec3 n, float offset, ref float tEnter, ref float tExit)
+        {
+            float denom = Vec3.Dot(n, d);
+            float dist = offset - Vec3.Dot(n, o);
+            if (MathF.Abs(denom) < 1e-12f)
+            {
+                return dist >= 0f;
+            }
+
+            float t = dist / denom;
+            if (denom < 0f)
+            {
+                if (t > tEnter)
+                {
+                    tEnter = t;
+                }
+            }
+            else if (t < tExit)
+            {
+                tExit = t;
+            }
+
+            return tEnter <= tExit;
+        }
+
+        // A (z, y) cross-section vector as a local 3D direction.
+        private static Vec3 ZY(Vec2 zy) => new Vec3(0f, zy.Y, zy.X);
+
+        // Outward normal of a counter-clockwise (z, y) cross-section edge with unit direction e.
+        private static Vec3 OutwardNormal(Vec2 e) => new Vec3(0f, -e.X, e.Y);
 
         /// <summary>Sphere overlap with a box (normal points out of the box).</summary>
         public static bool SphereVsYawBox(Vec3 center, float radius, YawBox box, out Penetration penetration)

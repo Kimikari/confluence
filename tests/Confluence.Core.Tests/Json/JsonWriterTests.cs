@@ -88,6 +88,12 @@ namespace Confluence.Core.Tests.Json
         [InlineData(1e21, "1E+21")]
         [InlineData(1.5e-7, "1.5E-07")]
         [InlineData(double.MaxValue, "1.7976931348623157E+308")]
+        [InlineData(0.1 + 0.7, "0.7999999999999999")] // Mono's "R" (G15, else G17) would print 0.79999999999999993
+        [InlineData(0.0001, "0.0001")]
+        [InlineData(0.00001, "1E-05")]
+        [InlineData(123456789012345.6, "123456789012345.6")]
+        [InlineData(double.Epsilon, "5E-324")]
+        [InlineData(2.2250738585072014E-308, "2.2250738585072014E-308")]
         public void FormatsNumbersInvariantlyAndRoundTrips(double value, string expected)
         {
             var previous = Thread.CurrentThread.CurrentCulture;
@@ -102,6 +108,32 @@ namespace Confluence.Core.Tests.Json
             {
                 Thread.CurrentThread.CurrentCulture = previous;
             }
+        }
+
+        [Fact]
+        public void NumberTextMatchesShortestRoundTripOnRandomDoubles()
+        {
+            // FormatNumber computes the text itself; on .NET Core 3.0+ "R" is the shortest round-trip form, so the two
+            // must agree everywhere, and the text must parse back to the same bits.
+            var rng = new Confluence.Core.Random.Rng(77);
+            int compared = 0;
+            for (int i = 0; i < 60000; i++)
+            {
+                double value = i % 2 == 0
+                    ? BitConverter.Int64BitsToDouble((long)rng.NextULong())
+                    : Math.Round(rng.NextDouble() * 1000.0, rng.NextInt(1, 12)) * Math.Pow(10, rng.NextInt(-12, 12));
+                if (double.IsNaN(value) || double.IsInfinity(value) || (value == Math.Floor(value) && Math.Abs(value) <= 9007199254740992d))
+                {
+                    continue;
+                }
+
+                string text = JsonWriter.FormatNumber(value);
+                Assert.Equal(value.ToString("R", CultureInfo.InvariantCulture), text);
+                Assert.Equal(BitConverter.DoubleToInt64Bits(value), BitConverter.DoubleToInt64Bits(double.Parse(text, CultureInfo.InvariantCulture)));
+                compared++;
+            }
+
+            Assert.True(compared > 50000, $"only {compared} values compared");
         }
 
         [Fact]

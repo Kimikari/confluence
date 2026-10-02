@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using Confluence.Core.Random;
 
 namespace Confluence.Core.Rules
 {
     /// <summary>
-    /// Round-indexed tables: Resolve loss, income, equipment tiers, augment draft rarity, and arena diameters.
+    /// Round-indexed tables: Resolve loss, income, equipment tiers, augment draft rarity, the seeded arena diameter
+    /// sequence, and the round numbers eligibility predicates read.
     /// Round numbers are 1-based scheduled round numbers. Conclave bracket rounds continue after round 12
     /// (tier 4 stays unlocked, spec L38).
     /// </summary>
@@ -164,6 +166,151 @@ namespace Confluence.Core.Rules
             }
 
             return false;
+        }
+
+        // ---- Round numbers seen by eligibility predicates ------------------------------------
+
+        /// <summary>
+        /// The round number a round_at_least leaf compares against (DECISIONS D-029). Thresholds are authored on the
+        /// Conclave schedule; Duel compresses the same six drafts into rounds 1-6 (spec L225), so Duel round r maps
+        /// to the Conclave round that holds the same draft, 2r - 1. Conclave rounds are used unchanged.
+        /// </summary>
+        public static int PredicateRound(MatchMode mode, int scheduledRound)
+        {
+            switch (mode)
+            {
+                case MatchMode.Conclave: return scheduledRound;
+                case MatchMode.Duel: return scheduledRound < 1 ? scheduledRound : 2 * scheduledRound - 1;
+                default: throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown match mode.");
+            }
+        }
+
+        /// <summary>
+        /// Completed duels guaranteed to exist before the draft of a scheduled round: one per earlier round (spec L44-L49,
+        /// L280). Duel replays can add more; feat thresholds are validated against this guaranteed count.
+        /// </summary>
+        public static int CompletedDuelsBefore(int scheduledRound) => Math.Max(0, scheduledRound - 1);
+
+        // ---- Arena diameter sequence (spec L306) -----------------------------------------------
+
+        private static readonly int[][] DiameterOrders = BuildDiameterOrders();
+
+        /// <summary>
+        /// True when a 24 m round is followed immediately by a 48 m round: the "back-to-back extremes of 24 then 48"
+        /// the size schedule avoids (spec L306, DECISIONS D-028).
+        /// </summary>
+        public static bool IsExtremeStep(int previousDiameter, int nextDiameter) =>
+            previousDiameter == GlobalRules.Arena.DiameterSmall && nextDiameter == GlobalRules.Arena.DiameterHuge;
+
+        /// <summary>
+        /// One balanced set of four consecutive rounds: every diameter once, in a seeded order without a 24 m to
+        /// 48 m step, including the step from the previous set's last round (pass 0 when there is none). If no order
+        /// avoided the step the set itself would take precedence ("unless needed to preserve the four-round set").
+        /// </summary>
+        public static int[] ArenaDiameterSet(Rng rng, int previousDiameter)
+        {
+            if (rng == null) throw new ArgumentNullException(nameof(rng));
+            var legal = new List<int[]>(DiameterOrders.Length);
+            foreach (var order in DiameterOrders)
+                if (!IsExtremeStep(previousDiameter, order[0]) && !HasExtremeStep(order)) legal.Add(order);
+            if (legal.Count == 0) legal.AddRange(DiameterOrders);
+            return (int[])legal[rng.NextInt(legal.Count)].Clone();
+        }
+
+        /// <summary>
+        /// Diameters for scheduled rounds 1..roundCount (index 0 is round 1), built from consecutive balanced sets of
+        /// four (spec L306). A tied-round replay keeps its round's diameter. The caller supplies the match's arena stream.
+        /// </summary>
+        public static int[] ArenaDiameterSequence(Rng rng, int roundCount)
+        {
+            if (rng == null) throw new ArgumentNullException(nameof(rng));
+            if (roundCount < 0) throw new ArgumentOutOfRangeException(nameof(roundCount), roundCount, "Round count cannot be negative.");
+            var result = new int[roundCount];
+            int previous = 0;
+            int setSize = GlobalRules.Arena.DiameterSetRounds;
+            for (int start = 0; start < roundCount; start += setSize)
+            {
+                int[] set = ArenaDiameterSet(rng, previous);
+                for (int i = 0; i < setSize && start + i < roundCount; i++) result[start + i] = set[i];
+                previous = set[setSize - 1];
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Checks a diameter sequence against spec L306: every complete set of four rounds uses each diameter once, a
+        /// trailing partial set repeats none, every value is a legal diameter, and no 24 m round precedes a 48 m round.
+        /// </summary>
+        public static bool IsBalancedDiameterSequence(IReadOnlyList<int> diameters, out string reason)
+        {
+            if (diameters == null) throw new ArgumentNullException(nameof(diameters));
+            int setSize = GlobalRules.Arena.DiameterSetRounds;
+            for (int start = 0; start < diameters.Count; start += setSize)
+            {
+                var seen = new HashSet<int>();
+                for (int i = start; i < start + setSize && i < diameters.Count; i++)
+                {
+                    if (!IsValidArenaDiameter(diameters[i]))
+                    {
+                        reason = "round " + (i + 1) + " has illegal diameter " + diameters[i];
+                        return false;
+                    }
+
+                    if (!seen.Add(diameters[i]))
+                    {
+                        reason = "round " + (i + 1) + " repeats diameter " + diameters[i] + " within its four-round set";
+                        return false;
+                    }
+                }
+            }
+
+            for (int i = 1; i < diameters.Count; i++)
+            {
+                if (IsExtremeStep(diameters[i - 1], diameters[i]))
+                {
+                    reason = "rounds " + i + " and " + (i + 1) + " step from 24 m straight to 48 m";
+                    return false;
+                }
+            }
+
+            reason = null;
+            return true;
+        }
+
+        private static bool HasExtremeStep(int[] order)
+        {
+            for (int i = 1; i < order.Length; i++)
+                if (IsExtremeStep(order[i - 1], order[i])) return true;
+            return false;
+        }
+
+        // All 24 orders of the four diameters, in lexicographic order so draws are stable across runtimes.
+        private static int[][] BuildDiameterOrders()
+        {
+            var result = new List<int[]>();
+            var current = new int[ArenaDiameters.Count];
+            var used = new bool[ArenaDiameters.Count];
+            Permute(0, current, used, result);
+            return result.ToArray();
+        }
+
+        private static void Permute(int depth, int[] current, bool[] used, List<int[]> result)
+        {
+            if (depth == current.Length)
+            {
+                result.Add((int[])current.Clone());
+                return;
+            }
+
+            for (int i = 0; i < ArenaDiameters.Count; i++)
+            {
+                if (used[i]) continue;
+                used[i] = true;
+                current[depth] = ArenaDiameters[i];
+                Permute(depth + 1, current, used, result);
+                used[i] = false;
+            }
         }
     }
 }

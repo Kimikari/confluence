@@ -181,5 +181,81 @@ namespace Confluence.Core.Tests.Rules
             Assert.Throws<NotSupportedException>(() => asList[0] = 99);
             Assert.Throws<NotSupportedException>(() => ((IList<int>)Schedules.ConclaveDraftRounds).Add(13));
         }
+
+        [Fact]
+        public void Diameter_Sequences_Are_Balanced_Without_24_Then_48()
+        {
+            // Spec L306: one of each diameter per consecutive four scheduled rounds, seeded, no 24 m round followed by 48 m.
+            var orders = new HashSet<string>();
+            for (ulong seed = 1; seed <= 400; seed++)
+            {
+                int[] sequence = Schedules.ArenaDiameterSequence(new Confluence.Core.Random.Rng(seed), 15); // 12 regular + 3 bracket
+                Assert.True(Schedules.IsBalancedDiameterSequence(sequence, out string reason), reason);
+                for (int set = 0; set + 4 <= 12; set += 4)
+                {
+                    Assert.Equal(new[] { 24, 32, 40, 48 }, sequence.Skip(set).Take(4).OrderBy(d => d));
+                }
+
+                for (int i = 1; i < sequence.Length; i++)
+                {
+                    Assert.False(sequence[i - 1] == 24 && sequence[i] == 48, $"seed {seed} round {i + 1}");
+                }
+
+                orders.Add(string.Join(",", sequence.Take(4)));
+            }
+
+            // 24 orders of four diameters, minus the 6 with 24 directly before 48.
+            Assert.Equal(18, orders.Count);
+        }
+
+        [Fact]
+        public void Diameter_Sequences_Are_Reproducible_From_The_Seed()
+        {
+            int[] a = Schedules.ArenaDiameterSequence(new Confluence.Core.Random.Rng(42), 12);
+            int[] b = Schedules.ArenaDiameterSequence(new Confluence.Core.Random.Rng(42), 12);
+            Assert.Equal(a, b);
+            Assert.Empty(Schedules.ArenaDiameterSequence(new Confluence.Core.Random.Rng(42), 0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => Schedules.ArenaDiameterSequence(new Confluence.Core.Random.Rng(1), -1));
+
+            // A set never opens with 48 m right after a set that closed with 24 m.
+            for (ulong seed = 1; seed <= 200; seed++)
+            {
+                int[] set = Schedules.ArenaDiameterSet(new Confluence.Core.Random.Rng(seed), 24);
+                Assert.NotEqual(48, set[0]);
+            }
+        }
+
+        [Fact]
+        public void Balanced_Sequence_Check_Rejects_Each_Violation()
+        {
+            Assert.True(Schedules.IsBalancedDiameterSequence(new[] { 32, 24, 40, 48, 40, 48, 24, 32 }, out _));
+            Assert.False(Schedules.IsBalancedDiameterSequence(new[] { 32, 24, 48, 40 }, out string reason));
+            Assert.Contains("24 m straight to 48 m", reason);
+            Assert.False(Schedules.IsBalancedDiameterSequence(new[] { 32, 32, 40, 48 }, out reason));
+            Assert.Contains("repeats", reason);
+            Assert.False(Schedules.IsBalancedDiameterSequence(new[] { 32, 36, 40, 48 }, out reason));
+            Assert.Contains("illegal", reason);
+            Assert.False(Schedules.IsBalancedDiameterSequence(new[] { 32, 40, 48, 24, 48 }, out reason)); // across the set boundary
+            Assert.True(Schedules.IsBalancedDiameterSequence(new[] { 48, 24 }, out _)); // only 24 then 48 is excluded
+        }
+
+        [Fact]
+        public void Predicate_Rounds_Map_Duel_Drafts_To_Conclave_Rounds()
+        {
+            // D-029: round_at_least thresholds are authored on the Conclave schedule.
+            for (int draft = 0; draft < 6; draft++)
+            {
+                int conclave = Schedules.ConclaveDraftRounds[draft];
+                int duel = Schedules.DuelDraftRounds[draft];
+                Assert.Equal(conclave, Schedules.PredicateRound(MatchMode.Conclave, conclave));
+                Assert.Equal(conclave, Schedules.PredicateRound(MatchMode.Duel, duel));
+                Schedules.DraftRarity(MatchMode.Conclave, conclave, out Rarity a);
+                Schedules.DraftRarity(MatchMode.Duel, duel, out Rarity b);
+                Assert.Equal(a, b);
+            }
+
+            Assert.Equal(0, Schedules.CompletedDuelsBefore(1));
+            Assert.Equal(4, Schedules.CompletedDuelsBefore(5));
+        }
     }
 }

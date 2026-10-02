@@ -172,6 +172,24 @@ namespace Confluence.Core.Tests.Arena
         }
 
         [Fact]
+        public void Material_Patch_Records_Sand_And_Growth_Units()
+        {
+            // BIO-007: "Two 2 m beds start with Sand 2 Water 1"; BIO-002: "root beds start with Heat 1 and Growth 1" (D-025).
+            var silt = new MaterialPatch { Radius = 1f, Sand = 2, Water = 1, Flags = MaterialFlags.Sand | MaterialFlags.Water, NaturalSource = true };
+            var orchard = new MaterialPatch { Radius = 1f, Heat = 1, Growth = 1, Flags = MaterialFlags.Growth | MaterialFlags.Combustible, NaturalSource = true };
+            Assert.True(silt.HasValidUnits);
+            Assert.True(orchard.HasValidUnits);
+
+            MaterialPatch copy = silt.Clone();
+            copy.Sand = 0;
+            Assert.Equal(2, silt.Sand);
+
+            Assert.False(new MaterialPatch { Growth = GlobalRules.World.MaxUnitsPerCell + 1 }.HasValidUnits);
+            Assert.False(new MaterialPatch { Sand = -1 }.HasValidUnits);
+            Assert.True(new MaterialPatch { Water = 4, Heat = 4, Frost = 4, Dust = 4, Sand = 4, Growth = 4 }.HasValidUnits);
+        }
+
+        [Fact]
         public void Report_Failure_Marks_Invalid()
         {
             var report = new ArenaValidationReport { Valid = true };

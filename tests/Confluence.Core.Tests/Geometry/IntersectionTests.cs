@@ -299,6 +299,128 @@ namespace Confluence.Core.Tests.Geometry
         }
 
         [Fact]
+        public void SphereSweepVsYawBox_Point_Sweep_Reports_The_Face_Normal()
+        {
+            // A zero radius puts the contact center on the surface, where center - closest point is zero.
+            var box = new YawBox(Vec3.Zero, Vec3.One, 0f);
+            Vec3 start = new Vec3(-5f, 3f, 0.2f);
+            Vec3 end = new Vec3(5f, -3f, 0.2f);
+            Assert.True(Intersections.SphereSweepVsYawBox(start, end, 0f, box, out float t01, out RayHit hit));
+            Assert.True(box.Raycast(Ray.FromTo(start, end), Vec3.Distance(start, end), out RayHit ray));
+            AssertVec(Vec3.Left, hit.Normal);
+            AssertVec(ray.Point, hit.Point, 1e-3f);
+            Assert.Equal(ray.Distance / Vec3.Distance(start, end), t01, 4);
+
+            // Rotated box and a tiny radius: still the face normal, not the reversed sweep direction.
+            var rotated = new YawBox(new Vec3(1f, 0f, 2f), new Vec3(1f, 0.5f, 2f), 35f);
+            Vec3 face = rotated.ToWorld(new Vec3(-1f, 0.1f, 0.3f));
+            Vec3 from = face - rotated.Right * 3f + new Vec3(0f, 1f, 0f);
+            Assert.True(Intersections.SphereSweepVsYawBox(from, from + (face - from) * 2f, 1e-7f, rotated, out _, out hit));
+            AssertVec(-rotated.Right, hit.Normal, 1e-3f);
+        }
+
+        private static RampShape RandomRamp(Rng rng)
+        {
+            var half = new Vec3(rng.Range(0.3f, 2f), rng.Range(0.3f, 1.5f), rng.Range(0.5f, 3f));
+            var box = new YawBox(RandomPoint(rng, 1f), half, rng.Range(-180f, 180f));
+            // Half the cases are full wedges (Rise equals the box height), half have a raised low end.
+            float rise = rng.NextBool() ? half.Y * 2f : rng.Range(0.2f, half.Y * 2f);
+            return new RampShape(box, rise);
+        }
+
+        [Fact]
+        public void SphereSweepVsRamp_Slope_Face_Edge_And_Start_In_Contact()
+        {
+            RampShape ramp = RampShape.Wedge(Vec3.Zero, 1f, 2f, 0f, 2f); // rises 2 m over 4 m toward +Z
+            Vec3 slopeNormal = ramp.SurfaceNormal;
+
+            // Dropping onto the middle of the slope: the center stops one radius above the surface along its normal.
+            Assert.True(Intersections.SphereSweepVsRamp(new Vec3(0f, 5f, 0f), new Vec3(0f, -5f, 0f), 0.5f, ramp, out float t01, out RayHit hit));
+            AssertVec(slopeNormal, hit.Normal, 1e-4f);
+            Assert.Equal(0.5f, Vec3.Distance(hit.Point, ramp.ClosestPoint(hit.Point)), 3);
+
+            // Hitting the vertical high end from +Z.
+            Assert.True(Intersections.SphereSweepVsRamp(new Vec3(0f, 1f, 6f), new Vec3(0f, 1f, -6f), 0.25f, ramp, out t01, out hit));
+            AssertVec(Vec3.Forward, hit.Normal);
+            Assert.Equal(2.25f, hit.Point.Z, 4);
+
+            // Grazing over the top edge from the high side lands on the rounded edge.
+            Assert.True(Intersections.SphereSweepVsRamp(new Vec3(0f, 2.3f, 6f), new Vec3(0f, 2.3f, -6f), 0.5f, ramp, out t01, out hit));
+            Assert.True(hit.Normal.Y > 0f && hit.Normal.Z > 0f, $"edge normal {hit.Normal}");
+            Assert.Equal(0.5f, Vec3.Distance(hit.Point, ramp.ClosestPoint(hit.Point)), 3);
+
+            // Passing beside the ramp misses; starting in contact reports t = 0.
+            Assert.False(Intersections.SphereSweepVsRamp(new Vec3(1.6f, 0.5f, -6f), new Vec3(1.6f, 0.5f, 6f), 0.5f, ramp, out _, out _));
+            Assert.True(Intersections.SphereSweepVsRamp(new Vec3(1.3f, 0.5f, 0f), new Vec3(6f, 0.5f, 0f), 0.5f, ramp, out t01, out hit));
+            Assert.Equal(0f, t01);
+            AssertVec(Vec3.Right, hit.Normal);
+
+            // A zero radius matches the ramp raycast, normal included.
+            Assert.True(Intersections.SphereSweepVsRamp(new Vec3(0f, 5f, 0f), new Vec3(0f, -5f, 0f), 0f, ramp, out t01, out hit));
+            Assert.True(ramp.Raycast(new Ray(new Vec3(0f, 5f, 0f), Vec3.Down), 10f, out RayHit ray));
+            Assert.Equal(ray.Distance, hit.Distance, 4);
+            AssertVec(ray.Normal, hit.Normal);
+
+            // A ramp without rise is its box.
+            var flat = new RampShape(new YawBox(Vec3.Zero, Vec3.One, 0f), 0f);
+            Assert.True(Intersections.SphereSweepVsRamp(new Vec3(-10f, 0f, 0f), new Vec3(10f, 0f, 0f), 0.5f, flat, out t01, out hit));
+            Assert.Equal(8.5f / 20f, t01, 4);
+        }
+
+        [Fact]
+        public void SphereSweepVsRamp_Matches_Sampling_On_Random_Cases()
+        {
+            var rng = new Rng(20261002);
+            int hits = 0;
+            for (int trial = 0; trial < 300; trial++)
+            {
+                RampShape ramp = RandomRamp(rng);
+                float radius = rng.Range(0.05f, 0.8f);
+                Vec3 start = RandomPoint(rng, 6f);
+                Vec3 end = RandomPoint(rng, 6f);
+                if (Vec3.Distance(start, ramp.ClosestPoint(start)) <= radius)
+                {
+                    continue;
+                }
+
+                const int samples = 20000;
+                float sampledT = -1f;
+                float minDistance = float.PositiveInfinity;
+                for (int i = 0; i <= samples; i++)
+                {
+                    float t = i / (float)samples;
+                    Vec3 p = Vec3.LerpUnclamped(start, end, t);
+                    float distance = Vec3.Distance(p, ramp.ClosestPoint(p));
+                    minDistance = MathF.Min(minDistance, distance);
+                    if (distance <= radius && sampledT < 0f)
+                    {
+                        sampledT = t;
+                    }
+                }
+
+                bool hit = Intersections.SphereSweepVsRamp(start, end, radius, ramp, out float t01, out RayHit info);
+                float step = 1f / samples;
+                float stepMeters = Vec3.Distance(start, end) * step;
+                if (sampledT < 0f)
+                {
+                    Assert.True(!hit || minDistance <= radius + stepMeters, $"trial {trial}: unexpected hit, path stays {minDistance - radius} m clear");
+                    continue;
+                }
+
+                hits++;
+                Assert.True(hit, $"trial {trial}: missed a contact found by sampling at {sampledT}");
+                Assert.True(t01 <= sampledT + 1e-5f, $"trial {trial}: exact {t01} after sampled {sampledT}");
+                Assert.True(t01 >= sampledT - step - 2e-4f, $"trial {trial}: exact {t01} well before sampled {sampledT}");
+                Vec3 contact = info.Point;
+                Vec3 surface = ramp.ClosestPoint(contact);
+                Assert.True(MathF.Abs(radius - Vec3.Distance(contact, surface)) < 1e-3f, $"trial {trial}: contact not at radius");
+                AssertVec((contact - surface).Normalized(), info.Normal, 2e-3f);
+            }
+
+            Assert.True(hits > 30, $"only {hits} contacts exercised");
+        }
+
+        [Fact]
         public void CapsuleVsYawBox_Standing_On_Floor_And_Against_Wall()
         {
             var floor = new YawBox(new Vec3(0f, -0.5f, 0f), new Vec3(10f, 0.5f, 10f), 0f);

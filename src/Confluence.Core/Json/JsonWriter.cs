@@ -129,18 +129,17 @@ namespace Confluence.Core.Json
             sb.Append(' ', depth * options.IndentSize);
         }
 
-        /// <summary>Integers within +/-2^53 print without a fraction; other values use the shortest round-trip form.</summary>
+        /// <summary>
+        /// Integers within +/-2^53 print without a fraction; other values use the shortest round-trip form, computed
+        /// exactly rather than through the runtime's "R" format, which differs between .NET Core and Mono.
+        /// </summary>
         public static string FormatNumber(double value)
         {
             if (double.IsNaN(value) || double.IsInfinity(value))
                 throw new ArgumentOutOfRangeException(nameof(value), "JSON cannot represent NaN or Infinity.");
             if (value == Math.Floor(value) && Math.Abs(value) <= 9007199254740992d)
                 return ((long)value).ToString(CultureInfo.InvariantCulture);
-            string text = value.ToString("R", CultureInfo.InvariantCulture);
-            // Older runtimes can produce a non-round-tripping "R" string; G17 is always exact.
-            if (double.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture) != value)
-                text = value.ToString("G17", CultureInfo.InvariantCulture);
-            return text;
+            return DoubleFormatter.ShortestRoundTrip(value);
         }
 
         public static string EscapeString(string value)

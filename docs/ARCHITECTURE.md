@@ -8,8 +8,9 @@ Authoritative rules live in engine-agnostic C# libraries. The .NET server and th
 docs/confluence/            supplied specification (read-only; never edit)
 docs/                       ARCHITECTURE, IMPLEMENTATION_PLAN, PROGRESS, DECISIONS, CONTENT_LEDGER, SPEC_INDEX
 tools/spec.mjs, cat.mjs     bounded spec / catalogue queries (Node 24)
-src/Confluence.Core         netstandard2.1, no deps: Json, Math, Random, Time, Content (catalogue model, predicates,
-                            validator, structural deltas), Rules (global constants, schedules, feats), Arena (layout contract)
+src/Confluence.Core         netstandard2.1, no deps: Json, Geometry, Random, Time, Content (catalogue model, predicates,
+                            validator, structural deltas), Rules (global constants, reaction order, schedules,
+                            feats, voice lexicon), Arena (layout contract)
 src/Confluence.Reactions    -> Core. 0.5 m cell grid, material units/flags, fixed-order reaction engine, obscuration
                             volumes, sight occlusion, conductivity, wind, ice/growth/sand/venom rules, safety caps
 src/Confluence.Casting      -> Core. Cast phase machine (preparation/commitment/release/recovery), cancel/interrupt/
@@ -45,7 +46,7 @@ Libraries target `netstandard2.1` with `LangVersion 9` so Unity compiles against
 
 ## Content model
 
-`Catalogue.Load(path)` parses the supplied JSON into immutable definitions (`WizardDef`, `SpellDef`, `EquipmentDef`, `AugmentDef`, `BiomeDef`, `ModuleDef`, `PropDef`, `BuildDef`). Eligibility JSON parses into a typed `Predicate` AST covering every leaf in the predicate grammar. `CatalogueValidator` checks counts, ID intervals, ownership (WIZ-n owns SPL-(8n-7)…SPL-8n), dangling references, tiers, slots, rarity, and predicate references.
+`Catalogue.Load(path)` parses the supplied JSON into immutable definitions (`WizardDef`, `SpellDef`, `EquipmentDef`, `AugmentDef`, `BiomeDef`, `ModuleDef`, `PropDef`, `BuildDef`). Eligibility JSON parses into a typed `Predicate` AST covering every leaf in the predicate grammar. `CatalogueValidator` checks counts, ID intervals, ownership (WIZ-n owns SPL-(8n-7)…SPL-8n), dangling references, tiers, slots, rarity, and predicate references. It also confirms that every condition has an acquisition witness (one wizard and legal loadout) and fits the real draft schedule of both modes (DECISIONS D-030, D-032).
 
 Descriptive prose becomes executable behavior in `Confluence.Sim` through registries keyed by catalogue ID:
 

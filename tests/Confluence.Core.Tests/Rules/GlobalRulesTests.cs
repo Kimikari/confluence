@@ -90,6 +90,64 @@ namespace Confluence.Core.Tests.Rules
             Assert.Equal(2f, GlobalRules.World.SteamSightBlockPathLength);
         }
 
+        [Theory]
+        [InlineData(0, false, false)]
+        [InlineData(1, false, false)] // spec L151 "above strength 1": strength-1 sources move clouds only by their own text (D-023)
+        [InlineData(2, true, true)]
+        [InlineData(4, true, true)]
+        public void Wind_Moves_Clouds_Only_Above_Strength_One(int strength, bool translates, bool disperses)
+        {
+            Assert.Equal(translates, GlobalRules.World.WindTranslatesClouds(strength));
+            Assert.Equal(disperses, GlobalRules.World.WindDispersesClouds(strength));
+        }
+
+        [Fact]
+        public void Reactions_Process_In_The_Fixed_Order()
+        {
+            // Spec L165: direct impacts, heat-water/heat-ice/frost-water consumption, electricity connectivity,
+            // wind movement, then decay.
+            Assert.Equal(new[]
+            {
+                ReactionPhase.DirectImpacts,
+                ReactionPhase.MaterialConsumption,
+                ReactionPhase.ElectricityConnectivity,
+                ReactionPhase.WindMovement,
+                ReactionPhase.Decay,
+            }, GlobalRules.World.ReactionOrder);
+            Assert.Equal(Enum.GetValues(typeof(ReactionPhase)).Length, GlobalRules.World.ReactionOrder.Count);
+        }
+
+        [Fact]
+        public void Movement_Decisions_Support_The_Arena_And_Reaction_Rules()
+        {
+            // D-024 derivations: the common jump outlasts the 0.6 s wet charge it counters ("jump the short pulse",
+            // spec L148), reaches the 1 m ledges and gaps modules use, never causes fall damage on flat ground, and air
+            // steering cannot reverse a full-speed run within one jump (spec L80).
+            float launch = GlobalRules.Movement.JumpLaunchSpeed;
+            Assert.Equal(MathF.Sqrt(2f * 18f * 1.1f), launch, 5);
+            Assert.True(GlobalRules.Movement.JumpAirtimeSec > GlobalRules.World.WetChargeDurationSec);
+            Assert.True(GlobalRules.Movement.JumpApexHeight > GlobalRules.Movement.MaxCommonJumpLedge);
+            Assert.True(GlobalRules.Movement.JumpApexHeight < GlobalRules.Terrain.FallDamageThreshold);
+            Assert.True(GlobalRules.Movement.WalkSpeed * GlobalRules.Movement.JumpAirtimeSec > 2f * GlobalRules.Movement.MaxCommonJumpGap);
+            Assert.True(GlobalRules.Movement.AirAcceleration * GlobalRules.Movement.JumpAirtimeSec < 2f * GlobalRules.Movement.WalkSpeed);
+            Assert.True(GlobalRules.Movement.CrouchHeight < GlobalRules.Movement.StandingHeight);
+            Assert.True(GlobalRules.Movement.StandingEyeHeight < GlobalRules.Movement.StandingHeight);
+            Assert.True(GlobalRules.Movement.CrouchSpeed < GlobalRules.Movement.WalkSpeed);
+            // Two players pass each other on the narrowest route (spec L312).
+            Assert.True(4f * GlobalRules.Movement.CapsuleRadius < GlobalRules.Arena.MinRouteWidth);
+            Assert.InRange(GlobalRules.Terrain.PropDamageImpactSpeedMin, 0.01f, GlobalRules.Terrain.DamagingPropVelocityCap);
+        }
+
+        [Fact]
+        public void Roster_Difficulty_Range()
+        {
+            Assert.Equal(36, GlobalRules.Roster.WizardCount);
+            Assert.Equal(1, GlobalRules.Roster.DifficultyMin); // spec L464
+            Assert.Equal(5, GlobalRules.Roster.DifficultyMax);
+            Assert.Equal(8, GlobalRules.Loadout.EquipmentSlots); // spec L210
+            Assert.Equal(8, Enum.GetValues(typeof(EquipmentSlot)).Length);
+        }
+
         [Fact]
         public void Terrain_Helpers()
         {

@@ -75,6 +75,8 @@ namespace Confluence.Core.Content
         public const string SelfReference = "self-reference";
         public const string DependencyCycle = "dependency-cycle";
         public const string ParentRarity = "parent-rarity";
+        public const string AcquisitionSchedule = "acquisition-schedule";
+        public const string PredicateWitness = "predicate-witness";
         public const string ExclusiveGroup = "exclusive-group";
         public const string Build = "build";
         public const string BuildPlan = "build-plan";

@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using Confluence.Core.Content;
 using Confluence.Core.Json;
+using Confluence.Core.Rules;
 using Xunit.Abstractions;
 using static Confluence.Core.Tests.Content.TestCatalogue;
 
 namespace Confluence.Core.Tests.Content
 {
+    [Collection("StructuralDeltas")] // the validator reads the process-wide structural delta registry
     public class CatalogueValidatorTests
     {
         private readonly ITestOutputHelper _output;
@@ -29,24 +31,70 @@ namespace Confluence.Core.Tests.Content
         [Fact]
         public void SuppliedCatalogueWarningsAreExactlyTheKnownDataInconsistencies()
         {
-            // Recorded in DECISIONS.md: spec L596 says 121 compound acquisition predicates; 124 shared augments have an
-            // all/any/not root (121 all/any plus three 'not' roots).
+            // DECISIONS D-030: these conditions have no witness among the base kits. AUG-056 needs an Earth spell that
+            // is also terrain; the others have one dead 'any' alternative (their item alternative remains).
             var warnings = CatalogueValidator.Validate(Real).Where(i => !i.IsError).ToList();
-            var compound = Assert.Single(warnings);
-            Assert.Equal(ValidationChecks.CompoundPredicates, compound.Check);
-            Assert.Contains("124 shared augments", compound.Message);
-            Assert.Contains("all/any alone number 121", compound.Message);
-            Assert.Contains("AUG-241, AUG-245, AUG-246", compound.Message);
+            foreach (var warning in warnings) _output.WriteLine(warning.ToString());
+            Assert.All(warnings, w => Assert.Equal(ValidationChecks.PredicateWitness, w.Check));
+            Assert.Equal(new[] { "AUG-056", "AUG-063", "AUG-130", "AUG-134", "AUG-226", "AUG-239" }, warnings.Select(w => w.Id).ToArray());
+            Assert.Contains("school:earth", warnings[0].Message);
+            Assert.All(warnings.Skip(1), w => Assert.Contains("alternative 1", w.Message));
         }
 
         [Fact]
-        public void CompoundWarningDisappearsWhenTheCountMatches()
+        public void A_Declared_Structural_Delta_Supplies_A_Missing_Witness()
         {
-            var json = Source;
-            foreach (var id in new[] { "AUG-241", "AUG-245", "AUG-246" })
-                json = EditRecord(json, id, "eligibility", Parse("{\"equipped_tag\":{\"tag\":\"movement\",\"count\":1}}"));
-            var issues = CatalogueValidator.Validate(Catalogue.FromJson(json));
-            Assert.DoesNotContain(issues, i => i.Check == ValidationChecks.CompoundPredicates);
+            // AUG-056 needs an Earth spell with terrain. Declaring that a transformation of the Earth spell SPL-212
+            // adds terrain gives WIZ-027 a witness, so the provisional warning disappears (D-012, D-030).
+            try
+            {
+                StructuralDeltas.Clear();
+                StructuralDeltas.Register("AUG-712", "SPL-212", new[] { "terrain" }, null);
+                var issues = CatalogueValidator.Validate(Real);
+                Assert.DoesNotContain(issues, i => i.Id == "AUG-056");
+                Assert.DoesNotContain(issues, i => i.IsError);
+            }
+            finally
+            {
+                StructuralDeltas.Clear();
+            }
+        }
+
+        [Fact]
+        public void CompoundPredicatesCountAllAndAnyRootsOnly()
+        {
+            // Spec L596, D-031: 121 compound acquisition predicates. The supplied data has 109 all + 12 any roots; its three
+            // single-leaf 'not' roots (AUG-241, AUG-245, AUG-246) are not compound.
+            Assert.DoesNotContain(CatalogueValidator.Validate(Real), i => i.Check == ValidationChecks.CompoundPredicates);
+            var json = EditRecord(Source, "AUG-022", "eligibility", Parse("{\"spell_tag\":{\"tag\":\"projectile\",\"count\":1}}"));
+            var compound = Assert.Single(CatalogueValidator.Validate(Catalogue.FromJson(json)), i => i.Check == ValidationChecks.CompoundPredicates);
+            Assert.Contains("120 shared augments", compound.Message);
+        }
+
+        [Fact]
+        public void RoundThresholdsAreReachableInDuelThroughTheDraftMapping()
+        {
+            // AUG-006 (Silver, round 3) and AUG-021 (Prismatic, round 9) would never be draftable in Duel if
+            // round_at_least compared raw Duel rounds (Silver 1-2, Prismatic 5-6). DECISIONS D-029 maps by draft.
+            Assert.Equal(3, Schedules.PredicateRound(MatchMode.Duel, 2));
+            Assert.Equal(9, Schedules.PredicateRound(MatchMode.Duel, 5));
+            var issues = CatalogueValidator.Validate(Real);
+            Assert.DoesNotContain(issues, i => i.Check == ValidationChecks.AcquisitionSchedule);
+
+            var json = EditRecord(Source, "AUG-006", "eligibility", Parse("{\"all\":[{\"equipped_tag\":{\"tag\":\"mastery\",\"count\":1}},{\"round_at_least\":5}]}"));
+            var late = CatalogueValidator.Validate(Catalogue.FromJson(json)).Where(i => i.Check == ValidationChecks.AcquisitionSchedule && i.Id == "AUG-006").ToList();
+            Assert.Equal(2, late.Count); // no Silver draft reaches round 5 in either mode
+            Assert.Contains(late, i => i.Message.Contains("in Duel"));
+        }
+
+        [Fact]
+        public void ScheduleErrorsNameTheSmallestPlan()
+        {
+            var json = EditRecord(Source, "AUG-073", "eligibility", Parse("{\"augment\":{\"id\":\"AUG-074\",\"rank\":2}}"));
+            var issue = CatalogueValidator.Validate(Catalogue.FromJson(json)).First(i => i.Check == ValidationChecks.AcquisitionSchedule);
+            Assert.Equal("AUG-073", issue.Id);
+            Assert.Contains("AUG-074 (Silver), AUG-074 rank 2", issue.Message);
+            Assert.Contains("2 Silver, 2 Gold, and 2 Prismatic", issue.Message);
         }
 
         public sealed record BrokenCase(Func<JsonValue, JsonValue> Mutate, ValidationSeverity Severity, string Check, string Id);
@@ -84,6 +132,11 @@ namespace Confluence.Core.Tests.Content
             ["spell-negative-range"] = Err(ValidationChecks.NumericRange, "SPL-006", Set("SPL-006", "range", -5)),
             ["spell-school-tag"] = Err(ValidationChecks.SpellTags, "SPL-009", EditStrings("SPL-009", "tags", l => l.Where(t => t != "school:heat"))),
             ["spell-channel-tag"] = Err(ValidationChecks.SpellTags, "SPL-009", EditStrings("SPL-009", "tags", l => l.Where(t => t != "channel:thermal"))),
+            ["spell-damaging-without-channel"] = Err(ValidationChecks.SpellTags, "SPL-001", Set("SPL-001", "damage_channel", "none")),
+            ["spell-stale-channel-tag"] = Err(ValidationChecks.SpellTags, "SPL-001", EditStrings("SPL-001", "tags", l => l.Append("channel:thermal"))),
+            ["spell-nondamaging-channel-tag"] = Warn(ValidationChecks.SpellTags, "SPL-110", EditStrings("SPL-110", "tags", l => l.Append("channel:physical"))),
+            ["wizard-difficulty-high"] = Err(ValidationChecks.NumericRange, "WIZ-001", Set("WIZ-001", "difficulty", 6)),
+            ["wizard-difficulty-low"] = Err(ValidationChecks.NumericRange, "WIZ-002", Set("WIZ-002", "difficulty", 0)),
 
             // Equipment
             ["equipment-category-interval"] = Err(ValidationChecks.EquipmentCategory, "EQP-001", Set("EQP-001", "category", "Staff")),
@@ -99,6 +152,10 @@ namespace Confluence.Core.Tests.Content
             // Augments and transformations
             ["augment-rarity"] = Err(ValidationChecks.AugmentRarity, "AUG-001", Set("AUG-001", "rarity", "Bronze")),
             ["augment-cost"] = Err(ValidationChecks.AugmentCost, "AUG-305", Set("AUG-305", "cost", -5)),
+            ["augment-cost-positive"] = Err(ValidationChecks.AugmentCost, "AUG-289", Set("AUG-289", "cost", 300)),
+            ["transformation-negates-wizard"] = Err(ValidationChecks.Transformation, "AUG-289", Eligibility("AUG-289", "{\"all\":[{\"not\":{\"wizard\":\"WIZ-001\"}},{\"spell\":\"SPL-001\"}]}")),
+            ["transformation-optional-gate"] = Err(ValidationChecks.Transformation, "AUG-289", Eligibility("AUG-289", "{\"any\":[{\"all\":[{\"wizard\":\"WIZ-001\"},{\"spell\":\"SPL-001\"}]},{\"always\":true}]}")),
+            ["transformation-second-wizard"] = Err(ValidationChecks.Transformation, "AUG-289", Eligibility("AUG-289", "{\"all\":[{\"any\":[{\"wizard\":\"WIZ-001\"},{\"wizard\":\"WIZ-002\"}]},{\"spell\":\"SPL-001\"}]}")),
             ["shared-eligible-wizards"] = Warn(ValidationChecks.SharedAugments, "AUG-001", Set("AUG-001", "eligible_wizards", Strings("WIZ-001"))),
             ["transformation-foreign-spell"] = Err(ValidationChecks.Transformation, "AUG-305", j => EditRecord(j, "AUG-305", r => r.With("target_spell_ids", Strings("SPL-001")).With("raw_spell_id", "SPL-001"))),
             ["transformation-missing-target"] = Err(ValidationChecks.Transformation, "AUG-305", Set("AUG-305", "target_spell_ids", Strings("SPL-999"))),
@@ -118,6 +175,7 @@ namespace Confluence.Core.Tests.Content
                 .With("target_spell_ids", Strings("SPL-001")).With("eligible_wizards", Strings("WIZ-001"))
                 .With("eligibility", Parse("{\"all\":[{\"wizard\":\"WIZ-001\"},{\"spell\":\"SPL-001\"}]}")))),
             ["unconditional-pool"] = Warn(ValidationChecks.UnconditionalPool, "augments", Eligibility("AUG-012", "{\"round_at_least\":3}")),
+            ["compound-count"] = Warn(ValidationChecks.CompoundPredicates, "augments", Eligibility("AUG-022", "{\"spell_tag\":{\"tag\":\"projectile\",\"count\":1}}")),
 
             // Predicates
             ["reference-missing-augment"] = Err(ValidationChecks.PredicateReference, "AUG-001", Eligibility("AUG-001", "{\"augment\":{\"id\":\"AUG-999\",\"rank\":1}}")),
@@ -144,6 +202,34 @@ namespace Confluence.Core.Tests.Content
             ["predicate-distinct-tags"] = Err(ValidationChecks.PredicateValue, "AUG-001", Eligibility("AUG-001", "{\"spell_distinct_tags\":{\"set\":[\"ray\",\"cone\"],\"count\":3}}")),
             ["predicate-feat-threshold"] = Err(ValidationChecks.PredicateValue, "AUG-001", Eligibility("AUG-001", "{\"feat\":{\"id\":\"FEAT-001\",\"at_least\":0}}")),
             ["predicate-zero-count"] = Warn(ValidationChecks.PredicateValue, "AUG-001", Eligibility("AUG-001", "{\"equipped_tag\":{\"tag\":\"movement\",\"count\":0}}")),
+            ["predicate-tag-count-capacity"] = Err(ValidationChecks.PredicateValue, "AUG-001", Eligibility("AUG-001", "{\"augment_tag_count\":{\"tag\":\"reaction\",\"count\":3,\"ids\":[\"AUG-121\",\"AUG-122\"]}}")),
+            ["predicate-tag-count-untagged"] = Err(ValidationChecks.PredicateValue, "AUG-001", Eligibility("AUG-001", "{\"augment_tag_count\":{\"tag\":\"reaction\",\"count\":1,\"ids\":[\"AUG-074\"]}}")),
+            ["predicate-family-count-capacity"] = Err(ValidationChecks.PredicateValue, "AUG-001", Eligibility("AUG-001", "{\"augment_family_count\":{\"count\":2,\"ids\":[\"AUG-073\",\"AUG-074\"]}}")),
+            ["predicate-rank-count-families"] = Err(ValidationChecks.PredicateValue, "AUG-022", Eligibility("AUG-022", "{\"augment_rank_count\":{\"rank_at_least\":1,\"count\":2,\"distinct_families\":true,\"ids\":[\"AUG-073\",\"AUG-074\"]}}")),
+            ["predicate-parent-slots"] = Err(ValidationChecks.PredicateValue, "AUG-022", Eligibility("AUG-022", "{\"augment_rank_count\":{\"rank_at_least\":1,\"count\":6}}")),
+            ["predicate-equipped-tag-slots"] = Err(ValidationChecks.PredicateValue, "AUG-001", Eligibility("AUG-001", "{\"equipped_tag\":{\"tag\":\"movement\",\"count\":9}}")),
+            ["predicate-equipped-tag-groups"] = Err(ValidationChecks.PredicateValue, "AUG-001", Eligibility("AUG-001", "{\"equipped_tag\":{\"tag\":\"invisibility\",\"count\":2}}")),
+
+            // Acquisition witnesses (spec L643)
+            ["witness-unknown-spell-tag"] = Warn(ValidationChecks.PredicateWitness, "AUG-001", Eligibility("AUG-001", "{\"spell_tag\":{\"tag\":\"projectlie\",\"count\":1}}")),
+            ["witness-unknown-equipment-tag"] = Warn(ValidationChecks.PredicateWitness, "AUG-001", Eligibility("AUG-001", "{\"equipped_tag\":{\"tag\":\"jetpack\",\"count\":1}}")),
+            ["witness-foreign-spell"] = Err(ValidationChecks.PredicateWitness, "AUG-001", Eligibility("AUG-001", "{\"all\":[{\"wizard\":\"WIZ-001\"},{\"spell\":\"SPL-009\"}]}")),
+            ["witness-foreign-transformation"] = Err(ValidationChecks.PredicateWitness, "AUG-001", Eligibility("AUG-001", "{\"all\":[{\"wizard\":\"WIZ-002\"},{\"augment\":{\"id\":\"AUG-289\",\"rank\":1}}]}")),
+            ["witness-round-beyond-drafts"] = Err(ValidationChecks.PredicateWitness, "AUG-001", Eligibility("AUG-001", "{\"round_at_least\":99}")),
+            ["witness-feat-beyond-duels"] = Err(ValidationChecks.PredicateWitness, "AUG-001", Eligibility("AUG-001", "{\"feat\":{\"id\":\"FEAT-001\",\"at_least\":99}}")),
+            ["witness-dead-alternative"] = Err(ValidationChecks.PredicateWitness, "AUG-001", Eligibility("AUG-001", "{\"any\":[{\"all\":[{\"wizard\":\"WIZ-001\"},{\"spell\":\"SPL-009\"}]},{\"always\":true}]}")),
+            ["witness-build"] = Err(ValidationChecks.PredicateWitness, "BLD-037", Eligibility("BLD-037", "{\"spell\":\"SPL-001\"}")),
+
+            // Draft schedule feasibility (spec L600, L643)
+            ["schedule-silver-rank-two"] = Err(ValidationChecks.AcquisitionSchedule, "AUG-073", Eligibility("AUG-073", "{\"augment\":{\"id\":\"AUG-074\",\"rank\":2}}")),
+            ["schedule-three-gold"] = Err(ValidationChecks.AcquisitionSchedule, "AUG-012", Eligibility("AUG-012", "{\"all\":[{\"augment\":{\"id\":\"AUG-059\",\"rank\":1}},{\"augment\":{\"id\":\"AUG-062\",\"rank\":1}}]}")),
+            ["schedule-prismatic-rank-two"] = Err(ValidationChecks.AcquisitionSchedule, "AUG-019", Eligibility("AUG-019", "{\"augment\":{\"id\":\"AUG-020\",\"rank\":2}}")),
+            ["schedule-silver-chain"] = Err(ValidationChecks.AcquisitionSchedule, "AUG-073", j => EditRecord(
+                EditRecord(j, "AUG-073", "eligibility", Parse("{\"augment\":{\"id\":\"AUG-074\",\"rank\":1}}")),
+                "AUG-074", "eligibility", Parse("{\"augment\":{\"id\":\"AUG-075\",\"rank\":1}}"))),
+            ["schedule-any-later-parents"] = Err(ValidationChecks.AcquisitionSchedule, "AUG-073", Eligibility("AUG-073", "{\"any\":[{\"augment\":{\"id\":\"AUG-012\",\"rank\":1}},{\"augment\":{\"id\":\"AUG-019\",\"rank\":1}}]}")),
+            ["schedule-listed-later-parents"] = Err(ValidationChecks.AcquisitionSchedule, "AUG-073", Eligibility("AUG-073", "{\"augment_rank_count\":{\"rank_at_least\":1,\"count\":1,\"ids\":[\"AUG-019\",\"AUG-020\"]}}")),
+            ["schedule-feat-in-duel"] = Err(ValidationChecks.AcquisitionSchedule, "AUG-001", Eligibility("AUG-001", "{\"feat\":{\"id\":\"FEAT-001\",\"at_least\":2}}")),
 
             // Exclusive groups
             ["exclusive-group-mixed-spells"] = Err(ValidationChecks.ExclusiveGroup, "AUG-289", Set("AUG-305", "exclusive_group", "SPL-001-delivery")),
@@ -162,6 +248,7 @@ namespace Confluence.Core.Tests.Content
             ["build-too-many-augments"] = Err(ValidationChecks.Build, "BLD-001", EditStrings("BLD-001", "augment_ids", l => l.Append("AUG-001"))),
             ["build-foreign-transformation"] = Err(ValidationChecks.Build, "BLD-001", EditStrings("BLD-001", "augment_ids", l => l.Select(a => a == "AUG-289" ? "AUG-305" : a))),
             ["build-transformation-unequipped"] = Err(ValidationChecks.Build, "BLD-001", EditStrings("BLD-001", "augment_ids", l => l.Select(a => a == "AUG-289" ? "AUG-302" : a))),
+            ["build-exclusive-group"] = Err(ValidationChecks.Build, "BLD-001", EditStrings("BLD-001", "augment_ids", l => l.Select(a => a == "AUG-292" ? "AUG-290" : a))),
             ["build-rank-out-of-range"] = Err(ValidationChecks.Build, "BLD-048", Set("BLD-048", "augment_ranks", Parse("{\"AUG-078\":3}"))),
             ["build-rank-unlisted"] = Err(ValidationChecks.Build, "BLD-048", Set("BLD-048", "augment_ranks", Parse("{\"AUG-001\":2}"))),
             ["build-cost"] = Warn(ValidationChecks.BuildPlan, "BLD-001", Set("BLD-001", "equipment_cost", 1300)),
@@ -198,8 +285,7 @@ namespace Confluence.Core.Tests.Content
         {
             var codes = typeof(ValidationChecks).GetFields().Select(f => (string)f.GetValue(null)).ToList();
             var exercised = Cases.Values.Select(c => c.Check).Distinct().ToList();
-            // compound-predicates is exercised against the supplied catalogue above.
-            Assert.Empty(codes.Except(exercised).Except(new[] { ValidationChecks.CompoundPredicates }));
+            Assert.Empty(codes.Except(exercised));
         }
 
         [Fact]
