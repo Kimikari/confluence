@@ -408,7 +408,9 @@ namespace Confluence.Arena.Validation
                 }
 
                 result.Add(first);
-                bool[] blocked = _survey.BlockNear(first, ArenaRules.ApproachSeparation, _layout.Spawns[0].Position.XZ(), ArenaRules.AlcoveExemptRadius);
+                // Routes from spawn to spawn meet on the central ring, so only their approaches must stay apart.
+                bool[] blocked = _survey.BlockNear(first, ArenaRules.ApproachSeparation, _layout.Spawns[0].Position.XZ(), ArenaRules.AlcoveExemptRadius,
+                    ArenaRules.CentralCoverRadius + 1f);
                 Vec2 other = _layout.Spawns[1].Position.XZ();
                 for (int i = 0; i < blocked.Length; i++)
                 {

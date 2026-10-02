@@ -337,10 +337,10 @@ namespace Confluence.Arena.Validation
         }
 
         /// <summary>Marks nodes within a horizontal radius of any path node, sparing an exempt disc and the final floor.</summary>
-        public bool[] BlockNear(List<int> path, float radius, Vec2 exemptCenter, float exemptRadius)
+        public bool[] BlockNear(List<int> path, float radius, Vec2 exemptCenter, float exemptRadius, float centralExempt = -1f)
         {
             var blocked = new bool[Nav.NodeCount];
-            float finalExempt = Layout.FinalFloorRadius + 1f;
+            float finalExempt = centralExempt >= 0f ? centralExempt : Layout.FinalFloorRadius + 1f;
             for (int i = 0; i < path.Count; i++)
             {
                 Vec2 p = Nav.NodePosition(path[i]).XZ();

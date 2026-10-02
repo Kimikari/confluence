@@ -70,7 +70,7 @@ namespace Confluence.Arena
             float t = CMath.Clamp01((diameter - GlobalRules.Arena.DiameterSmall)
                 / (float)(GlobalRules.Arena.DiameterHuge - GlobalRules.Arena.DiameterSmall));
             min = GlobalRules.Arena.SpawnPathMin + t * 6f;  // 16 .. 22 m
-            max = GlobalRules.Arena.SpawnPathMax - (1f - t) * 3f; // 31 .. 34 m
+            max = GlobalRules.Arena.SpawnPathMax - (1f - t) * 1.5f; // 32.5 .. 34 m
         }
 
         // ---- Firing lanes (spec L310) ----------------------------------------------------------
