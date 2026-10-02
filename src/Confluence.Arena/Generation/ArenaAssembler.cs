@@ -181,6 +181,7 @@ namespace Confluence.Arena.Generation
         private List<Vec3> _openRays;
         private Rect2 _centerFootprint;
         private int _laneRouteChecks;
+        private int _lastTouching;
         private int _fillRouteChecks;
         private bool _conflictsStrict;
         private readonly List<Vec3> _sites = new List<Vec3>(); // placed features and props (side 0), x/z plus radius in Y
@@ -351,6 +352,14 @@ namespace Confluence.Arena.Generation
             _hardZones.Add(footprint);
             _centerFootprint = footprint;
 
+            // The gap ring around the center is a route zone: pieces and rocks may stand there only when the routes
+            // into the center survive on the navigation grid.
+            Rect2 ring = footprint.Expanded(CenterGap);
+            _softZones.Add(new Rect2(ring.MinX, ring.MinZ, ring.MaxX, footprint.MinZ));
+            _softZones.Add(new Rect2(ring.MinX, footprint.MaxZ, ring.MaxX, ring.MaxZ));
+            _softZones.Add(new Rect2(ring.MinX, footprint.MinZ, footprint.MinX, footprint.MaxZ));
+            _softZones.Add(new Rect2(footprint.MaxX, footprint.MinZ, ring.MaxX, footprint.MaxZ));
+
             for (int i = 0; i < _center.Patches.Count; i++)
             {
                 if (_center.Patches[i].NaturalSource)
@@ -452,9 +461,24 @@ namespace Confluence.Arena.Generation
             for (int i = 0; i < zones.Length; i++)
             {
                 AddKeepOut(zones[i]);
-                List<Rect2> kind = i == 0 ? _hardZones : _softZones; // the core is hard; exits and the crossover are soft
-                kind.Add(zones[i]);
-                kind.Add(zones[i].Mirrored());
+                if (i == 0)
+                {
+                    // The alcove and its screen are hard; the porch between the wings in front of the screen is a
+                    // route zone like the exits and the crossover strip.
+                    Rect2 core = zones[i];
+                    float screenFront = _bastion.ScreenZ + SpawnBastion.Thickness;
+                    var alcove = new Rect2(core.MinX, core.MinZ, core.MaxX, screenFront);
+                    var porch = new Rect2(core.MinX, screenFront, core.MaxX, core.MaxZ);
+                    _hardZones.Add(alcove);
+                    _hardZones.Add(alcove.Mirrored());
+                    _softZones.Add(porch);
+                    _softZones.Add(porch.Mirrored());
+                }
+                else
+                {
+                    _softZones.Add(zones[i]);
+                    _softZones.Add(zones[i].Mirrored());
+                }
             }
 
             // Firing lane zone along X (both halves of it are in the side-0 list after mirroring).
@@ -1803,8 +1827,11 @@ namespace Confluence.Arena.Generation
                 options.Add(new YawBox(new Vec3(p.X, height * 0.5f, p.Y), new Vec3(SpurThickness * 0.5f, height * 0.5f, 0.6f), CMath.YawOf(side)));
                 for (int o = 0; o < options.Count && _laneRouteChecks < LaneRouteChecks; o++)
                 {
+                    // In a route zone a breaker may bridge two obstacles: it is then kept only if the contracting boundary
+                    // strands no floor behind it (spec L676), besides the route guarantees.
                     YawBox post = options[o];
-                    if (AttachedRockFits(post, out int touched, LaneBreakerAttachLimit, inRouteZone: true) && TryRouteRock(post, touched))
+                    if (AttachedRockFits(post, out int touched, LaneBreakerAttachLimit, inRouteZone: true, touchLimit: 2)
+                        && TryRouteRock(post, touched, checkContraction: _lastTouching > 1))
                     {
                         placed = post;
                         return true;
@@ -1815,15 +1842,23 @@ namespace Confluence.Arena.Generation
             return false;
         }
 
+        /// <summary>True when some accessible cell loses its route to the final floor as the boundary contracts.</summary>
+        private bool StrandsFloor()
+        {
+            ArenaNav nav = ArenaNav.Build(_layout, NoProps);
+            var survey = new ArenaSurvey(_layout, nav);
+            return survey.SpawnNode(0) >= 0 && survey.FinalFloorNodes.Count > 0 && survey.FindContractionFailure(out float _, out int _);
+        }
+
         /// <summary>Writes a rock pair in a route zone and keeps it only if the skeleton guarantees survive.</summary>
-        private bool TryRouteRock(YawBox post, int touched)
+        private bool TryRouteRock(YawBox post, int touched, bool checkContraction = false)
         {
             {
                 _routeBaseline = _routeBaseline ?? RouteConditions();
                 _laneRouteChecks++;
                 LayoutWriter.Checkpoint mark = _w.Mark();
                 Solid rock = _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, post, ArenaMaterials.Rock, 0f));
-                if (!RoutesIntact())
+                if (!RoutesIntact() || (checkContraction && StrandsFloor()))
                 {
                     _w.Rollback(mark);
                     return false;
@@ -2067,7 +2102,7 @@ namespace Confluence.Arena.Generation
         /// </summary>
         private int AttachmentsOf(int solidId) => _attachments.TryGetValue(solidId, out int n) ? n : 0;
 
-        private bool AttachedRockFits(YawBox box, out int touchedId, int attachLimit = 1, bool inRouteZone = false)
+        private bool AttachedRockFits(YawBox box, out int touchedId, int attachLimit = 1, bool inRouteZone = false, int touchLimit = 1)
         {
             touchedId = -1;
             Rect2 bounds = Rect2.Around(box);
@@ -2125,7 +2160,7 @@ namespace Confluence.Arena.Generation
                     continue;
                 }
 
-                if (++touching > 1 || _attached.Contains(s.Id) || AttachmentsOf(s.Id) >= attachLimit)
+                if (++touching > touchLimit || _attached.Contains(s.Id) || AttachmentsOf(s.Id) >= attachLimit)
                 {
                     return false;
                 }
@@ -2133,6 +2168,8 @@ namespace Confluence.Arena.Generation
                 touchedId = s.Id;
                 touchedModule = s.ModuleIndex;
             }
+
+            _lastTouching = touching;
 
             foreach (MaterialPatch m in _layout.Materials)
             {
