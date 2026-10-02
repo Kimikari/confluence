@@ -102,6 +102,47 @@ namespace Confluence.Arena.Tests
             }
         }
 
+        /// <summary>
+        /// Every placed prop carries its collision volume in the layout (<see cref="PropPlacement.CollisionBox"/>,
+        /// read by the Sim and by navigation): the body box of its shape where the prop blocks movement, nothing for
+        /// floor-level props; mirrored twins carry exact images. The validator rejects a layout whose stored box
+        /// disagrees with the shape.
+        /// </summary>
+        [Fact]
+        public void PlacedPropsCarryTheirShapeCollisionBox()
+        {
+            int blocking = 0;
+            foreach (GeneratedArena arena in ArenaFixture.BiomeSamples)
+            {
+                foreach (PropPlacement p in arena.Layout.Props)
+                {
+                    PropShape shape = PropShapes.For(p.PropId);
+                    Assert.Equal(shape.BlocksMovement, p.HasCollision);
+                    Assert.True(PropShapes.CollisionMatchesShape(p), p.PropId);
+                    if (!p.HasCollision)
+                    {
+                        continue;
+                    }
+
+                    blocking++;
+                    YawBox body = shape.BoxAt(p.Position, p.YawDeg);
+                    Assert.True(Vec3.Distance(body.Center, p.CollisionBox.Center) < 1e-4f, p.PropId);
+                    Assert.True(Vec3.Distance(body.HalfExtents, p.CollisionBox.HalfExtents) < 1e-4f, p.PropId);
+                    YawBox twin = arena.Layout.FindProp(p.MirrorId).CollisionBox;
+                    Assert.True(Vec3.Distance(MirrorMath.Point(p.CollisionBox.Center), twin.Center) < 1e-3f, p.PropId);
+                    Assert.True(System.Math.Abs(CMath.DeltaAngle(MirrorMath.Yaw(p.CollisionBox.YawDeg), twin.YawDeg)) < 0.01f, p.PropId);
+                }
+            }
+
+            Assert.True(blocking > 0);
+
+            ArenaLayout moved = ArenaFixture.BiomeSamples.Select(a => a.Layout).First(l => l.Props.Any(p => p.HasCollision)).Clone();
+            PropPlacement nudged = moved.Props.First(p => p.HasCollision);
+            nudged.CollisionBox = new YawBox(nudged.CollisionBox.Center + new Vec3(0.5f, 0f, 0f), nudged.CollisionBox.HalfExtents, nudged.CollisionBox.YawDeg);
+            ArenaValidationReport report = ArenaFixture.Generator.Validate(moved);
+            Assert.Contains(report.Failures, f => f.StartsWith("props", System.StringComparison.Ordinal) && f.Contains("collision box"));
+        }
+
         [Fact]
         public void PropChoiceFollowsTheBiomeMaterialBudget()
         {
