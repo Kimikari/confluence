@@ -124,9 +124,14 @@ namespace Confluence.Arena.Tests
                 Assert.Equal(RngStreams.SeedFor(12UL, RngStream.Arena, 4, ArenaSchedule.AttemptSubBase + k), ArenaSchedule.AttemptSeed(12UL, 4, k));
             }
 
-            for (ulong match = 100; match < 110; match++)
+            var arenas = new GeneratedArena[10];
+            System.Threading.Tasks.Parallel.For(0, arenas.Length, i =>
             {
-                GeneratedArena arena = ArenaFixture.Generator.Generate(Request(match, 1, 48, "BIO-020"));
+                arenas[i] = ArenaFixture.Generator.Generate(Request(100UL + (ulong)i, 1, 48, "BIO-020"));
+            });
+
+            foreach (GeneratedArena arena in arenas)
+            {
                 Assert.InRange(arena.Attempts, 1, GlobalRules.Arena.MaxRetrySeeds);
                 Assert.Equal(arena.UsedFallback ? GlobalRules.Arena.MaxRetrySeeds : arena.Attempts - 1, arena.RejectedAttempts.Count);
                 Assert.True(arena.Layout.Report.Valid);

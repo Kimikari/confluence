@@ -6,7 +6,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Confluence.Arena.Generation;
+using Confluence.Core.Arena;
 using Confluence.Core.Content;
+using Confluence.Core.Rules;
 using Xunit.Abstractions;
 
 namespace Confluence.Arena.Tests
@@ -39,6 +41,9 @@ namespace Confluence.Arena.Tests
             public int Attempts;
             public FairnessProbe.Result Probe;
             public string Error;
+
+            /// <summary>Why a fallback release does not match the prevalidated fallback for its size and biome (null when it does).</summary>
+            public string FallbackMismatch;
         }
 
         private List<Outcome> Run(List<Case> cases, bool contraction)
@@ -60,6 +65,10 @@ namespace Confluence.Arena.Tests
                     outcome.Fallback = arena.UsedFallback;
                     outcome.Attempts = arena.Attempts;
                     outcome.Probe = FairnessProbe.Check(arena.Layout, contraction);
+                    if (arena.UsedFallback)
+                    {
+                        outcome.FallbackMismatch = CheckFallbackRelease(arena, c);
+                    }
                 }
                 catch (Exception e)
                 {
@@ -103,31 +112,69 @@ namespace Confluence.Arena.Tests
                 {
                     failures.Add(label + (o.Fallback ? " (fallback)" : string.Empty) + ": " + string.Join("; ", o.Probe.Problems.Take(4)));
                 }
+                else if (o.FallbackMismatch != null)
+                {
+                    failures.Add(label + ": " + o.FallbackMismatch);
+                }
             }
 
             Assert.True(failures.Count == 0, failures.Count + " unfair arena(s):\n" + string.Join("\n", failures.Take(25)));
         }
 
-        /// <summary>24 biomes x 4 sizes x 10 match seeds through Generate, with the contraction re-check on all of them.</summary>
-        [Fact]
-        public void EveryBiomeAndSizeReleasesFairArenas()
+        /// <summary>
+        /// A fallback release used all eight seeds (spec L323), keeps every rejected report, and is exactly the
+        /// prevalidated fallback of its size and biome (stamped with the request's round).
+        /// </summary>
+        private static string CheckFallbackRelease(GeneratedArena arena, Case c)
+        {
+            if (arena.Attempts != GlobalRules.Arena.MaxRetrySeeds || arena.RejectedAttempts.Count != GlobalRules.Arena.MaxRetrySeeds)
+            {
+                return "fallback after " + arena.Attempts + " attempts and " + arena.RejectedAttempts.Count + " rejections";
+            }
+
+            ArenaLayout expected = ArenaFixture.Generator.Fallback(c.Diameter, ArenaFixture.Catalogue.Biome(arena.Layout.BiomeId));
+            expected.Round = c.Round;
+            return ArenaLayoutHash.Compute(expected) == arena.LayoutHash ? null : "fallback differs from the prevalidated layout";
+        }
+
+        private static List<Case> BiomeBySizeCases(int seedsPerCell, ulong seedBase)
         {
             var cases = new List<Case>();
             foreach (BiomeDef biome in ArenaFixture.Catalogue.Biomes)
             {
                 foreach (int d in ArenaFixture.Diameters)
                 {
-                    for (int s = 0; s < 10; s++)
+                    for (int s = 0; s < seedsPerCell; s++)
                     {
-                        cases.Add(new Case { Diameter = d, BiomeId = biome.Id, MatchSeed = 0xA11CEUL + (ulong)(s * 7919), Round = 1 + s % 12 });
+                        cases.Add(new Case { Diameter = d, BiomeId = biome.Id, MatchSeed = seedBase + (ulong)(s * 7919), Round = 1 + s % 12 });
                     }
                 }
             }
 
-            Assert.Equal(24 * 4 * 10, cases.Count);
+            return cases;
+        }
+
+        /// <summary>24 biomes x 4 sizes x 6 match seeds through Generate, with the contraction re-check on all of them.</summary>
+        [Fact]
+        public void EveryBiomeAndSizeReleasesFairArenas()
+        {
+            List<Case> cases = BiomeBySizeCases(6, 0xA11CEUL);
+            Assert.Equal(24 * 4 * 6, cases.Count);
             var watch = Stopwatch.StartNew();
             List<Outcome> outcomes = Run(cases, contraction: true);
             Report("Biome x size batch", outcomes, watch);
+            AssertAllFair(outcomes);
+        }
+
+        /// <summary>24 biomes x 4 sizes x 10 further match seeds (960 arenas). Run with --filter Category=Slow.</summary>
+        [Fact]
+        [Trait("Category", "Slow")]
+        public void TenSeedsPerBiomeAndSizeReleaseFairArenas()
+        {
+            List<Case> cases = BiomeBySizeCases(10, 0xB16BA7CUL);
+            var watch = Stopwatch.StartNew();
+            List<Outcome> outcomes = Run(cases, contraction: true);
+            Report("Biome x size x 10 batch", outcomes, watch);
             AssertAllFair(outcomes);
         }
 
@@ -145,7 +192,7 @@ namespace Confluence.Arena.Tests
                 }
             }
 
-            // Scheduled biome (BiomeId null) is resolved inside Generate; record it for the report.
+            // Scheduled biome (BiomeId null) is resolved inside Generate.
             var watch = Stopwatch.StartNew();
             List<Outcome> outcomes = Run(cases, contraction: false);
             Report("500-seed batch", outcomes, watch);

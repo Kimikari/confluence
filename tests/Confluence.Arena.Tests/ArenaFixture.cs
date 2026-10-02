@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Confluence.Arena;
 using Confluence.Arena.Generation;
 using Confluence.Arena.Modules;
@@ -21,6 +22,35 @@ namespace Confluence.Arena.Tests
         public static ModuleLibrary Modules => Generator.Content.Modules;
 
         public static readonly int[] Diameters = { 24, 32, 40, 48 };
+
+        private static readonly Lazy<List<GeneratedArena>> LazyBiomeSamples = new Lazy<List<GeneratedArena>>(GenerateBiomeSamples);
+
+        /// <summary>One released arena per biome (catalogue order), sizes cycling 24, 32, 40, 48 m; generated once, in parallel.</summary>
+        public static IReadOnlyList<GeneratedArena> BiomeSamples => LazyBiomeSamples.Value;
+
+        public static GeneratedArena SampleFor(string biomeId)
+        {
+            foreach (GeneratedArena arena in BiomeSamples)
+            {
+                if (arena.Layout.BiomeId == biomeId)
+                {
+                    return arena;
+                }
+            }
+
+            throw new ArgumentException("No sample for " + biomeId, nameof(biomeId));
+        }
+
+        private static List<GeneratedArena> GenerateBiomeSamples()
+        {
+            IReadOnlyList<BiomeDef> biomes = Catalogue.Biomes;
+            var result = new GeneratedArena[biomes.Count];
+            Parallel.For(0, biomes.Count, i =>
+            {
+                result[i] = Generator.Generate(new ArenaRequest { MatchSeed = 0xB10E5UL + (ulong)i, Round = 1 + i % 12, Diameter = Diameters[i % Diameters.Length], BiomeId = biomes[i].Id });
+            });
+            return new List<GeneratedArena>(result);
+        }
 
         /// <summary>A layout holding one module at the origin on a floor slab, for module-level navigation checks.</summary>
         public static ArenaLayout ModuleLayout(ModuleGeometry g)
