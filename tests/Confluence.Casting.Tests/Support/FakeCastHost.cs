@@ -19,7 +19,6 @@ namespace Confluence.Casting.Tests.Support
         public bool IsSilenced { get; set; }
         public bool IsHardControlled { get; set; }
         public bool IsWarded { get; set; }
-        public bool IsSprinting { get; set; }
 
         public bool TryPayMana(float amount)
         {

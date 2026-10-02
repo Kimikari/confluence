@@ -35,7 +35,5 @@ namespace Confluence.Casting
 
         /// <summary>Inside the spawn-alcove ward, which prevents casting (spec L46).</summary>
         bool IsWarded { get; }
-
-        bool IsSprinting { get; }
     }
 }

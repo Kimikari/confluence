@@ -106,7 +106,11 @@ namespace Confluence.Casting
         public float MoveSpeedFactor =>
             _phase == CastPhase.Windup || _phase == CastPhase.Channel ? _spell.CastingMoveSpeedFactor : CastingRules.PreparationMoveSpeedFactor;
 
-        /// <summary>Sprint is suppressed while a non-quick cast is prepared, winding up, or channeling (spec L80).</summary>
+        /// <summary>
+        /// Sprint is disallowed while a non-quick or channeled cast is prepared, winding up, or channeling (spec L80:
+        /// sprint "disallows channeled beams" and stays compatible only with quick casts). The simulation ends or
+        /// refuses sprint while this is true; the cast itself is never refused for sprinting.
+        /// </summary>
         public bool SuppressesSprint =>
             (_phase == CastPhase.Preparation || _phase == CastPhase.Windup || _phase == CastPhase.Channel) && !_spell.IsSprintCompatible;
 
