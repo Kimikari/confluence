@@ -77,7 +77,7 @@ namespace Confluence.Hosting.Content
                 notes.Add("Shop and draft pools hold the " + poolIds.Count + " implemented equipment and augment definitions (D-010).");
             }
 
-            var pools = new IdSet(allowed.Filter(poolIds, ContentType.Equipment, ContentType.Augment));
+            var pools = new IdSet(allowed.Filter(poolIds));
             if (pools.Ids.Count != poolIds.Count)
             {
                 notes.Add("The lobby's allowed content leaves " + pools.Ids.Count + " pool definitions (L71).");
@@ -128,7 +128,7 @@ namespace Confluence.Hosting.Content
                         : "configured set of " + chosen.Count + "."));
             }
 
-            var set = new IdSet(allowed.Filter(chosen, type));
+            var set = new IdSet(allowed.Filter(chosen));
             if (set.Ids.Count == 0) throw new InvalidOperationException("No " + label + " is available for arena generation.");
             return set;
         }
@@ -151,15 +151,18 @@ namespace Confluence.Hosting.Content
                 }
             }
 
-            public List<string> Filter(IEnumerable<string> ids, params ContentType[] types)
+            public List<string> Filter(IEnumerable<string> ids)
             {
-                bool restricted = false;
-                if (_ids != null)
-                    foreach (ContentType t in types) restricted |= _types.Contains(t);
                 var result = new List<string>();
                 foreach (string id in ids)
-                    if (!restricted || _ids.Contains(id)) result.Add(id);
+                    if (Allows(id)) result.Add(id);
                 return result;
+            }
+
+            private bool Allows(string id)
+            {
+                if (_ids == null || !ContentIds.TryParse(id, out ContentType type, out _) || !_types.Contains(type)) return true;
+                return _ids.Contains(id);
             }
         }
 
