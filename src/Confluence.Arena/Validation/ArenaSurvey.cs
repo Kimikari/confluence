@@ -497,7 +497,20 @@ namespace Confluence.Arena.Validation
             return false;
         }
 
-        /// <summary>Cells that can still walk to the final floor through cells a capsule fits inside the contour at time t.</summary>
+        /// <summary>Cells that can still walk to the final floor through cells a capsule fits inside the contour at a time.</summary>
+        public bool[] CanReachFinalFloorAt(float timeSec)
+        {
+            BoundaryContour b = Layout.Boundary;
+            int count = Nav.NodeCount;
+            var allowed = new bool[count];
+            for (int node = 0; node < count; node++)
+            {
+                allowed[node] = b.RadialMargin(Nav.NodePosition(node), timeSec) >= ArenaRules.CapsuleClearance;
+            }
+
+            return Nav.CanReach(FinalFloorNodes, NavQuery.Capsule.WithAllowed(allowed));
+        }
+
         private bool[] CanReachFinalFloorAt(BoundaryContour b, float t, float[] angle, float[] dist, bool[] allowed)
         {
             for (int node = 0; node < allowed.Length; node++)

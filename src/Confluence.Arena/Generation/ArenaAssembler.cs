@@ -85,6 +85,15 @@ namespace Confluence.Arena.Generation
         /// <summary>Only an obstacle this close to a stranded cell is removed to repair it.</summary>
         private const float ContractionRepairReach = 6f;
 
+        /// <summary>Rocks near a stranded cell that may be trimmed when none can be removed.</summary>
+        private const int ContractionTrimCandidates = 4;
+
+        /// <summary>Depth trimmed off a rock face at a pinch: a sub-capsule gap (under 0.8 m) becomes a passage.</summary>
+        private const float RockTrimDepth = 0.75f;
+
+        /// <summary>Smallest rock side a trim may leave.</summary>
+        private const float RockTrimMinSize = 0.6f;
+
         /// <summary>Center of the bulwark walls at most this far out: their inner faces keep lanes through the center under 28 m.</summary>
         private const float BulwarkRadius = 14.5f;
 
@@ -2536,7 +2545,9 @@ namespace Confluence.Arena.Generation
 
         /// <summary>
         /// Contraction repair (spec L676): while some accessible cell would lose its route to the final floor as the
-        /// boundary contracts, remove the filler rock or prop pair nearest that cell. Skeleton terrain, modules, and
+        /// boundary contracts, change the filler nearest that cell: remove a rock or prop pair, or trim a rock that
+        /// must stay. A change is kept only if the stranded cell regains its route at the failing time and no lane
+        /// reopens over the limit, so repairs never strip cover that does not help. Skeleton terrain, modules, and
         /// biome sources stay; anything left failing is caught by validation and the seed is retried.
         /// </summary>
         private void RepairContraction()
@@ -2547,14 +2558,14 @@ namespace Confluence.Arena.Generation
                 ArenaNav nav = _repairNav ?? ArenaNav.Build(_layout);
                 _repairNav = null;
                 var survey = new ArenaSurvey(_layout, nav);
-                if (survey.SpawnNode(0) < 0 || survey.FinalFloorNodes.Count == 0 || !survey.FindContractionFailure(out float _, out int node))
+                if (survey.SpawnNode(0) < 0 || survey.FinalFloorNodes.Count == 0 || !survey.FindContractionFailure(out float time, out int node))
                 {
                     return;
                 }
 
                 // Candidates nearest first: removable rocks, bulwark pieces, and props within reach of the stranded cell.
-                // A rock whose removal would reopen a lane over the limit stays (spec L310); the next one is tried.
-                Vec2 cell = nav.NodePosition(node).XZ();
+                var stranded = new StrandedCell { Position = nav.NodePosition(node), TimeSec = time };
+                Vec2 cell = stranded.Position.XZ();
                 var candidates = new List<KeyValuePair<float, int>>(); // distance, solid index or ~prop index
                 for (int i = 0; i < _layout.Solids.Count; i++)
                 {
@@ -2577,21 +2588,43 @@ namespace Confluence.Arena.Generation
 
                 candidates.Sort((a, b) => a.Key != b.Key ? a.Key.CompareTo(b.Key) : a.Value.CompareTo(b.Value));
                 bool repaired = false;
+                Solid opener = null;
+                ArenaNav openerNav = null;
                 for (int c = 0; c < candidates.Count && c < ContractionRepairCandidates && !repaired; c++)
                 {
                     int index = candidates[c].Value;
                     if (index < 0)
                     {
-                        PropPlacement prop = _layout.Props[~index];
-                        PropPlacement image = _layout.FindProp(prop.MirrorId);
-                        _layout.Props.Remove(prop);
-                        _layout.Props.Remove(image);
-                        repaired = true;
+                        repaired = TryRemoveProp(_layout.Props[~index], stranded);
+                        continue;
                     }
-                    else
+
+                    Solid rock = _layout.Solids[index];
+                    repaired = TryRemoveRock(rock, nav, stranded, out ArenaNav removedNav);
+                    if (!repaired && removedNav != null && opener == null)
                     {
-                        repaired = TryRemoveRock(_layout.Solids[index], nav);
+                        opener = rock;
+                        openerNav = removedNav;
                     }
+                }
+
+                // A rock that must stay to keep a lane closed can still give way at the pinch: trim its face toward
+                // the stranded cell so the gap beside it becomes a capsule passage.
+                for (int c = 0; c < candidates.Count && c < ContractionTrimCandidates && !repaired; c++)
+                {
+                    if (candidates[c].Value >= 0)
+                    {
+                        repaired = TryTrimRock(_layout.Solids[candidates[c].Value], stranded);
+                    }
+                }
+
+                // No single change rescues the cell: a pinch between two rocks may need both gone. Remove the nearest
+                // rock whose removal keeps every lane closed and look again.
+                if (!repaired && opener != null)
+                {
+                    RemoveRock(opener);
+                    _repairNav = openerNav; // built for exactly this removal
+                    repaired = true;
                 }
 
                 if (!repaired)
@@ -2602,15 +2635,102 @@ namespace Confluence.Arena.Generation
             }
         }
 
-        /// <summary>
-        /// Removes a rock pair unless that reopens a firing lane over the limit (then it is put back). The current
-        /// navigation, with the pair ignored as blockers, gives a lower bound on the reopened lanes, so most refusals
-        /// need no rebuild.
-        /// </summary>
-        private bool TryRemoveRock(Solid rock, ArenaNav current)
+        /// <summary>A cell found cut off from the final floor, and when.</summary>
+        private struct StrandedCell
         {
-            var bound = new LaneMeter(current, _layout, rock.Id, rock.MirrorId);
-            if (Math.Max(bound.LongestThrough(rock.Box).Length, bound.LongestThrough(MirrorMath.Box(rock.Box)).Length) > GlobalRules.Arena.FiringLaneMax)
+            public Vec3 Position;
+            public float TimeSec;
+        }
+
+        /// <summary>True when the stranded cell keeps a route to the final floor at its failing time on this navigation.</summary>
+        private bool Rescues(ArenaNav nav, StrandedCell stranded)
+        {
+            var survey = new ArenaSurvey(_layout, nav);
+            int node = nav.FindNode(stranded.Position, ArenaRules.FloorLevelTolerance, ArenaRules.NavCellSize, ArenaRules.CapsuleClearance);
+            return node < 0 || survey.CanReachFinalFloorAt(stranded.TimeSec)[node];
+        }
+
+        /// <summary>Removes a prop pair if that rescues the stranded cell (otherwise both go back where they were).</summary>
+        private bool TryRemoveProp(PropPlacement prop, StrandedCell stranded)
+        {
+            PropPlacement image = _layout.FindProp(prop.MirrorId);
+            int a = _layout.Props.IndexOf(prop);
+            int b = image == null || image == prop ? -1 : _layout.Props.IndexOf(image);
+            _layout.Props.Remove(prop);
+            if (b >= 0)
+            {
+                _layout.Props.Remove(image);
+            }
+
+            ArenaNav nav = ArenaNav.Build(_layout);
+            if (!Rescues(nav, stranded))
+            {
+                ReinsertPair(_layout.Props, prop, a, image, b);
+                return false;
+            }
+
+            _repairNav = nav; // the next repair iteration measures this layout
+            return true;
+        }
+
+        /// <summary>
+        /// Shortens a rock pair by <see cref="RockTrimDepth"/> on the face toward a stranded cell; kept only if that
+        /// rescues the cell without reopening a firing lane over the limit (otherwise both boxes are restored). The
+        /// authored (side 0) rock is trimmed and its image rewritten, so the pair stays an exact half turn.
+        /// </summary>
+        private bool TryTrimRock(Solid rock, StrandedCell stranded)
+        {
+            Solid image = _layout.FindSolid(rock.MirrorId);
+            if (image == null || image == rock || rock.IsRamp || rock.Walkable)
+            {
+                return false;
+            }
+
+            Solid authored = rock.Id < image.Id ? rock : image;
+            Solid other = authored == rock ? image : rock;
+            Vec2 cell = stranded.Position.XZ();
+            Vec2 target = authored == rock ? cell : MirrorMath.Point(cell);
+            YawBox box = authored.Box;
+            Vec3 h = box.HalfExtents;
+            Vec3 local = box.ToLocal(new Vec3(target.X, box.Center.Y, target.Y));
+            bool alongX = MathF.Abs(local.X) / h.X >= MathF.Abs(local.Z) / h.Z;
+            float half = alongX ? h.X : h.Z;
+            float trim = Math.Min(RockTrimDepth, 2f * half - RockTrimMinSize);
+            if (trim < ArenaRules.NavCellSize)
+            {
+                return false;
+            }
+
+            float away = -0.5f * trim * ((alongX ? local.X : local.Z) >= 0f ? 1f : -1f);
+            Vec3 center = box.ToWorld(alongX ? new Vec3(away, 0f, 0f) : new Vec3(0f, 0f, away));
+            Vec3 extents = alongX ? new Vec3(h.X - 0.5f * trim, h.Y, h.Z) : new Vec3(h.X, h.Y, h.Z - 0.5f * trim);
+            YawBox originalAuthored = authored.Box;
+            YawBox originalOther = other.Box;
+            authored.Box = new YawBox(center, extents, box.YawDeg);
+            other.Box = MirrorMath.Box(authored.Box);
+
+            ArenaNav nav = ArenaNav.Build(_layout);
+            if (!Rescues(nav, stranded) || ReopensLane(nav, originalAuthored))
+            {
+                authored.Box = originalAuthored;
+                other.Box = originalOther;
+                return false;
+            }
+
+            _repairNav = nav; // the next repair iteration measures this layout
+            return true;
+        }
+
+        /// <summary>
+        /// Removes a rock pair if that rescues the stranded cell without reopening a firing lane over the limit
+        /// (otherwise it is put back). The current navigation, with the pair ignored as blockers, gives a lower bound
+        /// on the reopened lanes, so most refusals need no rebuild. A removal that keeps every lane closed but does
+        /// not rescue the cell is undone too; its navigation comes back in openedNav so the caller can still apply it.
+        /// </summary>
+        private bool TryRemoveRock(Solid rock, ArenaNav current, StrandedCell stranded, out ArenaNav openedNav)
+        {
+            openedNav = null;
+            if (ReopensLane(new LaneMeter(current, _layout, rock.Id, rock.MirrorId), rock.Box))
             {
                 return false;
             }
@@ -2620,33 +2740,58 @@ namespace Confluence.Arena.Generation
             int b = image == null || image == rock ? -1 : _layout.Solids.IndexOf(image);
             _w.RemoveSolidPair(rock);
             ArenaNav nav = ArenaNav.Build(_layout);
-            var meter = new LaneMeter(nav, _layout);
-            if (Math.Max(meter.LongestThrough(rock.Box).Length, meter.LongestThrough(MirrorMath.Box(rock.Box)).Length) > GlobalRules.Arena.FiringLaneMax)
+            bool lanesClosed = !ReopensLane(nav, rock.Box);
+            if (!lanesClosed || !Rescues(nav, stranded))
             {
-                // Reinsert in the original order so ids and order stay exactly as they were.
-                if (b >= 0 && b < a)
-                {
-                    _layout.Solids.Insert(b, image);
-                    _layout.Solids.Insert(a, rock);
-                }
-                else
-                {
-                    _layout.Solids.Insert(a, rock);
-                    if (b >= 0)
-                    {
-                        _layout.Solids.Insert(b, image);
-                    }
-                }
-
+                ReinsertPair(_layout.Solids, rock, a, image, b);
+                openedNav = lanesClosed ? nav : null;
                 return false;
             }
 
+            ForgetRock(rock);
+            _repairNav = nav; // the next repair iteration measures this layout
+            return true;
+        }
+
+        /// <summary>Removes a rock pair already measured to keep every lane closed.</summary>
+        private void RemoveRock(Solid rock)
+        {
+            _w.RemoveSolidPair(rock);
+            ForgetRock(rock);
+        }
+
+        private void ForgetRock(Solid rock)
+        {
             _removable.Remove(rock.Id);
             _removable.Remove(rock.MirrorId);
             _bulwarks.Remove(rock.Id);
             _bulwarks.Remove(rock.MirrorId);
-            _repairNav = nav; // the next repair iteration measures this layout
-            return true;
+        }
+
+        private bool ReopensLane(ArenaNav nav, YawBox freed) => ReopensLane(new LaneMeter(nav, _layout), freed);
+
+        /// <summary>True when a line through the freed footprint or its image is open for more than 28 m (spec L310).</summary>
+        private static bool ReopensLane(LaneMeter meter, YawBox freed)
+        {
+            return Math.Max(meter.LongestThrough(freed).Length, meter.LongestThrough(MirrorMath.Box(freed)).Length) > GlobalRules.Arena.FiringLaneMax;
+        }
+
+        /// <summary>Puts a removed pair back at its original indices, so ids and order stay exactly as they were.</summary>
+        private static void ReinsertPair<T>(List<T> list, T item, int a, T image, int b)
+        {
+            if (b >= 0 && b < a)
+            {
+                list.Insert(b, image);
+                list.Insert(a, item);
+            }
+            else
+            {
+                list.Insert(a, item);
+                if (b >= 0)
+                {
+                    list.Insert(b, image);
+                }
+            }
         }
 
         // ---- Biome dressing and props -----------------------------------------------------------------------
