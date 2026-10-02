@@ -182,6 +182,9 @@ namespace Confluence.Sim.Duel
         Teleported,
         SwapStarted,
         SwapCompleted,
+
+        /// <summary>A temporary solid formed under the player lifted them onto its top (at most 0.5 m, spec L171).</summary>
+        RaisedByTerrain,
     }
 
     public sealed class MovementEvent : DuelEvent

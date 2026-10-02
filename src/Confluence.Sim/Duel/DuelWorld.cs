@@ -1294,11 +1294,54 @@ namespace Confluence.Sim.Duel
             return true;
         }
 
-        /// <summary>Adds a temporary solid (wall, ice block) owned by a player or the world.</summary>
+        /// <summary>
+        /// Adds a temporary solid (wall, ice block) owned by a player or the world. A solid formed under a player raises
+        /// them onto its top by at most 0.5 m; one that would trap a player inside collision fails and returns -1 so the
+        /// caller refunds the placement (spec L171).
+        /// </summary>
         public int AddTemporarySolid(TemporarySolidSpec spec)
         {
             int id = Collision.AddTemporarySolid(spec, Tick);
+            CollisionSolid solid = Collision.Find(id);
+            var raised = new float[PlayerCount];
+            for (int i = 0; i < PlayerCount; i++)
+            {
+                raised[i] = float.NaN;
+                DuelPlayer p = _players[i];
+                if (!solid.CapsulePenetration(p.HitVolume, out Penetration overlap) || overlap.Depth <= 1e-3f)
+                {
+                    continue;
+                }
+
+                float top = solid.SurfaceHeightAt(p.Position.X, p.Position.Z);
+                float lift = top - p.Position.Y;
+                if (float.IsNaN(top) || lift > GlobalRules.Terrain.WallRaiseMax + 1e-4f
+                    || !Collision.IsCapsuleClear(Capsule.Vertical(new Vec3(p.Position.X, top + 0.005f, p.Position.Z), p.Motor.Height, CharacterMotor.Radius), 2e-3f))
+                {
+                    Collision.Remove(id);
+                    return -1;
+                }
+
+                raised[i] = top;
+            }
+
             Emit(new SolidEvent { Change = SolidChange.Created, SolidId = id, DurabilityAfter = spec.Durability }, spec.OwnerPlayer);
+            for (int i = 0; i < PlayerCount; i++)
+            {
+                if (!float.IsNaN(raised[i]))
+                {
+                    DuelPlayer p = _players[i];
+                    Vec3 from = p.Position;
+                    p.Motor.Position = new Vec3(from.X, raised[i], from.Z);
+                    p.Motor.Grounded = true;
+                    p.Motor.SupportY = raised[i];
+                    p.Motor.GroundSolidId = id;
+                    p.Motor.GroundNormal = Vec3.Up;
+                    p.Motor.Velocity = new Vec3(p.Motor.Velocity.X, 0f, p.Motor.Velocity.Z);
+                    Emit(new MovementEvent { Change = MovementChange.RaisedByTerrain, Position = p.Position, Amount = raised[i] - from.Y, SourceId = spec.SourceId }, i);
+                }
+            }
+
             return id;
         }
 
