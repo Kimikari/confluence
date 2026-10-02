@@ -60,6 +60,12 @@ namespace Confluence.Casting
 
         /// <summary>The duel or round ended.</summary>
         DuelEnded,
+
+        /// <summary>The caster died.</summary>
+        Death,
+
+        /// <summary>The caster fell out of the map and is held by the visible recall (spec L175).</summary>
+        Recalled,
     }
 
     /// <summary>How a channel ended.</summary>

@@ -208,6 +208,49 @@ namespace Confluence.Casting
 
         public float RefundRemaining(CastEventId castId) => _refunds.Remaining(castId);
 
+        /// <summary>
+        /// Order-dependent digest of the machine's authoritative state (phase, attempt, timers, payment, held commit,
+        /// re-cast lock, pending recasts) for the simulation state hash (spec L427). Grammar state is derived from the
+        /// same input frames and is not included.
+        /// </summary>
+        public ulong StateDigest()
+        {
+            ulong h = 14695981039346656037UL;
+            h = Mix(h, (ulong)_phase);
+            h = Mix(h, (ulong)_castId.Packed);
+            h = Mix(h, (ulong)(uint)_sequence);
+            h = Mix(h, (ulong)(uint)_selected);
+            h = Mix(h, (ulong)(uint)_spellSlot);
+            h = Mix(h, (ulong)(uint)_lockUntilTick);
+            h = Mix(h, (ulong)(uint)_preparationStartTick);
+            h = Mix(h, (ulong)(uint)_phaseEndTick);
+            h = Mix(h, (ulong)(uint)_releaseTick);
+            h = Mix(h, (ulong)(uint)_channelPulses);
+            h = Mix(h, (ulong)(uint)BitConverter.SingleToInt32Bits(_paid));
+            h = Mix(h, (ulong)_mastery.Reward);
+            h = Mix(h, (ulong)(uint)BitConverter.SingleToInt32Bits(_mastery.Magnitude));
+            h = Mix(h, _commitHeld ? 1UL : 0UL);
+            h = Mix(h, (ulong)(uint)_heldCommitTick);
+            h = Mix(h, (ulong)(uint)TotalExposedPreparationTicks);
+            for (int i = 0; i < _recasts.Length; i++)
+            {
+                PendingRecast r = _recasts[i];
+                h = Mix(h, r == null ? 0UL : (ulong)r.CastId.Packed);
+                h = Mix(h, r == null ? 0UL : (ulong)(uint)r.Used);
+            }
+
+            return h;
+        }
+
+        private static ulong Mix(ulong h, ulong value)
+        {
+            unchecked
+            {
+                h ^= value + 0x9E3779B97F4A7C15UL + (h << 6) + (h >> 2);
+                return h * 1099511628211UL;
+            }
+        }
+
         // ---- Step stages -------------------------------------------------------------------------------------
 
         private void ApplyForcedInterruption(int tick, List<CastEvent> events)
@@ -321,6 +364,7 @@ namespace Confluence.Casting
             if (_host.IsWarded) return RejectReason.Warded;
             if (_host.IsSilenced) return RejectReason.Silenced;
             if (_host.IsHardControlled) return RejectReason.HardControlled;
+            if (_host.IsActionLocked) return RejectReason.ActionLocked;
             if (IsRecastLocked(tick)) return RejectReason.RecastLocked;
             if (_host.CooldownRemainingTicks(spell.Id) > 0) return RejectReason.CooldownNotReady;
             return RejectReason.None;
@@ -522,6 +566,7 @@ namespace Confluence.Casting
                 : _host.IsWarded ? RejectReason.Warded
                 : _host.IsSilenced ? RejectReason.Silenced
                 : _host.IsHardControlled ? RejectReason.HardControlled
+                : _host.IsActionLocked ? RejectReason.ActionLocked
                 : RejectReason.None;
             if (reject == RejectReason.None && pending.Rule.ExtraMana > 0f && !_host.TryPayMana(pending.Rule.ExtraMana)) reject = RejectReason.InsufficientMana;
             if (reject != RejectReason.None)
