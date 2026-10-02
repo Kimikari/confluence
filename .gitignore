@@ -22,3 +22,4 @@ client/MemoryCaptures/
 # Local output
 /out/
 *.log
+.claude/worktrees/

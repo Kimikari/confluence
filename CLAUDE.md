@@ -14,8 +14,9 @@ Windows PC first-person wizard dueling game. The complete specification is in `d
 
 ## Build and test
 - `dotnet build Confluence.sln` and `dotnet test Confluence.sln` (or a single `tests/Confluence.X.Tests` project).
+- Ledger: `powershell -ExecutionPolicy Bypass -File tools/ledger.ps1` (script execution is disabled by default on this machine).
 - Libraries in `src/` target netstandard2.1 with C# 9 because Unity loads the same DLLs: no file-scoped namespaces, global usings, record structs, System.Text.Json, or UnityEngine references.
-- Unity client: `client/`, Unity 6000.6.4f1. Sync core DLLs with `powershell -File tools/sync-unity.ps1` before opening or building.
+- Unity client: `client/`, Unity 6000.6.4f1. Sync core DLLs with `powershell -ExecutionPolicy Bypass -File tools/sync-unity.ps1` before opening or building.
 
 ## Rules for content work
 - A catalogue record counts as implemented only when its specific behavior works in gameplay; verified only with a `[Verifies("ID")]` test. No empty handlers, generic substitutes, or menu-only entries.

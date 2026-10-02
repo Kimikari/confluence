@@ -18,7 +18,7 @@ Stage 0 — Foundation and tooling (in progress).
 
 ## What runs
 - `node tools/spec.mjs toc`, `node tools/cat.mjs stats`.
-- `dotnet build Confluence.sln`, `dotnet test Confluence.sln`, `powershell -File tools/ledger.ps1`.
+- `dotnet build Confluence.sln`, `dotnet test Confluence.sln`, `powershell -ExecutionPolicy Bypass -File tools/ledger.ps1`.
 
 ## Tests executed
 - 2026-10-01: `dotnet test Confluence.sln`: 557 passed, 0 failed (Confluence.Core.Tests). The other test projects contain no tests yet.
