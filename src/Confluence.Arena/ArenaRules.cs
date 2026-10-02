@@ -115,7 +115,7 @@ namespace Confluence.Arena
         /// A floor cell must keep a route to the final floor once it is at least this far inside the contour. Routes
         /// may use any cell inside the contour. Cells closer to the moving edge are already leaving the legal space.
         /// </summary>
-        public const float ContractionEdgeTolerance = 1.5f;
+        public const float ContractionEdgeTolerance = 2.0f;
 
         // ---- Parity (spec L308) ----------------------------------------------------------------
 

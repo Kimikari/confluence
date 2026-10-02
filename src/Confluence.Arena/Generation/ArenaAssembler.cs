@@ -55,7 +55,16 @@ namespace Confluence.Arena.Generation
 
         private const float BulwarkMinRadius = 8f;
         private const float BulwarkThickness = 1f;
-        private const float BulwarkPieceDeg = 10f;
+        private const float BulwarkPieceLength = 2.4f;
+
+        /// <summary>Opening between inner-row bulwark pieces (a capsule passage with margin).</summary>
+        private const float BulwarkGate = 1.6f;
+
+        /// <summary>Radial spacing between the bulwark rows (center to center).</summary>
+        private const float BulwarkRowSpacing = 2.75f;
+
+        /// <summary>Lines through a pivot are closed when longer than this (a margin under the 28 m lane limit).</summary>
+        private const float BulwarkLaneTarget = 27f;
 
         /// <summary>Each bulwark arc extends this far past its open rays, so slightly off-center lanes meet it too.</summary>
         private const float BulwarkPaddingDeg = 2f;
@@ -447,7 +456,7 @@ namespace Confluence.Arena.Generation
 
         private bool IslandFits(Rect2 r)
         {
-            if (r.MaxZ > -LaneZoneHalf || !BoundaryBuilder.ContainsRect(_layout.Boundary, r, ArenaRules.ContourStripWidth))
+            if (!InAuthoredHalf(r.Center) || !BoundaryBuilder.ContainsRect(_layout.Boundary, r, ArenaRules.ContourStripWidth))
             {
                 return false;
             }
@@ -552,10 +561,9 @@ namespace Confluence.Arena.Generation
             var exit = new float[Steps];
             for (int i = 0; i < Steps; i++)
             {
-                float angle = 90f + i * 2f + 1f;
-                Vec2 dir = Vec2.FromYaw(angle);
-                open[i] = FirstTallHit(dir) > BulwarkRadius;
-                exit[i] = KeepOutExit(dir);
+                Vec2 dir = Vec2.FromYaw(RayAngle(i));
+                open[i] = FirstTallHit(Vec2.Zero, dir) > BulwarkRadius - BulwarkThickness * 0.5f;
+                exit[i] = KeepOutExit(Vec2.Zero, dir);
             }
 
             int start = -1;
@@ -574,56 +582,74 @@ namespace Confluence.Arena.Generation
             }
         }
 
+        private static float RayAngle(int i) => 90f + i * 2f + 1f;
+
+        /// <summary>
+        /// Closes the rays [first, last] with two staggered rows: inner pieces separated by gates a player walks
+        /// through, and outer pieces behind each gate, so every line from the center meets a wall within the lane
+        /// radius while the floor behind the rows keeps nearby ways in (spec L310 lanes, L676 contraction routes).
+        /// </summary>
         private void RaiseBulwark(int first, int last, float[] exit)
         {
-            // Short pieces (at most BulwarkPieceDeg each) so each one sits just outside the zones along its own rays.
-            float a0 = 90f + first * 2f - BulwarkPaddingDeg;
-            float a1 = 90f + (last + 1) * 2f + BulwarkPaddingDeg;
-            int pieces = Math.Max(1, (int)Math.Ceiling((a1 - a0) / BulwarkPieceDeg));
-            for (int k = 0; k < pieces; k++)
+            float a0 = RayAngle(first) - 1f - BulwarkPaddingDeg;
+            float a1 = RayAngle(last) + 1f + BulwarkPaddingDeg;
+            float inner = BulwarkMinRadius;
+            for (int i = first; i <= last; i++)
             {
-                float b0 = a0 + (a1 - a0) * k / pieces;
-                float b1 = a0 + (a1 - a0) * (k + 1) / pieces;
-                float needed = BulwarkMinRadius;
-                for (int i = first; i <= last; i++)
-                {
-                    float angle = 90f + i * 2f + 1f;
-                    if (angle >= b0 - 1f && angle <= b1 + 1f)
-                    {
-                        needed = Math.Max(needed, exit[i] + BulwarkThickness * 0.5f + 0.25f);
-                    }
-                }
+                inner = Math.Max(inner, exit[i] + BulwarkThickness * 0.5f + 0.25f);
+            }
 
-                bool placed = false;
-                for (float radius = needed; radius <= BulwarkRadius + 0.5f && !placed; radius += 0.5f)
-                {
-                    Vec2 p0 = Vec2.FromYaw(b0) * radius;
-                    Vec2 p1 = Vec2.FromYaw(b1) * radius;
-                    Vec2 mid = (p0 + p1) * 0.5f;
-                    float length = Vec2.Distance(p0, p1) + BulwarkThickness;
-                    var box = new YawBox(new Vec3(mid.X, ArenaRules.TallWallHeight * 0.5f, mid.Y),
-                        new Vec3(length * 0.5f, ArenaRules.TallWallHeight * 0.5f, BulwarkThickness * 0.5f), CMath.YawOf(mid));
-                    if (BulwarkFits(box))
-                    {
-                        Solid wall = _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, box, ArenaMaterials.Rock, 0f));
-                        _bulwarks.Add(wall.Id);
-                        _bulwarks.Add(wall.MirrorId);
-                        Rect2 bounds = Rect2.Around(box);
-                        _occupied.Add(bounds);
-                        _occupied.Add(bounds.Mirrored());
-                        placed = true;
-                    }
-                }
+            float outer = inner + BulwarkRowSpacing;
+            bool staggered = outer <= BulwarkRadius;
+            if (!staggered)
+            {
+                // No room for a second row: one continuous arc at the inner radius.
+                PlaceArc(a0, a1, Math.Min(inner, BulwarkRadius));
+                return;
+            }
 
-                if (!placed)
+            // Inner row: pieces of BulwarkPieceLength with BulwarkGate openings; the outer row covers each opening.
+            float pitchDeg = (BulwarkPieceLength + BulwarkGate) / inner * CMath.Rad2Deg;
+            float pieceDeg = BulwarkPieceLength / inner * CMath.Rad2Deg;
+            for (float a = a0; a < a1; a += pitchDeg)
+            {
+                PlaceArc(a, Math.Min(a + pieceDeg, a1), inner);
+                float gate0 = a + pieceDeg;
+                if (gate0 < a1)
                 {
-                    Notes.Add("bulwark piece at " + b0 + " degrees does not fit: " + _why);
+                    float gateMid = gate0 + (pitchDeg - pieceDeg) * 0.5f;
+                    float coverDeg = (BulwarkGate + 1.2f) / outer * CMath.Rad2Deg;
+                    PlaceArc(gateMid - coverDeg * 0.5f, gateMid + coverDeg * 0.5f, outer);
                 }
             }
         }
 
-        /// <summary>Distance along a ray from the center to the first solid tall enough to block a standing lane.</summary>
-        private float FirstTallHit(Vec2 dir)
+        /// <summary>One straight bulwark piece spanning an arc of a circle (angles in degrees).</summary>
+        private void PlaceArc(float b0, float b1, float radius)
+        {
+            for (float r = radius; r <= BulwarkRadius + 0.01f; r += 0.5f)
+            {
+                Vec2 p0 = Vec2.FromYaw(b0) * r;
+                Vec2 p1 = Vec2.FromYaw(b1) * r;
+                Vec2 mid = (p0 + p1) * 0.5f;
+                float length = Vec2.Distance(p0, p1) + BulwarkThickness * 0.5f;
+                var box = new YawBox(new Vec3(mid.X, ArenaRules.TallWallHeight * 0.5f, mid.Y),
+                    new Vec3(length * 0.5f, ArenaRules.TallWallHeight * 0.5f, BulwarkThickness * 0.5f), CMath.YawOf(mid));
+                if (BulwarkFits(box))
+                {
+                    Solid wall = _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, box, ArenaMaterials.Rock, 0f));
+                    _bulwarks.Add(wall.Id);
+                    _bulwarks.Add(wall.MirrorId);
+                    Rect2 bounds = Rect2.Around(box);
+                    _occupied.Add(bounds);
+                    _occupied.Add(bounds.Mirrored());
+                    return;
+                }
+            }
+        }
+
+        /// <summary>Distance along a ray to the first solid tall enough to block a standing lane.</summary>
+        private float FirstTallHit(Vec2 origin, Vec2 dir)
         {
             float hit = float.PositiveInfinity;
             foreach (Solid s in _layout.Solids)
@@ -633,7 +659,7 @@ namespace Confluence.Arena.Generation
                     continue;
                 }
 
-                if (LaneMeter.LineVsBox(Vec2.Zero, dir, s.Box, out float t0, out float t1) && t1 >= 0f)
+                if (LaneMeter.LineVsBox(origin, dir, s.Box, out float t0, out float t1) && t1 >= 0f)
                 {
                     hit = Math.Min(hit, Math.Max(0f, t0));
                 }
@@ -642,13 +668,13 @@ namespace Confluence.Arena.Generation
             return hit;
         }
 
-        /// <summary>Radius at which a ray from the center leaves the last skeleton zone (searched up to the lane radius).</summary>
-        private float KeepOutExit(Vec2 dir)
+        /// <summary>Distance at which a ray leaves the last skeleton zone it crosses (searched up to the lane target).</summary>
+        private float KeepOutExit(Vec2 origin, Vec2 dir)
         {
             float last = 0f;
-            for (float r = 0f; r <= BulwarkRadius + 1f; r += 0.25f)
+            for (float r = 0f; r <= BulwarkLaneTarget; r += 0.25f)
             {
-                Vec2 p = dir * r;
+                Vec2 p = origin + dir * r;
                 for (int i = 0; i < _keepOut.Count; i++)
                 {
                     if (_keepOut[i].Contains(p))
@@ -739,7 +765,7 @@ namespace Confluence.Arena.Generation
             Vec2 c = Vec2.FromYaw(angle) * centerR;
             var box = new YawBox(new Vec3(c.X, ArenaRules.TallWallHeight * 0.5f, c.Y), new Vec3(length * 0.5f, ArenaRules.TallWallHeight * 0.5f, depth * 0.5f), angle);
             Rect2 bounds = Rect2.Around(box);
-            if (bounds.MaxZ > -LaneZoneHalf || !Clear(bounds, IslandGap))
+            if (!InAuthoredHalf(bounds.Center) || bounds.DistanceTo(bounds.Mirrored()) < IslandGap || !Clear(bounds, IslandGap))
             {
                 return false;
             }
@@ -842,6 +868,7 @@ namespace Confluence.Arena.Generation
                         continue;
                     }
 
+                    Rejects.Clear();
                     if (TryBreakLane(lanes[i], out YawBox rock))
                     {
                         placedBoxes.Add(rock);
@@ -850,7 +877,8 @@ namespace Confluence.Arena.Generation
                     }
                     else if (i == 0)
                     {
-                        Notes.Add("lane of " + lanes[i].Length + " m could not be broken");
+                        var parts = new List<string>(); foreach (var kv in Rejects) parts.Add(kv.Key + "=" + kv.Value);
+                        Notes.Add("lane of " + lanes[i].Length + " m could not be broken [" + string.Join(",", parts) + "] " + lanes[i].A + " " + lanes[i].B);
                     }
                 }
 
@@ -926,9 +954,9 @@ namespace Confluence.Arena.Generation
             Vec2 dir = (lane.B - lane.A).Normalized();
             Vec2 across = new Vec2(dir.Y, -dir.X);
 
-            // Interior points every 0.5 m, from the middle of the lane outward.
+            // Interior points every 0.25 m, from the middle of the lane outward.
             var fractions = new List<float> { 0.5f };
-            float step = 0.5f / Math.Max(1f, lane.Length);
+            float step = 0.25f / Math.Max(1f, lane.Length);
             for (float f = 0.5f - step; f >= 0.1f; f -= step)
             {
                 fractions.Add(f);
@@ -1058,20 +1086,22 @@ namespace Confluence.Arena.Generation
         /// A rock fits when it stays in side 0 clear of its own image, inside the contour strip, outside the skeleton
         /// zones and patches, and within <see cref="FillerGap"/> of at most one non-walkable solid.
         /// </summary>
+        public readonly Dictionary<string, int> Rejects = new Dictionary<string, int>();
+
+        private void Rej(string r) { Rejects.TryGetValue(r, out int n); Rejects[r] = n + 1; }
+
         private bool AttachedRockFits(YawBox box, out int touchedId)
         {
             touchedId = -1;
             Rect2 bounds = Rect2.Around(box);
-            if (bounds.MaxZ > -IslandGap * 0.5f || OverlapsKeepOut(bounds))
-            {
-                return false;
-            }
+            if (!InAuthoredHalf(box.Center.XZ())) { Rej("half"); return false; }
+            if (OverlapsKeepOut(bounds)) { Rej("keepout"); return false; }
 
             for (int i = 0; i < 4; i++)
             {
                 if (_layout.Boundary.RadialMargin(box.FootprintCorner(i).ToXZ(), 0f) < ArenaRules.ContourStripWidth)
                 {
-                    return false;
+                    Rej("contour"); return false;
                 }
             }
 
@@ -1096,9 +1126,10 @@ namespace Confluence.Arena.Generation
 
                 // One attachment per original obstacle, never to another attached rock: an obstacle grows into an L or
                 // T at most, never a cup that could trap floor as the boundary contracts (spec L676).
-                if (s.Walkable || ++touching > 1 || _attached.Contains(s.Id) || _hasAttachment.Contains(s.Id))
+                // A rock may stand against a deck or ramp side but never on or into it.
+                if ((s.Walkable && d <= 0.05f) || ++touching > 1 || _attached.Contains(s.Id) || _hasAttachment.Contains(s.Id))
                 {
-                    return false;
+                    Rej(s.Walkable && d <= 0.05f ? "walk" : touching > 1 ? "touch2" : _attached.Contains(s.Id) ? "attached" : "hasattach"); return false;
                 }
 
                 touchedId = s.Id;
@@ -1111,7 +1142,7 @@ namespace Confluence.Arena.Generation
                 float extent = m.IsCircle ? m.Radius : m.HalfSize.Length();
                 if (Vec2.Distance(m.Center, center) < extent + radius)
                 {
-                    return false;
+                    Rej("patch"); return false;
                 }
             }
 
@@ -1199,7 +1230,7 @@ namespace Confluence.Arena.Generation
                     }
                 }
 
-                if (p.Z > -room - IslandGap * 0.5f || _layout.Boundary.RadialMargin(p, 0f) < room + ArenaRules.ContourStripWidth)
+                if (!InAuthoredHalf(p.XZ()) || p.XZ().Length() < room + IslandGap * 0.5f || _layout.Boundary.RadialMargin(p, 0f) < room + ArenaRules.ContourStripWidth)
                 {
                     continue;
                 }
@@ -1249,6 +1280,12 @@ namespace Confluence.Arena.Generation
             _occupied.Add(bounds.Mirrored());
             return 4f * hx * hz;
         }
+
+        /// <summary>
+        /// Generator choices are authored on side 0 and written with their half-turn image: the half-plane z &lt; 0 plus
+        /// the x &lt; 0 side of the X axis, so terrain may straddle the axis wherever it stays clear of its own image.
+        /// </summary>
+        private static bool InAuthoredHalf(Vec2 p) => p.Y < 0f || (p.X < 0f && p.Y < SpawnBastion.InteriorHalfDepth);
 
         private bool OverlapsKeepOut(Rect2 r)
         {
