@@ -146,7 +146,7 @@ namespace Confluence.Economy.Tests
             Assert.True(anchored.IsDormant);
             Assert.Equal(2, anchored.Rank);
             Assert.Equal(2, l.Augments.Count);
-            Assert.Equal(1, l.ActiveAugments.Count);
+            Assert.Single(l.ActiveAugments);
         }
 
         [Fact]
