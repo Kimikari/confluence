@@ -74,17 +74,18 @@ namespace Confluence.Hosting.Bots
     /// <summary>
     /// WIZ-010 Halen Tide, pressure metering. Pressure starts at 30 on the press and rises one unit per held tick;
     /// a vent (Modifier A) lowers it 50/60 per tick instead. A plain cast holds 24 ticks (pressure about 54, inside the
-    /// safe 20-80 band) and releases. A mastery attempt holds to 50 (tick 20), vents for six ticks (the 0.1 s accepted
-    /// interval) down to 45, compresses again and releases at tick 35 just below 55, so the final 15 ticks stay
-    /// inside 45-55. Jitter shifts the vent and the release, so imperfect bots leave the band and cast normally.
+    /// safe 20-80 band) and releases. A mastery attempt holds to 51 (tick 21), vents for six ticks (the 0.1 s accepted
+    /// interval) down to 46, compresses again and releases at tick 33, so pressure stays inside 45-55 from tick 15 to
+    /// the release (more than the 0.25 s the mastery needs). Jitter shifts the vent and the release, so imperfect bots
+    /// leave the band or release early and simply cast normally.
     /// </summary>
     public sealed class PressureMeterScript : BotCastScript
     {
         public const string WizardId = "WIZ-010";
         public const int NormalReleaseTick = 24;
-        public const int VentStartTick = 20;
+        public const int VentStartTick = 22;
         public const int VentTicks = 6;
-        public const int MasteryReleaseTick = 35;
+        public const int MasteryReleaseTick = 33;
         public const int EarliestReleaseTick = 18; // 0.30 s window opening
         public const int LatestReleaseTick = 53;   // before the 0.90 s auto-vent
 
