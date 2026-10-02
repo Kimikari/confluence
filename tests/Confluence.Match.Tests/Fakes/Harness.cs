@@ -36,6 +36,16 @@ namespace Confluence.Match.Tests.Fakes
         public static Harness ForConclave(int players, ulong seed, Func<DuelSetup, DuelScript> decide, int? readyAfter = 1) =>
             ForConclave(players == 8 ? ConclaveSettings.Unranked : ConclaveSettings.Custom(players), seed, decide, readyAfter);
 
+        /// <summary>A Conclave whose bracket starts after <paramref name="regularRounds"/> regular rounds (internal test seam).</summary>
+        public static Harness ForShortConclave(int players, ulong seed, int regularRounds, Func<DuelSetup, DuelScript> decide, int? readyAfter = 1)
+        {
+            var settings = players == 8 ? ConclaveSettings.Unranked : ConclaveSettings.Custom(players);
+            var runner = new FakeDuelRunner(decide);
+            var economy = new FakeEconomy { DefaultReadyAfter = readyAfter };
+            var arenas = new FakeArenaProvider();
+            return new Harness(new ConclaveMatch(settings, seed, runner, economy, arenas, regularRounds), runner, economy, arenas);
+        }
+
         public static Harness ForDuel(ulong seed, Func<DuelSetup, DuelScript> decide, int? readyAfter = 1, DuelMatchOptions options = null)
         {
             var runner = new FakeDuelRunner(decide);

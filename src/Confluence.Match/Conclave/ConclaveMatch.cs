@@ -16,17 +16,32 @@ namespace Confluence.Match
         private readonly List<int> _bracketLosers = new List<int>();
         private readonly Dictionary<PlayerPair, int> _bracketMatchOf = new Dictionary<PlayerPair, int>();
         private readonly Dictionary<PlayerPair, int> _bracketDraws = new Dictionary<PlayerPair, int>();
+        private readonly int _regularRounds;
         private int[] _bracketAdvancing;
         private int _lastPlannedRound;
 
         public ConclaveMatch(ConclaveSettings settings, ulong matchSeed, IDuelRunner runner, IMatchEconomy economy, IArenaProvider arenas)
+            : this(settings, matchSeed, runner, economy, arenas, GlobalRules.Match.RegularRounds)
+        {
+        }
+
+        /// <summary>
+        /// Test seam: a shortened regular schedule reaches the bracket with many contenders, which the twelve-round Resolve
+        /// schedule makes rare. Production code always plays twelve regular rounds (L36, L38).
+        /// </summary>
+        internal ConclaveMatch(ConclaveSettings settings, ulong matchSeed, IDuelRunner runner, IMatchEconomy economy, IArenaProvider arenas, int regularRounds)
             : base(MatchMode.Conclave, matchSeed, ValidPlayerCount(settings), settings.Timings, settings.StartingCrowns,
                 MatchRules.ConclaveScheduledRoundCapacity, runner, economy, arenas)
         {
+            if (regularRounds < 1 || regularRounds > GlobalRules.Match.RegularRounds) throw new ArgumentOutOfRangeException(nameof(regularRounds));
             Settings = settings;
+            _regularRounds = regularRounds;
         }
 
         public ConclaveSettings Settings { get; }
+
+        /// <summary>Regular rounds before the bracket: always 12 (L38) outside tests.</summary>
+        public int RegularRounds => _regularRounds;
 
         /// <summary>The seeded bracket, created when round 12 completes with two or more contenders (L38).</summary>
         public Bracket Bracket { get; private set; }
@@ -54,7 +69,7 @@ namespace Confluence.Match
             if (contenders.Count <= 1) return null; // L38: the schedule ends early when one contender remains
             int round = _lastPlannedRound + 1;
             RoundPlan plan;
-            if (round <= GlobalRules.Match.RegularRounds)
+            if (round <= _regularRounds)
             {
                 plan = PlanRegularRound(round, contenders);
             }
