@@ -24,7 +24,7 @@
     "tests/Confluence.Sim.Tests/bin/Debug/net10.0/Confluence.Sim.Tests.dll"
   ],
   "trx_files": 8,
-  "verifying_test_methods": 0,
+  "verifying_test_methods": 144,
   "out_of_scope_ids": [],
   "unknown_ids": [],
   "summary": {
@@ -70,11 +70,11 @@
     },
     "modules": {
       "total": 72,
-      "unstarted": 72,
+      "unstarted": 0,
       "implemented": 0,
       "implemented-tests-not-run": 0,
       "implemented-tests-failing": 0,
-      "verified": 0
+      "verified": 72
     },
     "props": {
       "total": 48,
@@ -94,11 +94,11 @@
     },
     "all": {
       "total": 1500,
-      "unstarted": 1500,
+      "unstarted": 1428,
       "implemented": 0,
       "implemented-tests-not-run": 0,
       "implemented-tests-failing": 0,
-      "verified": 0
+      "verified": 72
     }
   },
   "records": [
@@ -116,7 +116,73 @@
       "name": "Bram Cinder",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureReleaseGrammarTests.A_Queued_Early_Release_Can_Be_Cancelled_For_Free",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureReleaseGrammarTests.A_Sub_Tick_Tap_Also_Queues_The_Normal_Cast",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureReleaseGrammarTests.Changing_Spell_While_Holding_Cancels_Without_Cost",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureReleaseGrammarTests.Gauge_Rises_To_The_Crest_And_Falls",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureReleaseGrammarTests.Hud_Shows_Windows_And_What_A_Release_Would_Give_Now",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureReleaseGrammarTests.Miss_Reasons_Are_Exact_Never_Bad_Cast",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureReleaseGrammarTests.Nondamaging_Spell_Pays_12_Percent_Less_At_The_Crest",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureReleaseGrammarTests.One_Reward_Per_Spell_Is_Inherited_By_Its_Recast",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureReleaseGrammarTests.Overholding_To_0_60_s_Auto_Vents_A_Normal_Cast_Without_Misfire",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureReleaseGrammarTests.Release_Before_0_20_s_Queues_A_Normal_Cast_At_0_20_s",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureReleaseGrammarTests.Release_Exactly_At_0_60_s_Is_A_Late_Player_Release",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureReleaseGrammarTests.Release_Timing_Decides_The_One_Reward",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureReleaseGrammarTests.Windows_Match_The_Record",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "WIZ-003",
@@ -180,7 +246,83 @@
       "name": "Halen Tide",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureMeterGrammarTests.Holding_To_0_90_s_Inside_The_Safe_Band_Auto_Vents_A_Normal_Cast",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureMeterGrammarTests.Hud_Reports_Bands_Progress_And_Release_Outcome",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureMeterGrammarTests.Identical_Inputs_Give_Identical_Events",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureMeterGrammarTests.Leaving_The_Band_Mid_Run_Resets_The_Requirement",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureMeterGrammarTests.Mastery_Needs_The_Full_Continuous_0_25_s",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureMeterGrammarTests.One_Deliberate_Vent_Inside_The_Band_Earns_15_Percent_Less_Mana",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureMeterGrammarTests.Overcompression_Vents_Then_Commits_A_Normal_Cast_0_30_s_Later",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureMeterGrammarTests.Overventing_Below_20_Also_Vents_Into_A_Normal_Cast",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureMeterGrammarTests.Pressure_Follows_The_Documented_Rates",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureMeterGrammarTests.Pure_Holding_Casts_Normally_But_Cannot_Master",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureMeterGrammarTests.Release_Before_0_30_s_Queues_A_Normal_Cast_At_0_30_s",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureMeterGrammarTests.Spamming_From_The_Start_Misses_With_Too_Fast_Toggling",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureMeterGrammarTests.Spamming_The_Vent_Gives_Exactly_What_A_0_1_s_Toggler_Gets",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureMeterGrammarTests.The_Vent_Can_Be_Cancelled_For_Free",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Casting.Tests.Grammars.PressureMeterGrammarTests.Windows_Match_The_Record",
+          "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "WIZ-011",
@@ -3948,7 +4090,33 @@
       "name": "Steady Hand",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.DraftTests.ADormantRankOneIsNotOfferedAsRankTwo",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.AugmentLeafNeedsTheActiveParentAtRank",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.SpellTagCountsEquippedProfilesWithAlsoOnTheSameSpell",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Economy.Tests.StructuralProfileTests.ASharedAugmentCannotQualifyItself",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Economy.Tests.StructuralProfileTests.AnEnabledTransformationReshapesItsTargetSpell",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-002",
@@ -3956,7 +4124,13 @@
       "name": "Measured Breath",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.WizardIsExactIdentity",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-003",
@@ -3964,7 +4138,13 @@
       "name": "Clean Glyph",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.WizardIsExactIdentity",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-004",
@@ -3988,7 +4168,18 @@
       "name": "Anchored Cast",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.DormancyTests.RoundIsCheckedAtAcquisitionAndEquipmentStaysOngoing",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.RoundAtLeastUsesTheConclaveScheduleInBothModes",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-007",
@@ -3996,7 +4187,13 @@
       "name": "Flying Script",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.EquippedTagCountsLiveTagsOfEquippedItems",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-008",
@@ -4004,7 +4201,13 @@
       "name": "Tracking Thesis",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.SpellTagCountsEquippedProfilesWithAlsoOnTheSameSpell",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-009",
@@ -4020,7 +4223,13 @@
       "name": "Quick Study",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.ADisabledActiveSuppliesNoActiveEffectTag",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-011",
@@ -4028,7 +4237,18 @@
       "name": "Three-Part Cadence",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.DormancyTests.FeatPrerequisiteIsNotReEvaluatedAfterAcquisition",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.FeatCountsCompletedCompetitiveDuels",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-012",
@@ -4036,7 +4256,13 @@
       "name": "Perfect Landing",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.AlwaysHoldsForEveryWizard",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-013",
@@ -4108,7 +4334,18 @@
       "name": "Disciplined Loadout",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.RoundAtLeastUsesTheConclaveScheduleInBothModes",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.TwoCopiesOfOneDefinitionAreOneSource",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-022",
@@ -4116,7 +4353,13 @@
       "name": "Graduated Lens",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.AugmentLeafNeedsTheActiveParentAtRank",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-023",
@@ -4196,7 +4439,13 @@
       "name": "Range Compression",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.DraftTests.ExclusiveGroupConflictsAreIneligible",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-033",
@@ -4204,7 +4453,13 @@
       "name": "Range Extension",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.DraftTests.ExclusiveGroupConflictsAreIneligible",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-034",
@@ -4268,7 +4523,13 @@
       "name": "Prepared Patience",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.SpellCastTimeCountIsInclusive",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-042",
@@ -4276,7 +4537,13 @@
       "name": "Quick Recovery",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.SpellCastTimeCountIsInclusive",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-043",
@@ -4324,7 +4591,13 @@
       "name": "Forked Argument",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.EquippedItemRequiresTheExactItemInASlotNotTheReserve",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-049",
@@ -4396,7 +4669,13 @@
       "name": "Ice Joinery",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.AnyNeedsOneAlternativeAndExplainsTheGroup",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-058",
@@ -4564,7 +4843,18 @@
       "name": "Guard Economy",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.DormancyTests.DormantAugmentKeepsRankTwo",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Economy.Tests.WorkedBuildTests.TwoDefendedThesesTakesFourRanksThenTheThesis",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-079",
@@ -4572,7 +4862,18 @@
       "name": "Exact Riposte",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.DormancyTests.ADormantParentMakesDependentsDormantUntilRestored",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Economy.Tests.DraftTests.ReplacingAParentNeedsASlotChoiceAndConfirmationOfDormantDependents",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-080",
@@ -4620,7 +4921,13 @@
       "name": "Guard Breaker",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.DormancyTests.NotAugmentIsOngoing",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-086",
@@ -4684,7 +4991,18 @@
       "name": "Practiced Return",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.DormancyTests.ADormantParentMakesDependentsDormantUntilRestored",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Economy.Tests.DraftTests.ReplacingAParentNeedsASlotChoiceAndConfirmationOfDormantDependents",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-094",
@@ -4692,7 +5010,13 @@
       "name": "Twin Burdens",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.FocusCategoriesReadTheExactSlots",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-095",
@@ -4716,7 +5040,13 @@
       "name": "Economical Sprint",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.DormancyTests.ResolutionIsTopologicalNotSlotOrder",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-098",
@@ -4876,7 +5206,13 @@
       "name": "Graduated Runner",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.DormancyTests.ResolutionIsTopologicalNotSlotOrder",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-118",
@@ -5092,7 +5428,13 @@
       "name": "Practical Alchemy",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.AugmentTagCountCountsOnlyEnumeratedActiveParentsWithTheTag",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-145",
@@ -5132,7 +5474,18 @@
       "name": "First Savings",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.DraftTests.OwnedRankOneReturnsAsRankTwoAtEqualOrLaterRarityAndRankTwoNeverReturns",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.AlwaysHoldsForEveryWizard",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-150",
@@ -5188,7 +5541,13 @@
       "name": "Full Breath",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.WorkedBuildTests.TwoDefendedThesesTakesFourRanksThenTheThesis",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-157",
@@ -5356,7 +5715,13 @@
       "name": "Calm Guard",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.DormancyTests.NotAugmentIsOngoing",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-178",
@@ -5868,7 +6233,13 @@
       "name": "Lean Equipment",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.NotNegatesItsChild",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-242",
@@ -5876,7 +6247,18 @@
       "name": "Armed Scholar",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.FocusCategoriesReadTheExactSlots",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Economy.Tests.WorkedBuildTests.WeaponGraduateWaitsForTheWeaponAndTierThreeArmor",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-243",
@@ -5884,7 +6266,13 @@
       "name": "Wand Scholar",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.FocusCategoriesReadTheExactSlots",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-244",
@@ -5892,7 +6280,13 @@
       "name": "Staff Scholar",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.FocusCategoriesReadTheExactSlots",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-245",
@@ -5900,7 +6294,13 @@
       "name": "Plain Traveler",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.NotNegatesItsChild",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-246",
@@ -5908,7 +6308,13 @@
       "name": "Bare Aegis",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.NotNegatesItsChild",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-247",
@@ -5940,7 +6346,13 @@
       "name": "Many Techniques",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.SpellDistinctTagsCountsDistinctSetTagsOnQualifyingProfiles",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-251",
@@ -5948,7 +6360,13 @@
       "name": "Thin Wardrobe",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.IssuedSlotMeansOnlyThePlainIssuedItem",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-252",
@@ -5956,7 +6374,13 @@
       "name": "Heavy Wardrobe",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.SlotTierIsAtLeastTheTier",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-253",
@@ -5964,7 +6388,13 @@
       "name": "Two Talismans",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.EquippedCategoryNeedsDistinctNonEmptyUniqueGroups",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-254",
@@ -5972,7 +6402,13 @@
       "name": "Empty Pockets",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.ConsumableChargesAtMostCountsHeldUnspentCharges",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-255",
@@ -5988,7 +6424,13 @@
       "name": "Cross Delivery",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.SpellDistinctTagsCountsDistinctSetTagsOnQualifyingProfiles",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-257",
@@ -6004,7 +6446,13 @@
       "name": "Small Retinue",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.SpellTagExactNeedsExactlyTheCount",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-259",
@@ -6012,7 +6460,13 @@
       "name": "Quick Arsenal",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.SpellCooldownCountIsInclusive",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-260",
@@ -6020,7 +6474,13 @@
       "name": "Patient Arsenal",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.SpellCastTimeCountIsInclusive",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-261",
@@ -6028,7 +6488,13 @@
       "name": "Graduated Covenant",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.WorkedBuildTests.WeaponGraduateWaitsForTheWeaponAndTierThreeArmor",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-262",
@@ -6036,7 +6502,13 @@
       "name": "Proven Purist",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.WorkedBuildTests.FeatExamplesNeedAPreviousDuelAndPassiveGear",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-263",
@@ -6044,7 +6516,18 @@
       "name": "Double Thesis",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.AugmentRankCountWithDistinctFamilies",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Economy.Tests.WorkedBuildTests.TwoDefendedThesesTakesFourRanksThenTheThesis",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-264",
@@ -6228,7 +6711,13 @@
       "name": "Proven Weaver",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.WorkedBuildTests.FeatExamplesNeedAPreviousDuelAndPassiveGear",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-287",
@@ -6244,7 +6733,13 @@
       "name": "Confluence Thesis",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.AugmentFamilyCountCountsDistinctFamilies",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-289",
@@ -6254,7 +6749,18 @@
       "wizard_id": "WIZ-001",
       "target_spell_id": "SPL-001",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.DraftTests.ExclusiveGroupConflictsAreIneligible",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Economy.Tests.PredicateLeafTests.SpellLeafReadsTheOwnedKitNotTheEquippedSix",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-290",
@@ -6264,7 +6770,13 @@
       "wizard_id": "WIZ-001",
       "target_spell_id": "SPL-001",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.DraftTests.ExclusiveGroupConflictsAreIneligible",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-291",
@@ -6354,7 +6866,13 @@
       "wizard_id": "WIZ-001",
       "target_spell_id": "SPL-006",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Economy.Tests.StructuralProfileTests.AnEnabledTransformationReshapesItsTargetSpell",
+          "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-300",
@@ -12012,7 +12530,13 @@
       "name": "Raincourt",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Reactions.Tests.EnvironmentTests.Raincourt_Rain_Adds_One_Water_Unit_To_Each_Gutter_Bed_Every_Eight_Seconds_Up_To_Four",
+          "assembly": "Confluence.Reactions.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "BIO-002",
@@ -12036,7 +12560,13 @@
       "name": "Rime Foundry",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Reactions.Tests.EnvironmentTests.Rime_Foundry_Tiles_Begin_Frozen_Thaw_Normally_And_Never_Refreeze",
+          "assembly": "Confluence.Reactions.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "BIO-005",
@@ -12060,7 +12590,13 @@
       "name": "Silt Basin",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Reactions.Tests.BurnAndSandTests.Silt_Basin_Beds_Start_Damp_For_Three_Seconds_Then_Decay_Without_Refill",
+          "assembly": "Confluence.Reactions.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "BIO-008",
@@ -12092,7 +12628,13 @@
       "name": "Windmill Yard",
       "status": "unstarted",
       "implemented_by": [],
-      "verifying_tests": []
+      "verifying_tests": [
+        {
+          "test": "Confluence.Reactions.Tests.EnvironmentTests.Windmill_Yard_Gusts_Move_Clouds_Up_To_Two_Meters_At_Strength_One",
+          "assembly": "Confluence.Reactions.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "BIO-012",
@@ -12202,577 +12744,1153 @@
       "id": "MOD-001",
       "type": "module",
       "name": "Split Gate",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.SplitGate"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.TopologyModuleTests.SplitGateHasTwoDoorsBesideAnAnchoredPillar",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-002",
       "type": "module",
       "name": "Dogleg Lane",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.DoglegLane"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.TopologyModuleTests.DoglegLaneTurnsOnceWithTwoPointEightMetersOfRoute",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-003",
       "type": "module",
       "name": "Forked Approach",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.ForkedApproach"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.TopologyModuleTests.ForkedApproachSplitsAroundFourMetersOfCenterCover",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-004",
       "type": "module",
       "name": "Crossing Court",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.CrossingCourt"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.TopologyModuleTests.CrossingCourtOpensFourWaysWithOneOffsetLowCover",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-005",
       "type": "module",
       "name": "Offset Alley",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.OffsetAlley"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.TopologyModuleTests.OffsetAlleyHasThreeStaggeredScreensBesideASideRoute",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-006",
       "type": "module",
       "name": "Ring Walk",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.RingWalk"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.TopologyModuleTests.RingWalkCirclesAFourMeterAnchoredPlanter",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-007",
       "type": "module",
       "name": "T Junction",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.TJunction"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.TopologyModuleTests.TJunctionJoinsThreeLanes",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-008",
       "type": "module",
       "name": "Double Bend",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.DoubleBend"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.TopologyModuleTests.DoubleBendHasTwoOpposingBafflesAroundAPocket",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-009",
       "type": "module",
       "name": "Diagonal Cut",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.DiagonalCut"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.TopologyModuleTests.DiagonalCutOpensADiagonalLaneBetweenTwoScreens",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-010",
       "type": "module",
       "name": "Bridge Pair",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.BridgePair"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.TopologyModuleTests.BridgePairRaisesTwoThreeMeterBridgesOverAGroundCrossover",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-011",
       "type": "module",
       "name": "Braided Paths",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.BraidedPaths"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.TopologyModuleTests.BraidedPathsRunThreeRoutesThatReconnectTwice",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-012",
       "type": "module",
       "name": "Outer Arcade",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.OuterArcade"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.TopologyModuleTests.OuterArcadeOpensThreeArchesOntoAWalkway",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-013",
       "type": "module",
       "name": "Low Barricade",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.LowBarricade"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CoverModuleTests.LowBarricadeIsOneMeterWoodWithOpenFlanks",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-014",
       "type": "module",
       "name": "Tall Slab",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.TallSlab"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CoverModuleTests.TallSlabIsAnOpaqueTwoAndAHalfMeterSlab",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-015",
       "type": "module",
       "name": "Window Screen",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.WindowScreen"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CoverModuleTests.WindowScreenHasOneFixedSeventyCentimeterWindow",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-016",
       "type": "module",
       "name": "L Corner Cover",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.LCornerCover"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CoverModuleTests.LCornerCoverIsTwoConnectedWallsAroundAnOpenCorner",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-017",
       "type": "module",
       "name": "Broken Column",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.BrokenColumn"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CoverModuleTests.BrokenColumnIsAFourteenDecimeterColumn",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-018",
       "type": "module",
       "name": "Twin Screens",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.TwinScreens"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CoverModuleTests.TwinScreensAreThinPanelsOneMeterApart",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-019",
       "type": "module",
       "name": "Prism Shield",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.PrismShield"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CoverModuleTests.PrismShieldPairsAnOpaqueShieldWithAMarkedPrism",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-020",
       "type": "module",
       "name": "Conductive Grille",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.ConductiveGrille"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CoverModuleTests.ConductiveGrilleIsASolidPlateUnderASeeThroughGrille",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-021",
       "type": "module",
       "name": "Porous Wall",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.PorousWall"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CoverModuleTests.PorousWallIsAnAbsorbentStoneFace",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-022",
       "type": "module",
       "name": "Hedge Bend",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.HedgeBend"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CoverModuleTests.HedgeBendIsAnLShapedCombustibleHedge",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-023",
       "type": "module",
       "name": "Sliding Shield",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.SlidingShield"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CoverModuleTests.SlidingShieldMovesAlongAMarkedFourMeterTrack",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-024",
       "type": "module",
       "name": "Segmented Parapet",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.SegmentedParapet"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CoverModuleTests.SegmentedParapetBreaksInThreeSeparateSegments",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-025",
       "type": "module",
       "name": "Short Ramp",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.ShortRamp"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ElevationModuleTests.ShortRampReachesAOneMeterDeckWithTwoReturnRoutes",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-026",
       "type": "module",
       "name": "Twin Stairs",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.TwinStairs"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ElevationModuleTests.TwinStairsReachATwoMeterPlatformAndALanding",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-027",
       "type": "module",
       "name": "Broad Slope",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.BroadSlope"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ElevationModuleTests.BroadSlopeIsATwentyDegreeFiveMeterIncline",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-028",
       "type": "module",
       "name": "Sunken Court",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.SunkenCourt"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ElevationModuleTests.SunkenCourtSitsOneMeterDownWithTwoBroadRamps",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-029",
       "type": "module",
       "name": "Raised Spine",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.RaisedSpine"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ElevationModuleTests.RaisedSpineHasRampsAtBothEnds",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-030",
       "type": "module",
       "name": "Terraced Steps",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.TerracedSteps"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ElevationModuleTests.TerracedStepsRiseThreeOneMeterTerracesWithAlternatingCover",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-031",
       "type": "module",
       "name": "Overlook Pair",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.OverlookPair"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ElevationModuleTests.OverlookPairHasTwoThreeMeterPlatformsOnSafeStairs",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-032",
       "type": "module",
       "name": "Ramp Switchback",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.RampSwitchback"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ElevationModuleTests.RampSwitchbackFoldsTwoRampsAroundLowCenterCover",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-033",
       "type": "module",
       "name": "Hop Shortcut",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.HopShortcut"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ElevationModuleTests.HopShortcutLeavesAOneMeterGapBetweenOneMeterPlatforms",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-034",
       "type": "module",
       "name": "Stepped Gallery",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.SteppedGallery"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ElevationModuleTests.SteppedGalleryIsAUShapedBalconyWithStairsAtBothEnds",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-035",
       "type": "module",
       "name": "Landing Bowl",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.LandingBowl"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ElevationModuleTests.LandingBowlIsTwoMetersDeepWithThreeExitRamps",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-036",
       "type": "module",
       "name": "Watch Deck",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.WatchDeck"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ElevationModuleTests.WatchDeckIsAFourMeterVantageWithTwoStairsAndASafeLanding",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-037",
       "type": "module",
       "name": "Water Channel",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.WaterChannel"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.MaterialModuleTests.WaterChannelIsATwoMeterWetStripBesideAThreeMeterBypass",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-038",
       "type": "module",
       "name": "Ice Crossing",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.IceCrossing"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.MaterialModuleTests.IceCrossingIsATwoMeterIcePatchBetweenRoughStops",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-039",
       "type": "module",
       "name": "Copper Contact",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.CopperContact"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.MaterialModuleTests.CopperContactIsAThreeMeterPlateInsideInsulation",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-040",
       "type": "module",
       "name": "Fuel Bed",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.FuelBed"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.MaterialModuleTests.FuelBedIsAFiniteGrowthBedBesideAnchoredCover",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-041",
       "type": "module",
       "name": "Dust Pocket",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.DustPocket"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.MaterialModuleTests.DustPocketIsATwoMeterDustBedBesideAWidePath",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-042",
       "type": "module",
       "name": "Prism Corner",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.PrismCorner"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.MaterialModuleTests.PrismCornerHoldsAMarkedPrismInARightAngleCorner",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-043",
       "type": "module",
       "name": "Grounding Niche",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.GroundingNiche"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.MaterialModuleTests.GroundingNicheHasOneStatueBesideAShortWetBed",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-044",
       "type": "module",
       "name": "Acoustic Arch",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.AcousticArch"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.MaterialModuleTests.AcousticArchHangsAPublicBellAboveTheWalkway",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-045",
       "type": "module",
       "name": "Heat Sink Lane",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.HeatSinkLane"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.MaterialModuleTests.HeatSinkLaneHasTwoCoolMetalFaces",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-046",
       "type": "module",
       "name": "Porous Step",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.PorousStep"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.MaterialModuleTests.PorousStepIsAOneMeterAbsorbentPlatformWithATrough",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-047",
       "type": "module",
       "name": "Brittle Fringe",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.BrittleFringe"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.MaterialModuleTests.BrittleFringeLinesTheRouteWithThreeIceCovers",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-048",
       "type": "module",
       "name": "Damp Sand Shelf",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.DampSandShelf"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.MaterialModuleTests.DampSandShelfHasTwoSandTilesWithOneWaterUnitEach",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-049",
       "type": "module",
       "name": "Shielded Advance",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.ShieldedAdvance"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ApproachModuleTests.ShieldedAdvanceSpacesThreeLowCoversThreeMetersApart",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-050",
       "type": "module",
       "name": "Flank Tunnel",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.FlankTunnel"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ApproachModuleTests.FlankTunnelBendsOnceWithTwoExits",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-051",
       "type": "module",
       "name": "Peek Gallery",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.PeekGallery"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ApproachModuleTests.PeekGalleryHasThreeAlternatingWindowsBesideAnOuterPath",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-052",
       "type": "module",
       "name": "Wide Sweep",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.WideSweep"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ApproachModuleTests.WideSweepCurvesAroundOneLargeOuterCover",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-053",
       "type": "module",
       "name": "Pressure Funnel",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.PressureFunnel"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ApproachModuleTests.PressureFunnelNarrowsFromSixToThreeMetersThenOpensASideExit",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-054",
       "type": "module",
       "name": "Crossover Ramp",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.CrossoverRamp"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ApproachModuleTests.CrossoverRampCarriesATwoMeterRouteOverAGroundLane",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-055",
       "type": "module",
       "name": "Blind Pivot",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.BlindPivot"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ApproachModuleTests.BlindPivotHasOneLargeCentralBlockAndThreeExits",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-056",
       "type": "module",
       "name": "Window Bypass",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.WindowBypass"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ApproachModuleTests.WindowBypassPairsAFiringWindowWithAFullWidthCoveredRoute",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-057",
       "type": "module",
       "name": "Prop Escort",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.PropEscort"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ApproachModuleTests.PropEscortMovesTwoHeavyCoversHalfAMeter",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-058",
       "type": "module",
       "name": "Stepping Cover",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.SteppingCover"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ApproachModuleTests.SteppingCoverBordersAZigzagWithFourLowIslands",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-059",
       "type": "module",
       "name": "Open Challenge",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.OpenChallenge"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ApproachModuleTests.OpenChallengeKeepsATwelveMeterLaneWithTwoBentFlanks",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-060",
       "type": "module",
       "name": "Retreat Loop",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.RetreatLoop"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.ApproachModuleTests.RetreatLoopCirclesTwoWallsWithAMiddleCutoffAndAudibleGround",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-061",
       "type": "module",
       "name": "Final Circle",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.FinalCircle"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CenterModuleTests.FinalCircleHasTwoOpposedLowCoversThatRetire",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-062",
       "type": "module",
       "name": "Four Pillar Center",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.FourPillarCenter"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CenterModuleTests.FourPillarCenterBordersAClearFloorWithThinPillars",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-063",
       "type": "module",
       "name": "Cross Well Center",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.CrossWellCenter"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CenterModuleTests.CrossWellCenterRingsFlatWellArtWithFourRoutes",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-064",
       "type": "module",
       "name": "Prism Center",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.PrismCenter"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CenterModuleTests.PrismCenterSetsTwoEdgePrismsOutsideTheFloor",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-065",
       "type": "module",
       "name": "Dry Island Center",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.DryIslandCenter"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CenterModuleTests.DryIslandCenterHasWetBedsOnlyOutsideTheFloor",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-066",
       "type": "module",
       "name": "Split Height Center",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.SplitHeightCenter"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CenterModuleTests.SplitHeightCenterSetsTwoOneMeterLedgesOutsideALevelFloor",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-067",
       "type": "module",
       "name": "Acoustic Center",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.AcousticCenter"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CenterModuleTests.AcousticCenterSetsTwoPlatesOutsideTheFloor",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-068",
       "type": "module",
       "name": "Fracture Center",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.FractureCenter"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CenterModuleTests.FractureCenterBordersTheFloorWithFourBreakablePanels",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-069",
       "type": "module",
       "name": "Conductor Center",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.ConductorCenter"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CenterModuleTests.ConductorCenterIsolatesTwoMetalStripsOutsideTheDryFloor",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-070",
       "type": "module",
       "name": "Garden Center",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.GardenCenter"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CenterModuleTests.GardenCenterGrowsTwoCombustibleCorners",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-071",
       "type": "module",
       "name": "Wind Center",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.WindCenter"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CenterModuleTests.WindCenterLaysTwoCloudGuttersAlongTheFloorEdges",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "MOD-072",
       "type": "module",
       "name": "Balanced Cover Center",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Arena.Modules.Blueprints.BalancedCoverCenter"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Arena.Tests.Modules.CenterModuleTests.BalancedCoverCenterPairsLowCoversWithMatchingPeekPosts",
+          "assembly": "Confluence.Arena.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "PROP-001",
