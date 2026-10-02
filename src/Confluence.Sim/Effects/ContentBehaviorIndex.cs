@@ -36,7 +36,7 @@ namespace Confluence.Sim.Effects
         public static ContentBehaviorIndex Default => DefaultIndex.Value;
 
         /// <summary>An index without behaviors (duels that must run the bare rules).</summary>
-        public static ContentBehaviorIndex Empty => new ContentBehaviorIndex();
+        public static ContentBehaviorIndex Empty { get; } = new ContentBehaviorIndex();
 
         /// <summary>Indexed record ids in ordinal order.</summary>
         public IReadOnlyList<string> Ids => _ids;

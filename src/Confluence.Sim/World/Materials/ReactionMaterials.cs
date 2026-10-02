@@ -51,7 +51,6 @@ namespace Confluence.Sim.World.Materials
         private readonly Dictionary<int, string> _sourceIds = new Dictionary<int, string>();
         private readonly HashSet<long> _clearedClouds = new HashSet<long>();
         private readonly Dictionary<int, int> _volumeOwners = new Dictionary<int, int>();
-        private readonly List<PropBody> _propScratch = new List<PropBody>();
 
         /// <summary>A reaction world built from the duel's layout when attached.</summary>
         public ReactionMaterials()
@@ -449,7 +448,7 @@ namespace Confluence.Sim.World.Materials
                 return;
             }
 
-            _links.Add(new FieldLink { VolumeId = v.VolumeId, EntityId = entity.Id, Owner = v.Owner });
+            _links.Add(new FieldLink { VolumeId = v.VolumeId, EntityId = entity.Id });
             RetireUncountedClouds();
         }
 
@@ -569,7 +568,6 @@ namespace Confluence.Sim.World.Materials
         {
             public int VolumeId;
             public int EntityId;
-            public int Owner;
         }
     }
 }

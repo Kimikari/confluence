@@ -91,12 +91,6 @@ namespace Confluence.Sim.Effects
             Stats.Add(modifier);
         }
 
-        /// <summary>Adds a duel-long modifier for a record (the common form of passive equipment and augments).</summary>
-        public void AddModifier(string sourceId, StatKind stat, float value, DamageChannel channel = DamageChannel.None)
-        {
-            AddModifier(new StatModifier(stat, value, sourceId, channel));
-        }
-
         public void Attach(ISimEffect effect)
         {
             switch (effect)
