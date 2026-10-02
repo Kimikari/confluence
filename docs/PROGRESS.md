@@ -45,7 +45,7 @@ Design notes for every subsystem live in `docs/notes/<subsystem>.md`; interpreta
 
 ### 2026-10-02 — Stage 1b launch
 - Prepared on master: `PropPlacement.CollisionBox/HasCollision` in the arena contract; new `Confluence.Hosting` library and test project (referenced by Net and the ledger tool).
-- Workflow `.claude/workflows/stage1b.js` (local): agents arena-fix, sim-casting-spells, sim-world-effects, hosting, unity-m1-ui in worktrees, then merge-and-integrate. If interrupted: commit leftovers in each `.claude/worktrees/*`, map worktrees to labels from their changed paths, and rerun with `args: { inPlace: {label: path}, only: [...], priorDone: [...] }`.
+- Workflow `.claude/workflows/stage1b.js` (local): agents arena-fix, sim-casting-spells, sim-world-effects, hosting, unity-m1-ui in worktrees, then merge-and-integrate. If interrupted: commit leftovers in each `.claude/worktrees/*`, map worktrees to labels from their changed paths (first attempt: `wf_0cd0c382-18b-1` arena-fix, `-2` sim-casting-spells, `-3` sim-world-effects, `-4` hosting, `-5` unity-m1-ui; interrupted once and resumed in place), and rerun with `args: { inPlace: {label: path}, only: [...], priorDone: [...] }`.
 
 ## What runs
 - `node tools/spec.mjs toc`, `node tools/cat.mjs stats`.
