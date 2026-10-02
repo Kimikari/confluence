@@ -119,6 +119,23 @@ namespace Confluence.Sim.World
             return true;
         }
 
+        /// <summary>
+        /// Moves an active dynamic solid to a new box (a pushed prop, spec L155, L173). Layout terrain never moves.
+        /// Returns false when the solid is missing, inactive, or static.
+        /// </summary>
+        public bool MoveSolid(int id, YawBox box)
+        {
+            CollisionSolid solid = Find(id);
+            if (solid == null || !solid.Active || !solid.Dynamic || solid.IsRamp)
+            {
+                return false;
+            }
+
+            solid.MoveTo(box);
+            Version++;
+            return true;
+        }
+
         /// <summary>Deactivates temporary solids whose lifetime ended at or before tick, appending their ids.</summary>
         public void ExpireTemporarySolids(int tick, List<int> expired)
         {

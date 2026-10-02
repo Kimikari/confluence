@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Confluence.Core.Arena;
-using Confluence.Core.Content;
 using Confluence.Core.Rules;
 using Confluence.Core.Time;
 
@@ -10,9 +9,9 @@ namespace Confluence.Reactions.Environment
     /// BIO-001 Raincourt: "Every 8 s a 0.5 s visible rainfall pulse adds one water unit to the two mirrored 2 m
     /// gutter beds, up to four. No rain wets players automatically." A fixed, announced refill pulse that respects the
     /// same water-cell maximum as spells (spec L138, L668; DECISIONS D-046). Rain only adds units to the gutter-bed
-    /// cells; it never touches bodies, so a player becomes wet only by standing in a wet cell (Sim materials).
+    /// cells; it never touches bodies, so a player becomes wet only by standing in a wet cell (Sim materials). The
+    /// Sim's BIO-001 behavior installs it in a duel.
     /// </summary>
-    [ContentBehavior("BIO-001")]
     public static class RaincourtRain
     {
         public const string BiomeId = "BIO-001";

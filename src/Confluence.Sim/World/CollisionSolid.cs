@@ -50,7 +50,7 @@ namespace Confluence.Sim.World
 
         public int Id { get; }
         public SolidKind Kind { get; }
-        public YawBox Box { get; }
+        public YawBox Box { get; private set; }
         public float RampRise { get; }
         public bool IsRamp => RampRise > 0f;
         public RampShape Ramp => new RampShape(Box, RampRise);
@@ -83,7 +83,14 @@ namespace Confluence.Sim.World
         /// <summary>Map-owned soft cover in the final center that retires at 85 s (spec L678).</summary>
         public bool RetiresAtFinal { get; }
 
-        public Aabb Bounds { get; }
+        public Aabb Bounds { get; private set; }
+
+        /// <summary>Moves a dynamic solid (a pushed prop, spec L155, L173); collision follows in the same update.</summary>
+        internal void MoveTo(YawBox box)
+        {
+            Box = box;
+            Bounds = box.Bounds();
+        }
 
         public bool Slippery => (Flags & MaterialFlags.Ice) != 0;
 

@@ -105,14 +105,34 @@ namespace Confluence.Reactions
         /// prisms, light shafts, and the biome environment rule (spec L664, L668).
         /// </summary>
         public ReactionWorld(ArenaLayout layout, int combatStartTick = 0)
+            : this(layout, combatStartTick, true)
+        {
+        }
+
+        /// <summary>
+        /// World for an assembled arena. With <paramref name="installEnvironment"/> false the biome rule and the gust
+        /// schedule are left to the caller: the Sim installs them through its biome behaviors (BIO-001, BIO-011) with
+        /// the same classes <see cref="EnvironmentRules.Install"/> uses.
+        /// </summary>
+        public ReactionWorld(ArenaLayout layout, int combatStartTick, bool installEnvironment)
             : this(CellGrid.ForArena(layout), combatStartTick)
         {
             Layout = layout;
             Sound = new SoundOcclusionQuery(layout.Solids);
             InitializeFromLayout(layout);
-            EnvironmentRules.Install(this, layout);
+            if (installEnvironment)
+            {
+                EnvironmentRules.Install(this, layout);
+            }
+
             RebuildActive();
         }
+
+        /// <summary>
+        /// Rebuilds the active-cell set after the caller installed scheduled sources or deposited initial material
+        /// outside a step (biome installation by the Sim).
+        /// </summary>
+        public void RefreshActiveCells() => RebuildActive();
 
         public CellGrid Grid => _grid;
 

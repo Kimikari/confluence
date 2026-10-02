@@ -1,20 +1,15 @@
-using System;
 using Confluence.Core.Arena;
-using Confluence.Core.Content;
-using Confluence.Core.Time;
-using Confluence.Reactions.Grid;
-using Confluence.Reactions.Operations;
 
 namespace Confluence.Reactions.Environment
 {
     /// <summary>
-    /// The arena's announced gust schedule (spec L664 "gust schedules") and BIO-011 Windmill Yard: "Every 12 s an
-    /// announced 2 s gust moves clouds up to 2 m along the shown compass direction; force strength 1." Gusts follow
-    /// the global wind rule (strength above 1 translates clouds, L151) unless the biome's own text moves clouds at
-    /// strength 1, which only Windmill Yard does, bounded by its 2 m (DECISIONS D-023, D-038). A gust only moves
-    /// volumes: "The gust does not move players or damaging props" (BIO-011 fairness), so it never queues prop forces.
+    /// BIO-011 Windmill Yard: "Every 12 s an announced 2 s gust moves clouds up to 2 m along the shown compass
+    /// direction; force strength 1." The arena generator writes the announced schedule into the layout (spec L664);
+    /// this rule lets those strength-1 gusts translate clouds, which the global wind rule reserves for strength above
+    /// 1 (L151), bounded by the stated 2 m (DECISIONS D-023, D-038). A gust only moves volumes: "The gust does not move
+    /// players or damaging props" (BIO-011 fairness), so it never queues a prop force. The Sim's BIO-011 behavior
+    /// installs it in a duel.
     /// </summary>
-    [ContentBehavior("BIO-011")]
     public static class WindmillYardGusts
     {
         public const string BiomeId = "BIO-011";
@@ -22,40 +17,11 @@ namespace Confluence.Reactions.Environment
         /// <summary>"moves clouds up to 2 m".</summary>
         public const float GustMaxDistance = 2f;
 
-        /// <summary>Converts the layout's announced gusts into scheduled winds.</summary>
-        public static void InstallGusts(ReactionWorld world, ArenaLayout layout)
-        {
-            if (layout.Gusts == null)
-            {
-                return;
-            }
+        /// <summary>Installs the layout's announced gusts with the Windmill Yard cloud rule. Returns the gust count.</summary>
+        public static int Install(ReactionWorld world, ArenaLayout layout) =>
+            EnvironmentRules.InstallAnnouncedGusts(world, layout, true, GustMaxDistance);
 
-            bool windmill = layout.BiomeId == BiomeId;
-            for (int i = 0; i < layout.Gusts.Count; i++)
-            {
-                GustEvent g = layout.Gusts[i];
-                if (g == null)
-                {
-                    continue;
-                }
-
-                var gust = new WindGust
-                {
-                    Area = g.Radius > 0f ? Footprint.Circle(g.Center, g.Radius) : (Footprint?)null,
-                    Direction = g.Direction.Normalized(),
-                    Strength = g.Strength,
-                    DurationTicks = Math.Max(1, Ticks.FromSeconds(g.DurationSec)),
-                    Owner = ReactionRules.MapOwner,
-                    SourceEventId = ReactionRules.NoSource,
-                };
-                if (windmill)
-                {
-                    gust.LocalCloudOverride = true;
-                    gust.MaxDistance = GustMaxDistance;
-                }
-
-                world.AddScheduledGust(world.CombatStartTick + Ticks.FromSeconds(g.TimeSec), gust);
-            }
-        }
+        /// <summary>The layout's announced gusts (the Windmill Yard rule applies only to a BIO-011 layout).</summary>
+        public static void InstallGusts(ReactionWorld world, ArenaLayout layout) => EnvironmentRules.InstallGusts(world, layout);
     }
 }

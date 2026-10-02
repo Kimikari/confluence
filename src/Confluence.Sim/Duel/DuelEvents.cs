@@ -20,6 +20,12 @@ namespace Confluence.Sim.Duel
         Boundary,
         Resource,
         DuelEnd,
+
+        /// <summary>Prop pushes, collisions, damage, and destruction (Confluence.Sim.Props).</summary>
+        Prop,
+
+        /// <summary>Effect activations and cues (Confluence.Sim.Effects).</summary>
+        Effect,
     }
 
     /// <summary>

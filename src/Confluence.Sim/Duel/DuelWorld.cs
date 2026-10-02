@@ -1,18 +1,22 @@
 using System;
 using System.Collections.Generic;
 using Confluence.Core.Arena;
+using Confluence.Core.Content;
 using Confluence.Core.Geometry;
 using Confluence.Core.Rules;
 using Confluence.Core.Time;
 using Confluence.Sim.Combat;
+using Confluence.Sim.Effects;
 using Confluence.Sim.Fields;
 using Confluence.Sim.Hashing;
 using Confluence.Sim.Input;
 using Confluence.Sim.Movement;
 using Confluence.Sim.Players;
+using Confluence.Sim.Props;
 using Confluence.Sim.Stats;
 using Confluence.Sim.Status;
 using Confluence.Sim.World;
+using Confluence.Sim.World.Materials;
 
 namespace Confluence.Sim.Duel
 {
@@ -33,6 +37,14 @@ namespace Confluence.Sim.Duel
 
         /// <summary>Keep every event for replays and the decisive sequence (spec L359, L419).</summary>
         public bool KeepEventLog { get; set; } = true;
+
+        // ----- world, props, and effects (sim-world-effects stage) ------------------------------------------
+
+        /// <summary>Behaviors of loadout equipment, augments, and the biome rule. Defaults to those shipped in Confluence.Sim.</summary>
+        public IEffectContentSource Content { get; set; }
+
+        /// <summary>Catalogue for prop mass and durability and biome records; without one props are anchored and indestructible.</summary>
+        public Catalogue Catalogue { get; set; }
     }
 
     /// <summary>
@@ -70,7 +82,9 @@ namespace Confluence.Sim.Duel
             CombatTicks = Math.Max(1, options.CombatTicks);
             _keepLog = options.KeepEventLog;
             Collision = CollisionWorld.FromLayout(layout);
-            Materials = options.Materials ?? new NullWorldMaterials();
+            Materials = options.Materials ?? new ReactionMaterials();
+            Content = options.Content ?? ContentBehaviorIndex.Default;
+            Catalogue = options.Catalogue;
             Spells = options.SpellRuntime ?? new NullSpellRuntime();
             Owned = new OwnedEntityRegistry();
             Procs = new ProcBudget();
@@ -80,12 +94,17 @@ namespace Confluence.Sim.Duel
 
             _players[0] = new DuelPlayer(0, player0 ?? throw new ArgumentNullException(nameof(player0)));
             _players[1] = new DuelPlayer(1, player1 ?? throw new ArgumentNullException(nameof(player1)));
+            Props = PropSystem.FromLayout(this, layout, Catalogue);
+            Effects = new EffectSystem(this);
+            Effects.AttachLoadouts(Content); // stat modifiers apply before the alcove restores the pools
             for (int i = 0; i < PlayerCount; i++)
             {
                 PlaceInAlcove(_players[i]);
             }
 
             Phase = AlcoveTicks > 0 ? DuelPhase.Alcove : DuelPhase.Combat;
+            (Materials as IMaterialsBinding)?.Attach(this);
+            Effects.BeginRound(); // spec L46, L579: round-start effects (reserve shields) once
             Spells.Attach(this);
         }
 
@@ -98,6 +117,17 @@ namespace Confluence.Sim.Duel
         public OwnedEntityRegistry Owned { get; }
         public ProcBudget Procs { get; }
         public HitVolumeHistory History { get; }
+
+        /// <summary>Loose and anchored prop bodies (spec L171-L173), updated at tick-order step 6.</summary>
+        public PropSystem Props { get; }
+
+        /// <summary>Effect framework (spec L126, L433): triggers, conditions, budgets, cast pricing, hit bonuses.</summary>
+        public EffectSystem Effects { get; }
+
+        public IEffectContentSource Content { get; }
+
+        /// <summary>The catalogue the duel was built with, or null.</summary>
+        public Catalogue Catalogue { get; }
 
         public int AlcoveTicks { get; }
         public int CombatTicks { get; }
@@ -195,10 +225,13 @@ namespace Confluence.Sim.Duel
             Spells.AdvanceDeliveries();                      // 4
             StepMaterials();                                 // 5
             StepOwnedEntities();                             // 6
+            Props.Step();
             for (int i = 0; i < PlayerCount; i++)            // 7
             {
                 StepStatusesAndResources(_players[i]);
             }
+
+            Effects.Dispatch();                              // effect triggers of this tick (end of 7)
 
             if (Phase == DuelPhase.Combat)                   // 8
             {
@@ -228,6 +261,8 @@ namespace Confluence.Sim.Duel
             Procs.Hash(ref h);
             Spells.Hash(ref h);
             Materials.Hash(ref h);
+            Props.Hash(ref h);
+            Effects.Hash(ref h);
             h.Add(Result == null ? -2 : Result.Winner);
             return h.Value;
         }
@@ -908,6 +943,7 @@ namespace Confluence.Sim.Duel
 
             DuelPlayer target = _players[request.Target];
             DuelPlayer attacker = request.Attacker >= 0 && request.Attacker < PlayerCount ? _players[request.Attacker] : null;
+            Effects.ModifyOutgoing(request); // attacker's damage stats and next-hit bonuses on original hits only
             DamageResolution resolution = DamagePipeline.Resolve(request, target, Tick);
             var ev = new DamageEvent
             {
@@ -1186,7 +1222,7 @@ namespace Confluence.Sim.Duel
         public bool TryDash(int player, Vec3 direction, float distance, int ticks, string sourceId)
         {
             DuelPlayer p = _players[player];
-            distance = Math.Min(distance, GlobalRules.Modifiers.MaxDashDistance);
+            distance = p.Stats.EffectiveDashDistance(distance); // dash bonuses, at most 8 m (spec L124)
             Vec3 dir = new Vec3(direction.X, 0f, direction.Z).Normalized();
             if (Phase != DuelPhase.Combat || !(distance > 0f) || ticks <= 0 || dir.LengthSquared() == 0f || !p.Alive || p.Motor.IsDisplaced)
             {
@@ -1212,7 +1248,7 @@ namespace Confluence.Sim.Duel
 
             Vec3 from = p.Position;
             Vec3 delta = destination - from;
-            float max = GlobalRules.Modifiers.MaxTeleportDistance;
+            float max = p.Stats.EffectiveTeleportDistance(delta.Length()); // teleport bonuses, at most 10 m (spec L124)
             if (delta.Length() > max)
             {
                 destination = from + delta.Normalized() * max;
@@ -1363,6 +1399,7 @@ namespace Confluence.Sim.Duel
 
             CollisionSolid solid = Collision.Find(solidId);
             Emit(new SolidEvent { Change = destroyed ? SolidChange.Destroyed : SolidChange.Damaged, SolidId = solidId, Amount = amount, DurabilityAfter = solid.Durability }, attacker);
+            Props.OnSolidDamaged(solidId, amount, destroyed, attacker); // a prop body reports its own damage and destruction
             if (destroyed && attacker >= 0 && attacker < PlayerCount && solid.OwnerPlayer != attacker)
             {
                 _players[attacker].Feats.OnCoverBroken();
@@ -1554,6 +1591,38 @@ namespace Confluence.Sim.Duel
             }
 
             return e;
+        }
+
+        // ----- world, props, and effects hooks (sim-world-effects stage) ------------------------------------
+
+        /// <summary>
+        /// Emits an event produced by a later stage (props, effects, spell deliveries) into the same ordered stream, so
+        /// replays, the HUD, and the decisive sequence see one id sequence (spec L359, L419). Returns the event.
+        /// </summary>
+        public T RecordEvent<T>(T e, int player) where T : DuelEvent
+        {
+            if (e == null)
+            {
+                throw new ArgumentNullException(nameof(e));
+            }
+
+            return Emit(e, player);
+        }
+
+        /// <summary>
+        /// Ends a field or summon whose underlying object ended on its own (a reaction cloud expired, dispersed, or was
+        /// dispelled in the reaction world), with the matching field event. Returns false when it is already gone.
+        /// </summary>
+        public bool RemoveOwnedEntity(int entityId, FieldChange change, int destroyer)
+        {
+            OwnedEntity e = Owned.Find(entityId);
+            if (e == null || !Owned.Remove(entityId))
+            {
+                return false;
+            }
+
+            EmitField(e, change, destroyer);
+            return true;
         }
 
         private void EmitStatus(DuelPlayer p, StatusInstance s, StatusChange change)
