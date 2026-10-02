@@ -59,6 +59,48 @@ namespace Confluence.Arena.Validation
             return best;
         }
 
+        /// <summary>
+        /// Longest open lane among the sampled lines that cross a footprint (the lines a removed obstacle could open):
+        /// the same lattice as <see cref="Longest"/>, restricted to those lines.
+        /// </summary>
+        public FiringLane LongestThrough(YawBox region)
+        {
+            var intervals = new List<Vec2>(64);
+            var best = default(FiringLane);
+            float bestLength = -1f;
+            for (int k = 0; k < ArenaRules.LaneDirections; k++)
+            {
+                float yaw = k * 180f / ArenaRules.LaneDirections;
+                Vec2 d = Vec2.FromYaw(yaw);
+                Vec2 n = new Vec2(d.Y, -d.X);
+                float lo = float.PositiveInfinity;
+                float hi = float.NegativeInfinity;
+                for (int c = 0; c < 4; c++)
+                {
+                    float proj = Vec2.Dot(region.FootprintCorner(c), n);
+                    lo = Math.Min(lo, proj);
+                    hi = Math.Max(hi, proj);
+                }
+
+                for (float s = -_reach; s <= _reach; s += ArenaRules.LaneLineSpacing)
+                {
+                    if (s < lo - ArenaRules.LaneLineSpacing || s > hi + ArenaRules.LaneLineSpacing)
+                    {
+                        continue;
+                    }
+
+                    FiringLane lane = LongestOnLine(n * s, d, intervals, float.NaN);
+                    if (!lane.IsEmpty && lane.Length > bestLength)
+                    {
+                        bestLength = lane.Length;
+                        best = lane;
+                    }
+                }
+            }
+
+            return best;
+        }
+
         /// <summary>The longest lane of every sampled line that is longer than a threshold, longest first.</summary>
         public List<FiringLane> LongerThan(float threshold)
         {

@@ -58,6 +58,9 @@ namespace Confluence.Arena.Generation
 
         private const float IslandScanStep = 0.5f;
 
+        /// <summary>Score penalty per open bulwark ray an elevation pose takes the room from (2-degree rays).</summary>
+        private const float BulwarkConflictPenalty = 0.5f;
+
         /// <summary>Clear floor every module piece keeps inside the contour: a capsule passage with margin (spec L676).</summary>
         private const float IslandContourMargin = 1.25f;
         private const int BastionTuningPasses = 4;
@@ -68,15 +71,21 @@ namespace Confluence.Arena.Generation
         /// <summary>Lane breakers may add a second attachment to an obstacle (contraction repair removes any that trap floor).</summary>
         private const int LaneBreakerAttachLimit = 2;
 
-        private const int ContractionRepairs = 8;
+        private const int ContractionRepairs = 12;
+
+        /// <summary>Obstacles near a stranded cell considered per repair, nearest first.</summary>
+        private const int ContractionRepairCandidates = 8;
 
         /// <summary>Only an obstacle this close to a stranded cell is removed to repair it.</summary>
-        private const float ContractionRepairReach = 4f;
+        private const float ContractionRepairReach = 6f;
 
         /// <summary>Center of the bulwark walls at most this far out: their inner faces keep lanes through the center under 28 m.</summary>
         private const float BulwarkRadius = 14.5f;
 
         private const float BulwarkMinRadius = 8f;
+
+        /// <summary>Nearest a bulwark piece may come to the center when a module holds its planned radius.</summary>
+        private const float BulwarkInnermostRadius = 6.5f;
         private const float BulwarkThickness = 1f;
         private const float BulwarkPieceLength = 2.4f;
 
@@ -147,8 +156,10 @@ namespace Confluence.Arena.Generation
 
         private const float FillerMinHalfDiagonal = 0.6f;
 
-        /// <summary>Route-zone rocks and lane posts tried per arena (each costs a navigation rebuild).</summary>
-        private const int RouteRockTries = 10;
+        /// <summary>Route-zone lane breakers and filler rocks tried per arena (each costs a navigation rebuild).</summary>
+        private const int LaneRouteChecks = 12;
+
+        private const int FillRouteChecks = 8;
         private const float FillerMaxHalfDiagonal = 3.0f;
 
         private readonly ArenaContent _content;
@@ -169,7 +180,9 @@ namespace Confluence.Arena.Generation
         private Rect2 _laneZone;
         private List<Vec3> _openRays;
         private Rect2 _centerFootprint;
-        private int _routeChecks;
+        private int _laneRouteChecks;
+        private int _fillRouteChecks;
+        private bool _conflictsStrict;
         private readonly List<Vec3> _sites = new List<Vec3>(); // placed features and props (side 0), x/z plus radius in Y
         private SpawnBastion _bastion;
         private float _wingMax;
@@ -478,7 +491,13 @@ namespace Confluence.Arena.Generation
             int pairs = (GlobalRules.Arena.ElevationModulesMin + 1) / 2;
             for (int i = 0; i < pairs; i++)
             {
-                PlaceOneIsland(ModuleCategory.Elevation, true);
+                // First a pose that leaves every bulwark its room; failing that, the one that takes the least.
+                _conflictsStrict = true;
+                if (!PlaceOneIsland(ModuleCategory.Elevation, true))
+                {
+                    _conflictsStrict = false;
+                    PlaceOneIsland(ModuleCategory.Elevation, true);
+                }
             }
 
             _openRays = null;
@@ -725,13 +744,14 @@ namespace Confluence.Arena.Generation
                 int q = _rng.NextInt(4);
                 Vec2 c = new Vec2(_rng.Range(-reach, reach), _rng.Range(-reach, 0f));
                 float noise = _rng.NextFloat() * 0.5f;
-                if (!IslandFits(g, c, q, IslandGap, out bool onRoute) || BulwarkConflicts(g, c, q) > 0)
+                int conflicts = BulwarkConflicts(g, c, q);
+                if (!IslandFits(g, c, q, IslandGap, out bool onRoute) || (_conflictsStrict && conflicts > 0))
                 {
                     continue;
                 }
 
                 Rect2 r = LayoutWriter.Footprint(g, c, q);
-                float score = Preference(category, r) + noise - (onRoute ? IslandRoutePenalty : 0f);
+                float score = Preference(category, r) + noise - (onRoute ? IslandRoutePenalty : 0f) - conflicts * BulwarkConflictPenalty;
                 sites.Add(new IslandSite { Position = c, Turns = q, Score = score, OnRoute = onRoute });
             }
 
@@ -805,9 +825,10 @@ namespace Confluence.Arena.Generation
                     for (int q = 0; q < 4; q++)
                     {
                         var c = new Vec2(x, z);
-                        if (IslandFits(g, c, q, gap, out bool onRoute) && BulwarkConflicts(g, c, q) == 0)
+                        int conflicts = BulwarkConflicts(g, c, q);
+                        if (IslandFits(g, c, q, gap, out bool onRoute) && (!_conflictsStrict || conflicts == 0))
                         {
-                            float score = Preference(category, LayoutWriter.Footprint(g, c, q)) - (onRoute ? IslandRoutePenalty : 0f);
+                            float score = Preference(category, LayoutWriter.Footprint(g, c, q)) - (onRoute ? IslandRoutePenalty : 0f) - conflicts * BulwarkConflictPenalty;
                             sites.Add(new IslandSite { Position = c, Turns = q, Score = score, OnRoute = onRoute });
                         }
                     }
@@ -1107,6 +1128,14 @@ namespace Confluence.Arena.Generation
 
             float outer = inner + BulwarkRowSpacing;
             bool staggered = outer <= BulwarkRadius;
+            if (!staggered && inner - BulwarkRowSpacing >= BulwarkInnermostRadius)
+            {
+                // No room outside: the gate covers stand inside the gated row instead, so the floor beyond the
+                // bulwark still has ways in every few meters (spec L676 contraction routes).
+                staggered = true;
+                outer = inner - BulwarkRowSpacing;
+            }
+
             if (!staggered)
             {
                 // No room for a second row: one continuous arc of short pieces at the inner radius.
@@ -1139,7 +1168,20 @@ namespace Confluence.Arena.Generation
         /// <summary>One straight bulwark piece spanning an arc of a circle (angles in degrees).</summary>
         private void PlaceArc(float b0, float b1, float radius)
         {
+            // Outward from the planned radius first; where a module holds that stretch, inward toward the center
+            // (a nearer wall only shortens the lanes it closes).
+            var radii = new List<float>();
             for (float r = radius; r <= BulwarkRadius + 0.51f; r += 0.25f)
+            {
+                radii.Add(r);
+            }
+
+            for (float r = radius - 0.25f; r >= BulwarkInnermostRadius; r -= 0.25f)
+            {
+                radii.Add(r);
+            }
+
+            foreach (float r in radii)
             {
                 Vec2 p0 = Vec2.FromYaw(b0) * r;
                 Vec2 p1 = Vec2.FromYaw(b1) * r;
@@ -1677,7 +1719,7 @@ namespace Confluence.Arena.Generation
 
             _routeBaseline = RouteConditions();
             var chosen = new List<Vec3>();
-            for (int i = 0; i < spots.Count && missing > 0f && _routeChecks < RouteRockTries; i++)
+            for (int i = 0; i < spots.Count && missing > 0f && _fillRouteChecks < FillRouteChecks; i++)
             {
                 Vec3 p = nav.NodePosition(spots[i].Node);
                 if (!FarFromChosen(p, spots[i].Room, chosen))
@@ -1685,7 +1727,7 @@ namespace Confluence.Arena.Generation
                     continue;
                 }
 
-                _routeChecks++;
+                _fillRouteChecks++;
                 LayoutWriter.Checkpoint mark = _w.Mark();
                 int occupied = _occupied.Count;
                 float area = PlaceRock(p.XZ(), spots[i].Room, _rng.Range(0f, 180f));
@@ -1714,7 +1756,7 @@ namespace Confluence.Arena.Generation
         }
 
         /// <summary>
-        /// A free-standing post across a long lane where it crosses a bastion exit or crossover strip (the only floor
+        /// A post across a long lane where it crosses a bastion exit or crossover strip (the only floor
         /// some lanes cross), kept only if the skeleton guarantees survive on the navigation grid.
         /// </summary>
         private bool TryBreakLaneInRouteZone(FiringLane lane, out YawBox placed)
@@ -1731,7 +1773,8 @@ namespace Confluence.Arena.Generation
                 fractions.Add(1f - f);
             }
 
-            for (int i = 0; i < fractions.Count && _routeChecks < RouteRockTries; i++)
+            var options = new List<YawBox>(3);
+            for (int i = 0; i < fractions.Count && _laneRouteChecks < LaneRouteChecks; i++)
             {
                 Vec2 p = Vec2.Lerp(lane.A, lane.B, fractions[i]);
                 Vec2 side = across;
@@ -1746,73 +1789,64 @@ namespace Confluence.Arena.Generation
                     continue;
                 }
 
-                float height = ArenaRules.TallWallHeight;
-                var post = new YawBox(new Vec3(p.X, height * 0.5f, p.Y), new Vec3(SpurThickness * 0.5f, height * 0.5f, 0.6f), CMath.YawOf(side));
-                if (!RouteZoneRockFits(post))
+                // A spur from the nearest obstacle on either side, else a post across the lane.
+                options.Clear();
+                for (int sgn = -1; sgn <= 1; sgn += 2)
                 {
-                    continue;
+                    if (SpurBox(p, side * sgn, out YawBox spur))
+                    {
+                        options.Add(spur);
+                    }
                 }
 
+                float height = ArenaRules.TallWallHeight;
+                options.Add(new YawBox(new Vec3(p.X, height * 0.5f, p.Y), new Vec3(SpurThickness * 0.5f, height * 0.5f, 0.6f), CMath.YawOf(side)));
+                for (int o = 0; o < options.Count && _laneRouteChecks < LaneRouteChecks; o++)
+                {
+                    YawBox post = options[o];
+                    if (AttachedRockFits(post, out int touched, LaneBreakerAttachLimit, inRouteZone: true) && TryRouteRock(post, touched))
+                    {
+                        placed = post;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>Writes a rock pair in a route zone and keeps it only if the skeleton guarantees survive.</summary>
+        private bool TryRouteRock(YawBox post, int touched)
+        {
+            {
                 _routeBaseline = _routeBaseline ?? RouteConditions();
-                _routeChecks++;
+                _laneRouteChecks++;
                 LayoutWriter.Checkpoint mark = _w.Mark();
                 Solid rock = _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, post, ArenaMaterials.Rock, 0f));
                 if (!RoutesIntact())
                 {
                     _w.Rollback(mark);
-                    continue;
+                    return false;
                 }
 
                 _removable.Add(rock.Id);
                 _removable.Add(rock.MirrorId);
                 _attached.Add(rock.Id); // nothing grows from a rock standing in a route zone
                 _attached.Add(rock.MirrorId);
+                if (touched >= 0)
+                {
+                    _attachments[touched] = AttachmentsOf(touched) + 1;
+                    Solid touchedSolid = _layout.FindSolid(touched);
+                    if (touchedSolid != null)
+                    {
+                        _attachments[touchedSolid.MirrorId] = AttachmentsOf(touchedSolid.MirrorId) + 1;
+                    }
+                }
                 Rect2 bounds = Rect2.Around(post);
                 _occupied.Add(bounds);
                 _occupied.Add(bounds.Mirrored());
-                placed = post;
                 return true;
             }
-
-            return false;
-        }
-
-        /// <summary>A free-standing rock in a route zone: clear of hard zones, the contour strip, patches, and every solid.</summary>
-        private bool RouteZoneRockFits(YawBox box)
-        {
-            if (!InAuthoredHalf(box.Center.XZ()) || Footprint2D.Distance(box, MirrorMath.Box(box)) < FillerGap
-                || OverlapsZone(box, _hardZones) || Footprint2D.Overlap(box, ZoneBox(_laneZone)))
-            {
-                return false;
-            }
-
-            for (int i = 0; i < 4; i++)
-            {
-                if (_layout.Boundary.RadialMargin(box.FootprintCorner(i).ToXZ(), 0f) < ArenaRules.ContourStripWidth)
-                {
-                    return false;
-                }
-            }
-
-            Rect2 near = Rect2.Around(box).Expanded(FillerGap);
-            foreach (Solid s in _layout.Solids)
-            {
-                if (s.Kind != SolidKind.Floor && s.Box.Bottom <= ArenaRules.Headroom && near.Overlaps(Rect2.Around(s.Box))
-                    && Footprint2D.Distance(box, s.Box) < FillerGap)
-                {
-                    return false;
-                }
-            }
-
-            foreach (MaterialPatch m in _layout.Materials)
-            {
-                if (BoxTouchesPatch(box, m, RockPatchMargin))
-                {
-                    return false;
-                }
-            }
-
-            return true;
         }
 
         private static bool InAny(Vec2 p, List<Rect2> zones)
@@ -1904,6 +1938,19 @@ namespace Confluence.Arena.Generation
                     along = -dir;
                 }
 
+                // A free-standing post across the lane first: touching nothing, it can never close a cup that the
+                // contracting boundary would strand (spec L676). Otherwise a spur from the nearest obstacle, or a post
+                // against one.
+                float height = _rng.Range(2.2f, 3.0f);
+                var post = new YawBox(new Vec3(p.X, height * 0.5f, p.Y), new Vec3(SpurThickness * 0.5f, height * 0.5f, 0.6f), CMath.YawOf(side));
+                bool postFits = AttachedRockFits(post, out int touched, LaneBreakerAttachLimit);
+                if (postFits && touched < 0)
+                {
+                    AddAttachedPair(post, touched);
+                    placed = post;
+                    return true;
+                }
+
                 for (int s = -1; s <= 1; s += 2)
                 {
                     if (TrySpur(p, side * s, along, out placed))
@@ -1912,10 +1959,7 @@ namespace Confluence.Arena.Generation
                     }
                 }
 
-                // Where no obstacle is near enough to grow a spur from, a free-standing post across the lane.
-                float height = _rng.Range(2.2f, 3.0f);
-                var post = new YawBox(new Vec3(p.X, height * 0.5f, p.Y), new Vec3(SpurThickness * 0.5f, height * 0.5f, 0.6f), CMath.YawOf(side));
-                if (AttachedRockFits(post, out int touched, LaneBreakerAttachLimit))
+                if (postFits)
                 {
                     AddAttachedPair(post, touched);
                     placed = post;
@@ -1933,6 +1977,20 @@ namespace Confluence.Arena.Generation
         private bool TrySpur(Vec2 p, Vec2 toward, Vec2 along, out YawBox placed)
         {
             placed = default(YawBox);
+            if (!SpurBox(p, toward, out YawBox box) || !AttachedRockFits(box, out int touched, LaneBreakerAttachLimit))
+            {
+                return false;
+            }
+
+            AddAttachedPair(box, touched);
+            placed = box;
+            return true;
+        }
+
+        /// <summary>The spur from the nearest lane-band obstacle within reach of p along toward, if any.</summary>
+        private bool SpurBox(Vec2 p, Vec2 toward, out YawBox box)
+        {
+            box = default(YawBox);
             float hit = float.PositiveInfinity;
             foreach (Solid s in _layout.Solids)
             {
@@ -1956,14 +2014,7 @@ namespace Confluence.Arena.Generation
             float end = hit + SpurEmbed;
             Vec2 mid = p + toward * ((start + end) * 0.5f);
             float height = _rng.Range(2.2f, 3.0f);
-            var box = new YawBox(new Vec3(mid.X, height * 0.5f, mid.Y), new Vec3(SpurThickness * 0.5f, height * 0.5f, (end - start) * 0.5f), CMath.YawOf(toward));
-            if (!AttachedRockFits(box, out int touched, LaneBreakerAttachLimit))
-            {
-                return false;
-            }
-
-            AddAttachedPair(box, touched);
-            placed = box;
+            box = new YawBox(new Vec3(mid.X, height * 0.5f, mid.Y), new Vec3(SpurThickness * 0.5f, height * 0.5f, (end - start) * 0.5f), CMath.YawOf(toward));
             return true;
         }
 
@@ -2016,11 +2067,19 @@ namespace Confluence.Arena.Generation
         /// </summary>
         private int AttachmentsOf(int solidId) => _attachments.TryGetValue(solidId, out int n) ? n : 0;
 
-        private bool AttachedRockFits(YawBox box, out int touchedId, int attachLimit = 1)
+        private bool AttachedRockFits(YawBox box, out int touchedId, int attachLimit = 1, bool inRouteZone = false)
         {
             touchedId = -1;
             Rect2 bounds = Rect2.Around(box);
-            if (!InAuthoredHalf(box.Center.XZ()) || OverlapsKeepOut(bounds))
+            if (!InAuthoredHalf(box.Center.XZ()))
+            {
+                return false;
+            }
+
+            // A rock in a route zone (checked on the navigation grid by the caller) still keeps out of the hard zones.
+            if (inRouteZone
+                ? OverlapsZone(box, _hardZones) || Footprint2D.Overlap(box, ZoneBox(_laneZone))
+                : OverlapsKeepOut(bounds))
             {
                 return false;
             }
@@ -2320,52 +2379,89 @@ namespace Confluence.Arena.Generation
                     return;
                 }
 
+                // Candidates nearest first: removable rocks, bulwark pieces, and props within reach of the stranded cell.
+                // A rock whose removal would reopen a lane over the limit stays (spec L310); the next one is tried.
                 Vec2 cell = nav.NodePosition(node).XZ();
-                Solid rock = null;
-                PropPlacement prop = null;
-                float best = ContractionRepairReach;
-                foreach (Solid s in _layout.Solids)
+                var candidates = new List<KeyValuePair<float, int>>(); // distance, solid index or ~prop index
+                for (int i = 0; i < _layout.Solids.Count; i++)
                 {
-                    if (_removable.Contains(s.Id))
+                    Solid s = _layout.Solids[i];
+                    float d = ArenaSurvey.FootprintDistance(s.Box, cell);
+                    if ((_removable.Contains(s.Id) || _bulwarks.Contains(s.Id)) && d < ContractionRepairReach)
                     {
-                        float d = ArenaSurvey.FootprintDistance(s.Box, cell);
-                        if (d < best)
-                        {
-                            best = d;
-                            rock = s;
-                        }
+                        candidates.Add(new KeyValuePair<float, int>(d, i));
                     }
                 }
 
-                foreach (PropPlacement p in _layout.Props)
+                for (int i = 0; i < _layout.Props.Count; i++)
                 {
-                    float d = Vec2.Distance(p.Position.XZ(), cell);
-                    if (d < best)
+                    float d = Vec2.Distance(_layout.Props[i].Position.XZ(), cell);
+                    if (d < ContractionRepairReach)
                     {
-                        best = d;
-                        prop = p;
-                        rock = null;
+                        candidates.Add(new KeyValuePair<float, int>(d, ~i));
                     }
                 }
 
-                if (prop != null)
+                candidates.Sort((a, b) => a.Key != b.Key ? a.Key.CompareTo(b.Key) : a.Value.CompareTo(b.Value));
+                bool repaired = false;
+                for (int c = 0; c < candidates.Count && c < ContractionRepairCandidates && !repaired; c++)
                 {
-                    PropPlacement image = _layout.FindProp(prop.MirrorId);
-                    _layout.Props.Remove(prop);
-                    _layout.Props.Remove(image);
+                    int index = candidates[c].Value;
+                    if (index < 0)
+                    {
+                        PropPlacement prop = _layout.Props[~index];
+                        PropPlacement image = _layout.FindProp(prop.MirrorId);
+                        _layout.Props.Remove(prop);
+                        _layout.Props.Remove(image);
+                        repaired = true;
+                    }
+                    else
+                    {
+                        repaired = TryRemoveRock(_layout.Solids[index]);
+                    }
                 }
-                else if (rock != null)
-                {
-                    _removable.Remove(rock.Id);
-                    _removable.Remove(rock.MirrorId);
-                    _w.RemoveSolidPair(rock);
-                }
-                else
+
+                if (!repaired)
                 {
                     Notes.Add("contraction failure without a removable obstacle nearby");
                     return;
                 }
             }
+        }
+
+        /// <summary>Removes a rock pair unless that reopens a firing lane over the limit (then it is put back).</summary>
+        private bool TryRemoveRock(Solid rock)
+        {
+            Solid image = _layout.FindSolid(rock.MirrorId);
+            int a = _layout.Solids.IndexOf(rock);
+            int b = image == null || image == rock ? -1 : _layout.Solids.IndexOf(image);
+            _w.RemoveSolidPair(rock);
+            var meter = new LaneMeter(ArenaNav.Build(_layout), _layout);
+            if (Math.Max(meter.LongestThrough(rock.Box).Length, meter.LongestThrough(MirrorMath.Box(rock.Box)).Length) > GlobalRules.Arena.FiringLaneMax)
+            {
+                // Reinsert in the original order so ids and order stay exactly as they were.
+                if (b >= 0 && b < a)
+                {
+                    _layout.Solids.Insert(b, image);
+                    _layout.Solids.Insert(a, rock);
+                }
+                else
+                {
+                    _layout.Solids.Insert(a, rock);
+                    if (b >= 0)
+                    {
+                        _layout.Solids.Insert(b, image);
+                    }
+                }
+
+                return false;
+            }
+
+            _removable.Remove(rock.Id);
+            _removable.Remove(rock.MirrorId);
+            _bulwarks.Remove(rock.Id);
+            _bulwarks.Remove(rock.MirrorId);
+            return true;
         }
 
         // ---- Biome dressing and props -----------------------------------------------------------------------
