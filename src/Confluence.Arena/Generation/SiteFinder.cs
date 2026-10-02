@@ -21,21 +21,31 @@ namespace Confluence.Arena.Generation
         private readonly ArenaLayout _layout;
         private readonly List<Vec3> _sites;
         private readonly List<Rect2> _keepOut;
+        private readonly List<Rect2> _protected;
 
-        public SiteFinder(ArenaNav nav, ArenaLayout layout, List<Vec3> sites, List<Rect2> keepOut)
+        /// <summary>
+        /// keepOut: the skeleton route zones. protectedZones: their cores (bastions, firing lane), where nothing is
+        /// placed at all. Inside the other zones a blocking object needs a full route of clearance around it.
+        /// </summary>
+        public SiteFinder(ArenaNav nav, ArenaLayout layout, List<Vec3> sites, List<Rect2> keepOut, List<Rect2> protectedZones)
         {
             _nav = nav;
             _layout = layout;
             _sites = sites;
             _keepOut = keepOut;
+            _protected = protectedZones;
         }
 
-        public bool TryFind(Rng rng, float clearance, float radius, out Vec3 site)
+        /// <summary>Clearance a blocking object inside a skeleton zone keeps around itself (a 2.5 m route plus margin).</summary>
+        public const float RouteClearance = 2.75f;
+
+        public bool TryFind(Rng rng, float clearance, float radius, bool blocksMovement, out Vec3 site)
         {
             var candidates = new List<int>();
             for (int node = 0; node < _nav.NodeCount; node++)
             {
-                if (_nav.Clearance(node) >= clearance && Accepts(node, radius))
+                float room = _nav.Clearance(node);
+                if (room >= clearance && Accepts(node, radius, blocksMovement, room))
                 {
                     candidates.Add(node);
                 }
@@ -52,7 +62,7 @@ namespace Confluence.Arena.Generation
             return true;
         }
 
-        private bool Accepts(int node, float radius)
+        private bool Accepts(int node, float radius, bool blocksMovement, float room)
         {
             Vec3 p = _nav.NodePosition(node);
             Vec2 q = p.XZ();
@@ -71,11 +81,24 @@ namespace Confluence.Arena.Generation
                 return false;
             }
 
-            for (int i = 0; i < _keepOut.Count; i++)
+            for (int i = 0; i < _protected.Count; i++)
             {
-                if (_keepOut[i].DistanceTo(q) < radius + 0.25f)
+                if (_protected[i].DistanceTo(q) < radius + 0.25f)
                 {
-                    return false; // skeleton routes stay clear: a prop is never the only route (spec L662)
+                    return false;
+                }
+            }
+
+            // Skeleton routes keep their width: a blocking object there needs a full route around it, so it is never
+            // the only route (spec L662 prop placement text).
+            if (blocksMovement && room < radius + RouteClearance)
+            {
+                for (int i = 0; i < _keepOut.Count; i++)
+                {
+                    if (_keepOut[i].DistanceTo(q) < radius + 0.25f)
+                    {
+                        return false;
+                    }
                 }
             }
 

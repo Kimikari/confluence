@@ -1418,6 +1418,14 @@ namespace Confluence.Arena.Generation
         /// </summary>
         private static bool InAuthoredHalf(Vec2 p) => p.Y < 0f || (p.X < 0f && p.Y < SpawnBastion.InteriorHalfDepth);
 
+        /// <summary>Bastion cores (both sides) and the firing lane zone: nothing generated stands there.</summary>
+        private List<Rect2> ProtectedZones()
+        {
+            float laneHalf = _p.LaneHalfLength > 0f ? _p.LaneHalfLength : _p.Radius + 2f;
+            Rect2 core = _bastion.Core();
+            return new List<Rect2> { core, core.Mirrored(), new Rect2(-laneHalf, -LaneZoneHalf, laneHalf, LaneZoneHalf) };
+        }
+
         private bool OverlapsKeepOut(Rect2 r)
         {
             for (int i = 0; i < _keepOut.Count; i++)
@@ -1504,13 +1512,13 @@ namespace Confluence.Arena.Generation
                 return;
             }
 
-            var finder = new SiteFinder(nav, _layout, _sites, _keepOut);
+            var finder = new SiteFinder(nav, _layout, _sites, _keepOut, ProtectedZones());
             for (int pair = 0; pair < f.Pairs; pair++)
             {
                 bool solid = f.Kind == BiomeFeatureKind.Solid;
                 float radius = f.FootprintRadius;
-                float clearance = solid ? radius + 2.0f : radius + 0.25f;
-                if (!finder.TryFind(_rng, clearance, radius, out Vec3 site))
+                float clearance = solid ? radius + PropPassage : radius + 0.25f;
+                if (!finder.TryFind(_rng, clearance, radius, solid, out Vec3 site))
                 {
                     Notes.Add("no site for " + f.BiomeId);
                     return;
@@ -1581,7 +1589,7 @@ namespace Confluence.Arena.Generation
             }
 
             int wanted = PropDefinitionCount();
-            var finder = new SiteFinder(nav, _layout, _sites, _keepOut);
+            var finder = new SiteFinder(nav, _layout, _sites, _keepOut, ProtectedZones());
             int placed = 0;
             while (placed < wanted && pool.Count > 0)
             {
@@ -1592,7 +1600,7 @@ namespace Confluence.Arena.Generation
                 PropShape shape = PropShapes.For(def.Id);
                 float radius = shape.PlacementRadius;
                 float clearance = radius + (shape.BlocksMovement ? PropPassage : 0.25f);
-                if (!finder.TryFind(_rng, clearance, radius, out Vec3 site))
+                if (!finder.TryFind(_rng, clearance, radius, shape.BlocksMovement, out Vec3 site))
                 {
                     continue;
                 }
