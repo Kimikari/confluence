@@ -1,5 +1,6 @@
 using Confluence.Client.Arena;
 using Confluence.Client.Content;
+using Confluence.Client.Laboratory;
 using Confluence.Client.Settings;
 using Confluence.Client.UI;
 using Confluence.Core.Rules;
@@ -17,12 +18,15 @@ namespace Confluence.Client.App
         private ClientContext _context;
         private Camera _menuCamera;
         private ArenaPreviewController _preview;
+        private LaboratoryController _laboratory;
 
         public static Bootstrap Instance { get; private set; }
 
         public ClientContext Context => _context;
 
         public ArenaPreviewController Preview => _preview;
+
+        public LaboratoryController Laboratory => _laboratory;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void EnsureBootstrap()
@@ -69,6 +73,8 @@ namespace Confluence.Client.App
 
             CreateMenuCamera();
             UiShell ui = UiShell.Create(transform);
+            ui.SetScale(settings.UiScale);
+            settings.Changed += () => ui.SetScale(settings.UiScale);
             var states = new AppStateMachine();
             var catalogue = new CatalogueService();
             _context = new ClientContext(states, settings, profile, catalogue, ui, options, Quit);
@@ -83,7 +89,7 @@ namespace Confluence.Client.App
         {
             _context?.Catalogue.Poll();
             if (_context != null && _context.Ui.HasOverlay && UnityEngine.InputSystem.Keyboard.current != null
-                && UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame && _preview == null)
+                && UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame && _preview == null && _laboratory == null)
             {
                 _context.Ui.CloseOverlay();
             }
@@ -91,7 +97,9 @@ namespace Confluence.Client.App
 
         private void OnCatalogueCompleted(CatalogueService service)
         {
-            AppState next = _context.Options.ArenaPreview ? AppState.ArenaPreview : AppState.MainMenu;
+            AppState next = _context.Options.ArenaPreview ? AppState.ArenaPreview
+                : _context.Options.Laboratory ? AppState.Laboratory
+                : AppState.MainMenu;
             _context.States.TransitionTo(next);
             if (next == AppState.MainMenu)
             {
@@ -124,6 +132,11 @@ namespace Confluence.Client.App
                 ExitPreview();
             }
 
+            if (from == AppState.Laboratory)
+            {
+                ExitLaboratory();
+            }
+
             _context.Ui.CloseOverlay();
             ShowScreen(to);
         }
@@ -145,6 +158,9 @@ namespace Confluence.Client.App
                 case AppState.ArenaPreview:
                     ui.ShowScreen(null);
                     EnterPreview();
+                    break;
+                case AppState.Laboratory:
+                    EnterLaboratory();
                     break;
                 default:
                     ui.ShowScreen(PlaceholderScreen.Build(_context, state));
@@ -172,6 +188,30 @@ namespace Confluence.Client.App
             {
                 Destroy(_preview.gameObject);
                 _preview = null;
+            }
+
+            _context.Ui.SetHud(null);
+            _menuCamera.gameObject.SetActive(true);
+        }
+
+        private void EnterLaboratory()
+        {
+            _menuCamera.gameObject.SetActive(false);
+            _laboratory = LaboratoryController.Create(_context, LeaveLaboratory);
+        }
+
+        private void LeaveLaboratory()
+        {
+            AppState back = _context.States.Previous == AppState.Training ? AppState.Training : AppState.MainMenu;
+            _context.States.TryTransitionTo(back);
+        }
+
+        private void ExitLaboratory()
+        {
+            if (_laboratory != null)
+            {
+                Destroy(_laboratory.gameObject);
+                _laboratory = null;
             }
 
             _context.Ui.SetHud(null);

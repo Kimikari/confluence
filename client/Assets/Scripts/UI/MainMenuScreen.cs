@@ -29,6 +29,7 @@ namespace Confluence.Client.UI
                 playCard.style.display = show ? DisplayStyle.Flex : DisplayStyle.None;
             }, "cf-button--primary"));
             nav.Add(Ui.Button("Training", () => context.States.TryTransitionTo(AppState.Training)));
+            nav.Add(Ui.Button("Laboratory (offline)", () => context.States.TryTransitionTo(AppState.Laboratory)));
             nav.Add(Ui.Button("Codex", () => context.States.TryTransitionTo(AppState.Codex)));
             Button collection = Ui.Button("Collection", null);
             collection.SetEnabled(false);
@@ -49,7 +50,7 @@ namespace Confluence.Client.UI
 
             VisualElement footer = Ui.Element("cf-footer");
             footer.Add(Ui.Muted(context.Catalogue.Describe()));
-            footer.Add(Ui.Muted("Client " + Application.version + " (Unity " + Application.unityVersion + "). Networking, shop, draft, and duels arrive in later stages."));
+            footer.Add(Ui.Muted("Client " + Application.version + " (Unity " + Application.unityVersion + "). Online play arrives with networking; the offline Laboratory runs shop, draft, and duels locally."));
             screen.Add(footer);
             return screen;
         }

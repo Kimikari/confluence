@@ -24,6 +24,11 @@ namespace Confluence.Client.Settings
 
         public const float DefaultVolume = 0.8f;
 
+        // Spec L371 "scalable HUD" and dynamic text size: one factor for every panel (menus, shop, HUD).
+        public const float UiScaleMin = 0.75f;
+        public const float UiScaleMax = 1.5f;
+        public const float DefaultUiScale = 1f;
+
         private const string Prefix = "confluence.settings.";
         private const string KeyFov = Prefix + "fov";
         private const string KeySensitivity = Prefix + "sensitivity";
@@ -32,6 +37,7 @@ namespace Confluence.Client.Settings
         private const string KeyMusic = Prefix + "volume.music";
         private const string KeyEffects = Prefix + "volume.effects";
         private const string KeyVoice = Prefix + "volume.voice";
+        private const string KeyUiScale = Prefix + "ui.scale";
 
         private readonly ISettingsStore _store;
         private float _fieldOfView = DefaultFieldOfView;
@@ -41,6 +47,7 @@ namespace Confluence.Client.Settings
         private float _musicVolume = DefaultVolume;
         private float _effectsVolume = DefaultVolume;
         private float _voiceVolume = DefaultVolume;
+        private float _uiScale = DefaultUiScale;
 
         public ClientSettings(ISettingsStore store)
         {
@@ -103,6 +110,13 @@ namespace Confluence.Client.Settings
             set => Set(ref _voiceVolume, Clamp(value, 0f, 1f, DefaultVolume));
         }
 
+        /// <summary>Interface and text scale, 0.75-1.5 (spec L371).</summary>
+        public float UiScale
+        {
+            get => _uiScale;
+            set => Set(ref _uiScale, Clamp(value, UiScaleMin, UiScaleMax, DefaultUiScale));
+        }
+
         /// <summary>Mouse-look degrees per raw device count.</summary>
         public float LookDegreesPerCount => _sensitivity * DegreesPerCount;
 
@@ -115,6 +129,7 @@ namespace Confluence.Client.Settings
             _musicVolume = Clamp(_store.GetFloat(KeyMusic, DefaultVolume), 0f, 1f, DefaultVolume);
             _effectsVolume = Clamp(_store.GetFloat(KeyEffects, DefaultVolume), 0f, 1f, DefaultVolume);
             _voiceVolume = Clamp(_store.GetFloat(KeyVoice, DefaultVolume), 0f, 1f, DefaultVolume);
+            _uiScale = Clamp(_store.GetFloat(KeyUiScale, DefaultUiScale), UiScaleMin, UiScaleMax, DefaultUiScale);
             Changed?.Invoke();
         }
 
@@ -127,6 +142,7 @@ namespace Confluence.Client.Settings
             _store.SetFloat(KeyMusic, _musicVolume);
             _store.SetFloat(KeyEffects, _effectsVolume);
             _store.SetFloat(KeyVoice, _voiceVolume);
+            _store.SetFloat(KeyUiScale, _uiScale);
             _store.Flush();
         }
 
@@ -139,6 +155,7 @@ namespace Confluence.Client.Settings
             _musicVolume = DefaultVolume;
             _effectsVolume = DefaultVolume;
             _voiceVolume = DefaultVolume;
+            _uiScale = DefaultUiScale;
             Changed?.Invoke();
         }
 

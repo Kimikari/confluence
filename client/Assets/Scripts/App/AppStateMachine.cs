@@ -13,8 +13,8 @@ namespace Confluence.Client.App
         // Ordered target lists: placeholder screens render their buttons in this order.
         private static readonly Dictionary<AppState, AppState[]> Transitions = new Dictionary<AppState, AppState[]>
         {
-            { AppState.Boot, new[] { AppState.MainMenu, AppState.ArenaPreview } },
-            { AppState.MainMenu, new[] { AppState.Connecting, AppState.Training, AppState.Codex, AppState.ArenaPreview } },
+            { AppState.Boot, new[] { AppState.MainMenu, AppState.ArenaPreview, AppState.Laboratory } },
+            { AppState.MainMenu, new[] { AppState.Connecting, AppState.Laboratory, AppState.Training, AppState.Codex, AppState.ArenaPreview } },
             { AppState.Connecting, new[] { AppState.Lobby, AppState.MainMenu } },
             { AppState.Lobby, new[] { AppState.Shop, AppState.MainMenu } },
 
@@ -26,9 +26,10 @@ namespace Confluence.Client.App
 
             // Spec L49, L36-L38: results lead to the next round's shop, or back to the lobby when the match ends.
             { AppState.Results, new[] { AppState.Shop, AppState.Lobby, AppState.MainMenu } },
-            { AppState.Training, new[] { AppState.ArenaPreview, AppState.MainMenu } },
+            { AppState.Training, new[] { AppState.Laboratory, AppState.ArenaPreview, AppState.MainMenu } },
             { AppState.Codex, new[] { AppState.MainMenu } },
             { AppState.ArenaPreview, new[] { AppState.MainMenu, AppState.Training } },
+            { AppState.Laboratory, new[] { AppState.MainMenu, AppState.Training } },
         };
 
         public AppStateMachine(AppState initial = AppState.Boot)
