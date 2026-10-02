@@ -63,6 +63,15 @@ namespace Confluence.Casting
 
         /// <summary>The selected spell is not eligible for this grammar's reward category.</summary>
         NotEligible,
+
+        /// <summary>A syllable was heard below the calibrated confidence threshold; it never commits (spec L365).</summary>
+        UnrecognizedSyllable,
+
+        /// <summary>An aim checkpoint was skipped or passed out of order (WIZ-025).</summary>
+        MissedCheckpoint,
+
+        /// <summary>The inputs of a chord did not start close enough together (WIZ-022 "within 60 ms").</summary>
+        ChordTooSpread,
     }
 
     public static class MissReasons
@@ -105,6 +114,9 @@ namespace Confluence.Casting
                 case MissReason.EventWindowMissed: return "missed the event window";
                 case MissReason.ArmedRewardExpired: return "armed reward expired";
                 case MissReason.NotEligible: return "spell not eligible for this reward";
+                case MissReason.UnrecognizedSyllable: return "syllable not recognized";
+                case MissReason.MissedCheckpoint: return "missed checkpoint";
+                case MissReason.ChordTooSpread: return "chord inputs too far apart";
                 default: return reason.ToString();
             }
         }

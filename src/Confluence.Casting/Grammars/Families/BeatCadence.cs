@@ -3,9 +3,15 @@ using System.Collections.Generic;
 
 namespace Confluence.Casting.Grammars
 {
-    /// <summary>One timed input matched against a beat: time in sub-ticks from the cadence start; token -1 = any.</summary>
+    /// <summary>One timed input matched against a beat: time in sub-ticks from the cadence start, and its token.</summary>
     public readonly struct BeatInput
     {
+        /// <summary>A rhythm-route press: matches whatever token the beat expects (spec L367).</summary>
+        public const int AnyToken = -1;
+
+        /// <summary>A syllable heard below the calibrated confidence threshold: it holds its place but never matches (spec L365).</summary>
+        public const int UnrecognizedToken = -2;
+
         public BeatInput(long time, int token)
         {
             Time = time;
@@ -19,7 +25,8 @@ namespace Confluence.Casting.Grammars
     /// <summary>
     /// A fixed cadence of beats (VoiceRhythm family: WIZ-004 syllables, WIZ-007 staff beats). Times are in the
     /// <see cref="GrammarInputEvent"/> sub-tick base, relative to the cadence start; each beat may require a token
-    /// (a syllable index) or accept any input (-1), which is how the rhythm route stands in for voice (spec L367).
+    /// (a syllable index) or accept any input (<see cref="BeatInput.AnyToken"/>), which is how the rhythm route
+    /// stands in for voice with the same syllable count and cadence (spec L367).
     /// </summary>
     public sealed class BeatPattern
     {
@@ -35,6 +42,7 @@ namespace Confluence.Casting.Grammars
             for (int i = 0; i < _times.Length; i++)
             {
                 if (i > 0 && beatTimes[i] <= beatTimes[i - 1]) throw new ArgumentException("Beats must be strictly increasing.");
+                if (tokens[i] < BeatInput.AnyToken) throw new ArgumentException("A beat token is a syllable index or AnyToken.");
                 _times[i] = beatTimes[i];
                 _tokens[i] = tokens[i];
             }
@@ -56,7 +64,7 @@ namespace Confluence.Casting.Grammars
         public BeatPattern AsRhythm()
         {
             var any = new int[_tokens.Length];
-            for (int i = 0; i < any.Length; i++) any[i] = -1;
+            for (int i = 0; i < any.Length; i++) any[i] = BeatInput.AnyToken;
             return new BeatPattern(_times, any);
         }
     }
@@ -98,6 +106,7 @@ namespace Confluence.Casting.Grammars
         {
             if (pattern == null) throw new ArgumentNullException(nameof(pattern));
             if (inputs == null) throw new ArgumentNullException(nameof(inputs));
+            if (masteryTolerance > normalTolerance) throw new ArgumentException("The mastery tolerance cannot be looser than the normal one.");
             bool mastered = true;
             MissReason miss = MissReason.None;
             int missBeat = -1;
@@ -105,8 +114,10 @@ namespace Confluence.Casting.Grammars
             for (int i = 0; i < pattern.Count; i++)
             {
                 if (i >= inputs.Count) return new BeatScore(false, false, MissReason.MissingInput, i, 0);
+                int heard = inputs[i].Token;
+                if (heard == BeatInput.UnrecognizedToken) return new BeatScore(false, false, MissReason.UnrecognizedSyllable, i, 0);
                 int expected = pattern.Token(i);
-                if (expected >= 0 && inputs[i].Token >= 0 && inputs[i].Token != expected) return new BeatScore(false, false, MissReason.WrongOrder, i, 0);
+                if (expected != BeatInput.AnyToken && heard != BeatInput.AnyToken && heard != expected) return new BeatScore(false, false, MissReason.WrongOrder, i, 0);
                 long error = inputs[i].Time - pattern.BeatTime(i);
                 long size = Math.Abs(error);
                 MissReason timing = error < 0 ? MissReason.EarlyBeat : MissReason.LateBeat;
@@ -126,9 +137,10 @@ namespace Confluence.Casting.Grammars
         }
 
         /// <summary>
-        /// Beat inputs from grammar events for one route. Voice keeps recognized syllables whose confidence passes
-        /// the calibrated threshold (spec L365: lower confidence never commits; it is reported as missing).
-        /// Rhythm keeps taps as "any token". Confidence never scales a reward (spec L367).
+        /// Beat inputs from grammar events for one route, in time order. Voice keeps every syllable event; one whose
+        /// confidence is below the calibrated threshold keeps its place as <see cref="BeatInput.UnrecognizedToken"/>,
+        /// so the phrase cannot commit and the overlay names that syllable (spec L365). Rhythm keeps taps as
+        /// <see cref="BeatInput.AnyToken"/>. Confidence never scales a reward (spec L367).
         /// </summary>
         public static List<BeatInput> FromEvents(IReadOnlyList<GrammarInputEvent> events, InputRoute route, long cadenceStart, float confidenceThreshold)
         {
@@ -137,13 +149,14 @@ namespace Confluence.Casting.Grammars
             for (int i = 0; i < events.Count; i++)
             {
                 var e = events[i];
-                if (route == InputRoute.Voice && e.Kind == GrammarInputKind.Syllable && e.Confidence >= confidenceThreshold)
+                if (route == InputRoute.Voice && e.Kind == GrammarInputKind.Syllable)
                 {
-                    result.Add(new BeatInput(e.Time - cadenceStart, e.Value));
+                    int token = e.Confidence >= confidenceThreshold ? e.Value : BeatInput.UnrecognizedToken;
+                    result.Add(new BeatInput(e.Time - cadenceStart, token));
                 }
                 else if (route == InputRoute.Rhythm && e.Kind == GrammarInputKind.RhythmTap)
                 {
-                    result.Add(new BeatInput(e.Time - cadenceStart, -1));
+                    result.Add(new BeatInput(e.Time - cadenceStart, BeatInput.AnyToken));
                 }
             }
 

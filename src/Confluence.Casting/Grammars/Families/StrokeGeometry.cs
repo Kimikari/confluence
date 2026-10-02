@@ -23,23 +23,18 @@ namespace Confluence.Casting.Grammars
         }
 
         /// <summary>
-        /// Translates the stroke to its centroid and scales it so the larger bounding-box side is 1. With
-        /// <paramref name="normalizeRotation"/>, rotates it so the centroid-to-first-point direction points along +X.
+        /// Translates the stroke to its centroid; with <paramref name="normalizeRotation"/>, rotates it so the
+        /// centroid-to-first-point direction points along +X; then scales it so the larger bounding-box side is 1.
+        /// Rotating before scaling keeps the scale identical at every orientation. Pass evenly resampled points (as
+        /// <see cref="Accuracy"/> does) so the centroid does not depend on the pointer polling rate.
         /// </summary>
         public static Vec2[] Normalize(IReadOnlyList<Vec2> points, bool normalizeRotation)
         {
             if (points == null || points.Count == 0) throw new ArgumentException("A stroke needs points.", nameof(points));
-            Vec2 min = points[0], max = points[0], sum = Vec2.Zero;
-            for (int i = 0; i < points.Count; i++)
-            {
-                min = Vec2.Min(min, points[i]);
-                max = Vec2.Max(max, points[i]);
-                sum += points[i];
-            }
-
+            Vec2 sum = Vec2.Zero;
+            for (int i = 0; i < points.Count; i++) sum += points[i];
             Vec2 centroid = sum / points.Count;
-            float size = Math.Max(max.X - min.X, max.Y - min.Y);
-            float scale = size > 1e-6f ? 1f / size : 1f;
+
             float cos = 1f, sin = 0f;
             if (normalizeRotation)
             {
@@ -53,13 +48,19 @@ namespace Confluence.Casting.Grammars
             }
 
             var result = new Vec2[points.Count];
+            Vec2 min = default, max = default;
             for (int i = 0; i < points.Count; i++)
             {
-                Vec2 p = (points[i] - centroid) * scale;
+                Vec2 p = points[i] - centroid;
                 // Rotate by -angle(lead): (x cos + y sin, -x sin + y cos).
                 result[i] = new Vec2(p.X * cos + p.Y * sin, -p.X * sin + p.Y * cos);
+                min = i == 0 ? result[i] : Vec2.Min(min, result[i]);
+                max = i == 0 ? result[i] : Vec2.Max(max, result[i]);
             }
 
+            float size = Math.Max(max.X - min.X, max.Y - min.Y);
+            float scale = size > 1e-6f ? 1f / size : 1f;
+            for (int i = 0; i < result.Length; i++) result[i] = result[i] * scale;
             return result;
         }
 
@@ -96,13 +97,14 @@ namespace Confluence.Casting.Grammars
         }
 
         /// <summary>
-        /// Path accuracy 0-1 between a template and a candidate after normalization: 1 minus the mean point distance
-        /// divided by <paramref name="tolerance"/> (normalized units), clamped.
+        /// Path accuracy 0-1 between a template and a candidate: both are resampled evenly along their length, then
+        /// normalized; the score is 1 minus the mean point distance divided by <paramref name="tolerance"/>
+        /// (normalized units), clamped. Resampling first makes the score independent of sample density (spec L490).
         /// </summary>
         public static float Accuracy(IReadOnlyList<Vec2> template, IReadOnlyList<Vec2> candidate, bool normalizeRotation, float tolerance = 0.25f, int samples = DefaultSamples)
         {
-            var a = Resample(Normalize(template, normalizeRotation), samples);
-            var b = Resample(Normalize(candidate, normalizeRotation), samples);
+            var a = Normalize(Resample(template, samples), normalizeRotation);
+            var b = Normalize(Resample(candidate, samples), normalizeRotation);
             float mean = 0f;
             for (int i = 0; i < samples; i++) mean += Vec2.Distance(a[i], b[i]);
             mean /= samples;
