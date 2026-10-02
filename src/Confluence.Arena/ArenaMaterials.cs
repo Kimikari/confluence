@@ -40,6 +40,9 @@ namespace Confluence.Arena
         public const string DustUrn = "dust-urn";               // spills Dust 1 on destruction (BIO-022)
         public const string MagneticCoil = "magnetic-coil";     // projectile deflection pulse (BIO-023)
         public const string Trunk = "trunk";                    // anchored orchard trunk that does not burn (BIO-002)
+        public const string Crystal = "crystal";              // brittle crystal cover (BIO-021, PROP-037)
+        public const string VenomCap = "venom-cap";            // one-use corrosive cap (BIO-016, PROP-038)
+        public const string Basin = "basin";                   // sealed ritual basin holding water (BIO-024)
         public const string Floor = "floor";                    // main floor slab
         public const string Alcove = "alcove";                  // spawn alcove walls
 
@@ -74,6 +77,10 @@ namespace Confluence.Arena
                     return MaterialFlags.Growth | MaterialFlags.Combustible;
                 case Ice:
                     return MaterialFlags.Ice | MaterialFlags.Brittle;
+                case Crystal:
+                    return MaterialFlags.Glass | MaterialFlags.Brittle;
+                case Basin:
+                    return MaterialFlags.Water;
                 case Sand:
                     return MaterialFlags.Sand;
                 case Water:
