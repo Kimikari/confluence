@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using Confluence.Core.Rules;
 
 namespace Confluence.Core.Content
 {
@@ -25,8 +26,7 @@ namespace Confluence.Core.Content
             ContentType.Biome, ContentType.Module, ContentType.Prop, ContentType.Build,
         };
 
-        public const int SpellsPerWizard = 8;   // spec L292
-        public const int DefaultSpellCount = 6; // spec L292 "Equip six, defaulting to the first six"
+        private const int SpellsPerWizard = GlobalRules.Loadout.SpellsPerWizard; // spec L292
 
         public static string Prefix(ContentType type)
         {

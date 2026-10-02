@@ -11,8 +11,6 @@ namespace Confluence.Core.Content
     /// </summary>
     public sealed class AugmentDef : ContentDef
     {
-        public const int MaxRank = 2; // spec L231
-
         private readonly Rarity _rarity;
         private readonly bool _rarityValid;
 

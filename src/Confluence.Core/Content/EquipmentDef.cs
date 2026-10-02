@@ -8,7 +8,7 @@ namespace Confluence.Core.Content
     public sealed class EquipmentDef : ContentDef
     {
         public const int MinTier = 1;
-        public const int MaxTier = 4;
+        public const int MaxTier = GlobalRules.Economy.TierCount; // spec L195-L200
 
         private readonly EquipmentCategory _category;
         private readonly bool _categoryValid;
@@ -94,26 +94,13 @@ namespace Confluence.Core.Content
 
         public bool HasUniqueGroup => UniqueGroup.Length > 0;
 
-        /// <summary>Crown price of this definition's tier.</summary>
+        /// <summary>Crown price of this definition's tier (spec L195-L200).</summary>
         public int Price
         {
             get
             {
                 if (Tier < MinTier || Tier > MaxTier) throw new InvalidOperationException(Id + " has invalid tier " + Tier + ".");
-                return PriceForTier(Tier);
-            }
-        }
-
-        /// <summary>Tier prices 200/400/600/800 (spec L195-L200).</summary>
-        public static int PriceForTier(int tier)
-        {
-            switch (tier)
-            {
-                case 1: return 200;
-                case 2: return 400;
-                case 3: return 600;
-                case 4: return 800;
-                default: throw new ArgumentOutOfRangeException(nameof(tier), "Equipment tiers are 1-4.");
+                return Schedules.TierPrice(Tier);
             }
         }
     }

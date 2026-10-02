@@ -30,7 +30,6 @@ namespace Confluence.Core.Content
         public const int SharedAugmentCount = 288;            // spec L594
         public const int TransformationCount = 576;           // spec L594
         public const int CompoundSharedPredicates = 121;      // spec L596
-        public const int MaxEquipmentTier = EquipmentDef.MaxTier;
 
         // Each wizard has five Silver, six Gold, and five Prismatic transformations (spec L596).
         private static readonly int[] TransformationRarityTarget = { 5, 6, 5 };
@@ -43,9 +42,6 @@ namespace Confluence.Core.Content
         {
             EquipmentSlot.MainFocus, EquipmentSlot.Sidearm, EquipmentSlot.Armor, EquipmentSlot.Clothing, EquipmentSlot.Boots,
         };
-
-        // Arena diameters (spec L306).
-        private static readonly int[] ArenaDiameters = { 24, 32, 40, 48 };
 
         private readonly Catalogue _cat;
         private readonly List<ValidationIssue> _issues = new List<ValidationIssue>();
@@ -109,13 +105,13 @@ namespace Confluence.Core.Content
             Flag(r.EquipmentShared, "equipment_shared", "L185");
             Flag(r.SpellsExclusive, "spells_exclusive", "L185");
             Flag(r.AugmentsFree, "augments_free", "L185");
-            Expect(r.AugmentCandidates, 5, "augment_candidates", "L227");
-            Expect(r.RerollsPerAugmentCard, 1, "rerolls_per_augment_card", "L229");
-            Expect(r.ChoicesPerDraft, 1, "choices_per_draft", "L229");
-            Expect(r.WizardSpellCount, ContentIds.SpellsPerWizard, "wizard_spell_count", "L292");
-            Expect(r.EquippedSpellCount, ContentIds.DefaultSpellCount, "equipped_spell_count", "L292");
-            Expect(r.MaxAugmentSlots, 6, "max_augment_slots", "L231");
-            Expect(r.AugmentMaxRank, AugmentDef.MaxRank, "augment_max_rank", "L231");
+            Expect(r.AugmentCandidates, GlobalRules.Draft.Candidates, "augment_candidates", "L227");
+            Expect(r.RerollsPerAugmentCard, GlobalRules.Draft.RerollsPerCandidate, "rerolls_per_augment_card", "L229");
+            Expect(r.ChoicesPerDraft, GlobalRules.Draft.ChoicesPerDraft, "choices_per_draft", "L229");
+            Expect(r.WizardSpellCount, GlobalRules.Loadout.SpellsPerWizard, "wizard_spell_count", "L292");
+            Expect(r.EquippedSpellCount, GlobalRules.Loadout.EquippedSpellSlots, "equipped_spell_count", "L292");
+            Expect(r.MaxAugmentSlots, GlobalRules.Draft.AugmentSlots, "max_augment_slots", "L231");
+            Expect(r.AugmentMaxRank, GlobalRules.Draft.MaxRank, "augment_max_rank", "L231");
         }
 
         private void Flag(bool value, string key, string line)
@@ -173,7 +169,7 @@ namespace Confluence.Core.Content
                     if (!_cat.SpellsById.ContainsKey(spellId)) Error(ValidationChecks.SpellOwnership, wizard.Id, "lists missing spell " + spellId);
 
                 var expectedDefaults = new List<string>();
-                for (int i = 0; i < Math.Min(ContentIds.DefaultSpellCount, wizard.SpellIds.Count); i++) expectedDefaults.Add(wizard.SpellIds[i]);
+                for (int i = 0; i < Math.Min(GlobalRules.Loadout.EquippedSpellSlots, wizard.SpellIds.Count); i++) expectedDefaults.Add(wizard.SpellIds[i]);
                 if (!SameSequence(wizard.DefaultSpellIds, expectedDefaults))
                     Error(ValidationChecks.DefaultSpells, wizard.Id, "default_spell_ids must be the first six spell_ids (spec L292)");
 
@@ -484,8 +480,8 @@ namespace Confluence.Core.Content
                             Error(ValidationChecks.PredicateValue, owner, "issued_slot " + ContentText.SlotName(iss.Slot) + " has no plain issued equipment (spec L571)");
                         break;
                     case SlotTierLeaf tier:
-                        if (tier.AtLeast < 1 || tier.AtLeast > MaxEquipmentTier)
-                            Error(ValidationChecks.PredicateValue, owner, "slot_tier at_least " + tier.AtLeast + " is outside 1-" + MaxEquipmentTier);
+                        if (tier.AtLeast < EquipmentDef.MinTier || tier.AtLeast > EquipmentDef.MaxTier)
+                            Error(ValidationChecks.PredicateValue, owner, "slot_tier at_least " + tier.AtLeast + " is outside " + EquipmentDef.MinTier + "-" + EquipmentDef.MaxTier);
                         break;
                     case EquippedCategoryLeaf ec:
                         PositiveCount(owner, "equipped_category", ec.Count);
@@ -811,7 +807,7 @@ namespace Confluence.Core.Content
             {
                 if (biome.Sizes.Count == 0) Error(ValidationChecks.ArenaFields, biome.Id, "supports no arena sizes");
                 foreach (int size in biome.Sizes)
-                    if (Array.IndexOf(ArenaDiameters, size) < 0)
+                    if (!Schedules.IsValidArenaDiameter(size))
                         Error(ValidationChecks.ArenaFields, biome.Id, "size " + size + " is not a legal arena diameter (24, 32, 40, 48; spec L306)");
             }
             foreach (var module in _cat.Modules)

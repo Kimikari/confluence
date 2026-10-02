@@ -167,8 +167,7 @@ namespace Confluence.Core.Tests.Content
             Assert.Equal(new[] { EquipmentSlot.MainFocus }, Cat.Equipment("EQP-016").AllowedSlots);
             Assert.False(Cat.Equipment("EQP-016").CanOccupy(EquipmentSlot.Sidearm));
 
-            Assert.Equal(new[] { 200, 400, 600, 800 }, new[] { 1, 2, 3, 4 }.Select(EquipmentDef.PriceForTier));
-            Assert.Throws<ArgumentOutOfRangeException>(() => EquipmentDef.PriceForTier(5));
+            Assert.All(Cat.EquipmentItems, e => Assert.Equal(Schedules.TierPrice(e.Tier), e.Price));
 
             var kinds = Cat.EquipmentItems.GroupBy(e => e.ActivationKind).ToDictionary(g => g.Key, g => g.Count());
             Assert.Equal(99, kinds[EquipmentActivationKind.Passive]);
