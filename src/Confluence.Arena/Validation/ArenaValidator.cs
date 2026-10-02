@@ -676,37 +676,10 @@ namespace Confluence.Arena.Validation
 
             private void CheckContraction()
             {
-                BoundaryContour b = _layout.Boundary;
-                bool[] reached = _survey.ReachableFromSpawns;
-                int count = _nav.NodeCount;
-                var angle = new float[count];
-                var dist = new float[count];
-                for (int node = 0; node < count; node++)
+                if (_survey.FindContractionFailure(out float t, out int node))
                 {
-                    Vec3 p = _nav.NodePosition(node) - b.Center;
-                    angle[node] = CMath.YawOf(new Vec3(p.X, 0f, p.Z));
-                    dist[node] = MathF.Sqrt(p.X * p.X + p.Z * p.Z);
-                }
-
-                var allowed = new bool[count];
-                for (float t = b.ContractStartSec; t <= b.ContractEndSec + 1e-3f; t += ArenaRules.ContractionSampleStepSec)
-                {
-                    for (int node = 0; node < count; node++)
-                    {
-                        allowed[node] = b.RadiusAt(angle[node], t) - dist[node] >= ArenaRules.CapsuleClearance;
-                    }
-
-                    bool[] canReach = _nav.CanReach(_survey.FinalFloorNodes, NavQuery.Capsule.WithAllowed(allowed));
-                    for (int node = 0; node < count; node++)
-                    {
-                        if (reached[node] && !canReach[node] && b.RadiusAt(angle[node], t) - dist[node] >= ArenaRules.ContractionEdgeTolerance
-                            && _nav.Clearance(node) >= ArenaRules.CapsuleClearance)
-                        {
-                            Vec3 p = _nav.NodePosition(node);
-                            Fail("contraction", "at " + F(t) + " s the cell at (" + F(p.X) + ", " + F(p.Z) + ") loses its route to the final floor");
-                            return;
-                        }
-                    }
+                    Vec3 p = _nav.NodePosition(node);
+                    Fail("contraction", "at " + F(t) + " s the cell at (" + F(p.X) + ", " + F(p.Z) + ") loses its route to the final floor");
                 }
             }
 

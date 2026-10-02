@@ -38,10 +38,39 @@ namespace Confluence.Arena.Generation
 
         private const int PlacementTries = 160;
         private const int BastionTuningPasses = 4;
-        private const int FillerPasses = 8;
+        private const int FillerPasses = 12;
+
+        private const int AccretionTries = 400;
+
+        private const int ContractionRepairs = 8;
+
+        /// <summary>Only an obstacle this close to a stranded cell is removed to repair it.</summary>
+        private const float ContractionRepairReach = 4f;
+
+        /// <summary>Sightlines through the center meet a tall solid within this radius (twice it stays under 28 m).</summary>
+        private const float BulwarkRadius = 13f;
+
+        private const float BulwarkMinRadius = 8f;
+        private const float BulwarkThickness = 1f;
+        private const float BulwarkPieceDeg = 10f;
+
+        /// <summary>Free space around a movement-blocking prop: a capsule passage the navigation grid always resolves.</summary>
+        private const float PropPassage = 1.3f;
+
+        /// <summary>Spur geometry for lane breaking: thin, reaching at most 3 m from an obstacle, ending 0.4 m past the lane.</summary>
+        private const float SpurThickness = 0.6f;
+
+        private const float SpurMaxReach = 3f;
+        private const float SpurOvershoot = 0.4f;
+        private const float SpurEmbed = 0.2f;
+
+        private static readonly bool UseCorridors = System.Environment.GetEnvironmentVariable("ARENA_CORRIDORS") == "1";
 
         /// <summary>Half length of the rock closing each end of the designated lane (it also closes the strips beside it).</summary>
-        private const float LaneEndHalfLength = 4.5f;
+        private const float LaneEndHalfLength = 2.5f;
+
+        /// <summary>Radial thickness of each lane-end block; it also closes the sightlines past the center module.</summary>
+        private const float LaneEndThickness = 3f;
 
         private static readonly ArenaNavOptions NoProps = new ArenaNavOptions { PropsAsObstacles = false };
 
@@ -51,7 +80,8 @@ namespace Confluence.Arena.Generation
         /// </summary>
         private const float FillerGap = 1.25f;
 
-        private const float LaneBreakerGap = FillerGap;
+        /// <summary>Free space a rock inside a skeleton zone keeps around itself: a full 2.5 m route plus quantization.</summary>
+        private const float RouteGap = 2.75f;
 
         private const float FillerMinHalfDiagonal = 0.6f;
         private const float FillerMaxHalfDiagonal = 3.0f;
@@ -72,6 +102,11 @@ namespace Confluence.Arena.Generation
         private float _wingMax;
         private ModuleGeometry _center;
         private int _sourceBudget = GlobalRules.Arena.MaxNaturalSourcePatches;
+        private readonly HashSet<int> _attached = new HashSet<int>();
+        private readonly HashSet<int> _removable = new HashSet<int>();
+        private readonly HashSet<int> _bulwarks = new HashSet<int>();
+        private string _why;
+        private readonly HashSet<int> _hasAttachment = new HashSet<int>();
 
         public ArenaAssembler(ArenaContent content, ulong seed, int diameter, BiomeDef biome, IContentAvailability props, bool conservative)
         {
@@ -107,9 +142,10 @@ namespace Confluence.Arena.Generation
             // from here on, so tuning on the bare skeleton fixes them for the finished arena.
             TuneBastions();
             AddSkeletonKeepOuts();
+            PlaceLaneEnds();
+            PlaceBulwarks();
             ReserveBiomeSources();
             PlaceIslands();
-            PlaceLaneEnds();
             PlaceOutcrops(_p.OutcropPairs);
 
             ArenaNav nav = ArenaNav.Build(_layout, NoProps);
@@ -117,6 +153,7 @@ namespace Confluence.Arena.Generation
 
             DressBiome(nav);
             PlaceProps(nav);
+            RepairContraction();
             AddLighting();
             AddGusts();
             return _layout;
@@ -229,8 +266,9 @@ namespace Confluence.Arena.Generation
 
         private void PlaceBastions()
         {
-            _bastion = new SpawnBastion(_w, _p.SpawnDistance, SpawnBastion.WingLengthFor(_p.FrontWallHalfWidth));
-            _wingMax = SpawnBastion.WingLengthFor(_p.FrontWallHalfWidth + 2.0f);
+            float offset = _p.BastionOffset * (_rng.NextBool() ? 1f : -1f);
+            _bastion = new SpawnBastion(_w, _p.SpawnDistance, offset, SpawnBastion.WingLengthFor(_p.FrontWallHalfWidth));
+            _wingMax = SpawnBastion.WingLengthFor(_p.FrontWallHalfWidth + 4.0f);
             _bastion.Build(_layout);
         }
 
@@ -239,18 +277,22 @@ namespace Confluence.Arena.Generation
         {
             float inner = _bastion.LateralExtent + 0.25f;
             float outer = inner + CorridorWidth;
-            return sign > 0 ? new Rect2(inner, _bastion.SpawnZ, outer, LaneZoneHalf) : new Rect2(-outer, _bastion.SpawnZ, -inner, LaneZoneHalf);
+            float x0 = _bastion.OffsetX;
+            return sign > 0 ? new Rect2(x0 + inner, _bastion.SpawnZ, x0 + outer, LaneZoneHalf) : new Rect2(x0 - outer, _bastion.SpawnZ, x0 - inner, LaneZoneHalf);
         }
 
         private void AddSkeletonKeepOuts()
         {
-            // Bastion, its exits, and the crossover strip in front of the screen; then the side approach corridors.
+            // Bastion, its exits, and the crossover strip in front of the screen.
             AddKeepOut(_bastion.Zone(CorridorWidth));
-            AddKeepOut(Corridor(1));
-            AddKeepOut(Corridor(-1));
+            if (UseCorridors)
+            {
+                AddKeepOut(Corridor(1));
+                AddKeepOut(Corridor(-1));
+            }
 
             // Firing lane zone along X (both halves of it are in the side-0 list after mirroring).
-            float laneHalf = _p.LaneHalfLength > 0f ? _p.LaneHalfLength + 1f : _p.Radius + 2f;
+            float laneHalf = _p.LaneHalfLength > 0f ? _p.LaneHalfLength + LaneEndThickness : _p.Radius + 2f;
             AddKeepOut(new Rect2(-laneHalf, -LaneZoneHalf, laneHalf, LaneZoneHalf));
         }
 
@@ -439,13 +481,192 @@ namespace Confluence.Arena.Generation
                 return;
             }
 
-            float x = _p.LaneHalfLength + 0.5f;
-            YawBox box = Box(-x - 0.5f, -LaneEndHalfLength, -x + 0.5f, LaneEndHalfLength, 0f, ArenaRules.TallWallHeight);
+            // Near the contour the block reaches past it, like an outcrop, so no seam opens behind it (spec L676).
+            float x = _p.LaneHalfLength;
+            float outer = x + LaneEndThickness;
+            float contour = Math.Min(_layout.Boundary.InitialRadiusAt(270f - 8f), Math.Min(_layout.Boundary.InitialRadiusAt(270f), _layout.Boundary.InitialRadiusAt(270f + 8f)));
+            if (outer > contour - ArenaRules.ContourStripWidth)
+            {
+                outer = Math.Max(outer, contour + 1f);
+            }
+
+            YawBox box = Box(-outer, -LaneEndHalfLength, -x, LaneEndHalfLength, 0f, ArenaRules.TallWallHeight);
             Solid rock = _w.NewSolid(SolidKind.Wall, box, ArenaMaterials.Rock, 0f);
             _w.AddMirroredPair(rock);
             Rect2 r = Rect2.Around(box);
             _occupied.Add(r);
             _occupied.Add(r.Mirrored());
+        }
+
+        /// <summary>
+        /// Central bulwarks (spec L310 lane limit). The final floor, crossovers, and bastion exits leave the middle of
+        /// the arena open, so a sightline through the center runs until it meets a tall solid. For every direction in
+        /// which nothing tall stands within <see cref="BulwarkRadius"/> of the center, an anchored wall arc is raised
+        /// just outside the skeleton zones, so lanes through the middle stay under the 28 m limit.
+        /// </summary>
+        private void PlaceBulwarks()
+        {
+            if (_p.Diameter <= GlobalRules.Arena.DiameterSmall)
+            {
+                return; // every chord of the 24 m arena is shorter than the lane limit
+            }
+
+            const int Steps = 90; // 2-degree rays over the side-0 half
+            var open = new bool[Steps];
+            var exit = new float[Steps];
+            for (int i = 0; i < Steps; i++)
+            {
+                float angle = 90f + i * 2f + 1f;
+                Vec2 dir = Vec2.FromYaw(angle);
+                open[i] = FirstTallHit(dir) > BulwarkRadius;
+                exit[i] = KeepOutExit(dir);
+            }
+
+            int start = -1;
+            for (int i = 0; i <= Steps; i++)
+            {
+                bool isOpen = i < Steps && open[i];
+                if (isOpen && start < 0)
+                {
+                    start = i;
+                }
+                else if (!isOpen && start >= 0)
+                {
+                    RaiseBulwark(start, i - 1, exit);
+                    start = -1;
+                }
+            }
+        }
+
+        private void RaiseBulwark(int first, int last, float[] exit)
+        {
+            // Short pieces (at most BulwarkPieceDeg each) so each one sits just outside the zones along its own rays.
+            float a0 = 90f + first * 2f - 1f;
+            float a1 = 90f + (last + 1) * 2f + 1f;
+            int pieces = Math.Max(1, (int)Math.Ceiling((a1 - a0) / BulwarkPieceDeg));
+            for (int k = 0; k < pieces; k++)
+            {
+                float b0 = a0 + (a1 - a0) * k / pieces;
+                float b1 = a0 + (a1 - a0) * (k + 1) / pieces;
+                float needed = BulwarkMinRadius;
+                for (int i = first; i <= last; i++)
+                {
+                    float angle = 90f + i * 2f + 1f;
+                    if (angle >= b0 - 1f && angle <= b1 + 1f)
+                    {
+                        needed = Math.Max(needed, exit[i] + BulwarkThickness * 0.5f + 0.25f);
+                    }
+                }
+
+                bool placed = false;
+                for (float radius = needed; radius <= BulwarkRadius + 0.5f && !placed; radius += 0.5f)
+                {
+                    Vec2 p0 = Vec2.FromYaw(b0) * radius;
+                    Vec2 p1 = Vec2.FromYaw(b1) * radius;
+                    Vec2 mid = (p0 + p1) * 0.5f;
+                    float length = Vec2.Distance(p0, p1) + BulwarkThickness;
+                    var box = new YawBox(new Vec3(mid.X, ArenaRules.TallWallHeight * 0.5f, mid.Y),
+                        new Vec3(length * 0.5f, ArenaRules.TallWallHeight * 0.5f, BulwarkThickness * 0.5f), CMath.YawOf(mid));
+                    if (BulwarkFits(box))
+                    {
+                        Solid wall = _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, box, ArenaMaterials.Rock, 0f));
+                        _bulwarks.Add(wall.Id);
+                        _bulwarks.Add(wall.MirrorId);
+                        Rect2 bounds = Rect2.Around(box);
+                        _occupied.Add(bounds);
+                        _occupied.Add(bounds.Mirrored());
+                        placed = true;
+                    }
+                }
+
+                if (!placed)
+                {
+                    Notes.Add("bulwark piece at " + b0 + " degrees does not fit: " + _why);
+                }
+            }
+        }
+
+        /// <summary>Distance along a ray from the center to the first solid tall enough to block a standing lane.</summary>
+        private float FirstTallHit(Vec2 dir)
+        {
+            float hit = float.PositiveInfinity;
+            foreach (Solid s in _layout.Solids)
+            {
+                if (s.Kind == SolidKind.Floor || !s.BlocksSight || s.Box.Bottom > ArenaRules.LaneBandLow || s.Box.Top < ArenaRules.LaneBandHigh)
+                {
+                    continue;
+                }
+
+                if (LaneMeter.LineVsBox(Vec2.Zero, dir, s.Box, out float t0, out float t1) && t1 >= 0f)
+                {
+                    hit = Math.Min(hit, Math.Max(0f, t0));
+                }
+            }
+
+            return hit;
+        }
+
+        /// <summary>Radius at which a ray from the center leaves the last skeleton zone (searched up to the lane radius).</summary>
+        private float KeepOutExit(Vec2 dir)
+        {
+            float last = 0f;
+            for (float r = 0f; r <= BulwarkRadius + 1f; r += 0.25f)
+            {
+                Vec2 p = dir * r;
+                for (int i = 0; i < _keepOut.Count; i++)
+                {
+                    if (_keepOut[i].Contains(p))
+                    {
+                        last = r;
+                        break;
+                    }
+                }
+            }
+
+            return last;
+        }
+
+        private bool BulwarkFits(YawBox box)
+        {
+            Rect2 bounds = Rect2.Around(box);
+            _why = "half";
+            if (bounds.MaxZ > -IslandGap * 0.5f || Footprint2D.Distance(box, MirrorMath.Box(box)) < IslandGap)
+            {
+                return false;
+            }
+
+            _why = "keepout";
+            for (int i = 0; i < _keepOut.Count; i++)
+            {
+                Rect2 k = _keepOut[i];
+                var zone = new YawBox(new Vec3(k.Center.X, 1f, k.Center.Y), new Vec3(k.Width * 0.5f, 1f, k.Depth * 0.5f), 0f);
+                if (Footprint2D.Overlap(box, zone))
+                {
+                    return false;
+                }
+            }
+
+            foreach (Solid s in _layout.Solids)
+            {
+                if (s.Kind != SolidKind.Floor && s.Box.Bottom < ArenaRules.Headroom && !_bulwarks.Contains(s.Id)
+                    && Footprint2D.Distance(box, s.Box) < IslandGap)
+                {
+                    _why = "solid " + s.Id + " " + s.Material;
+                    return false;
+                }
+            }
+
+            _why = "contour";
+
+            for (int i = 0; i < 4; i++)
+            {
+                if (_layout.Boundary.RadialMargin(box.FootprintCorner(i).ToXZ(), 0f) < ArenaRules.ContourKeepInMargin)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -487,8 +708,9 @@ namespace Confluence.Arena.Generation
                 return false;
             }
 
-            Solid rock = _w.NewSolid(SolidKind.Wall, box, ArenaMaterials.Rock, 0f);
-            _w.AddMirroredPair(rock);
+            Solid rock = _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, box, ArenaMaterials.Rock, 0f));
+            _removable.Add(rock.Id);
+            _removable.Add(rock.MirrorId);
             _occupied.Add(bounds);
             _occupied.Add(bounds.Mirrored());
             return true;
@@ -567,49 +789,44 @@ namespace Confluence.Arena.Generation
             {
                 var survey = new ArenaSurvey(_layout, nav);
                 CoverStats stats = survey.Cover();
-                FiringLane lane = new LaneMeter(nav, _layout).Longest();
-                bool longLane = lane.Length > GlobalRules.Arena.FiringLaneMax - 1.5f;
+                List<FiringLane> lanes = new LaneMeter(nav, _layout).LongerThan(GlobalRules.Arena.FiringLaneMax - 1.5f);
                 float missing = (coverTarget - stats.CoverFraction) * stats.UsableArea * 0.5f; // per side
-                if (!longLane && missing <= 0f)
+                if (lanes.Count == 0 && missing <= 0f)
                 {
                     break;
                 }
 
-                List<int> candidates = FillerCandidates(nav, FillerGap);
-                var chosen = new List<Vec3>(); // x, z and the clearance radius in Y
-                if (longLane)
+                // Break every long lane that no rock placed in this pass already interrupts.
+                int placed = 0;
+                var placedBoxes = new List<YawBox>();
+                for (int i = 0; i < lanes.Count; i++)
                 {
-                    PlaceLaneBreaker(nav, FillerCandidates(nav, LaneBreakerGap), lane, chosen);
-                }
-
-                if (missing > 0f)
-                {
-                    candidates.Sort((x, y) =>
+                    if (InterruptedBy(lanes[i], placedBoxes))
                     {
-                        int c = nav.Clearance(y).CompareTo(nav.Clearance(x));
-                        return c != 0 ? c : x.CompareTo(y);
-                    });
-                    for (int i = 0; i < candidates.Count && missing > 0f; i++)
-                    {
-                        Vec3 p = nav.NodePosition(candidates[i]);
-                        float room = nav.Clearance(candidates[i]);
-                        if (!FarFromChosen(p, room, chosen))
-                        {
-                            continue;
-                        }
+                        continue;
+                    }
 
-                        float area = PlaceRock(p.XZ(), room - FillerGap, _rng.Range(0f, 180f));
-                        if (area > 0f)
-                        {
-                            missing -= area;
-                            chosen.Add(new Vec3(p.X, room, p.Z));
-                        }
+                    if (TryBreakLane(lanes[i], out YawBox rock))
+                    {
+                        placedBoxes.Add(rock);
+                        placedBoxes.Add(MirrorMath.Box(rock));
+                        placed++;
+                    }
+                    else if (i == 0)
+                    {
+                        Notes.Add("lane of " + lanes[i].Length + " m could not be broken");
                     }
                 }
 
-                if (chosen.Count == 0)
+                Notes.Add("DEBUG pass " + pass + " lanes " + lanes.Count + " (max " + (lanes.Count > 0 ? lanes[0].Length : 0f) + ") broken " + placed + " cover " + stats.CoverFraction);
+                if (missing > 0f)
                 {
-                    Notes.Add(longLane ? "lane of " + lane.Length + " m could not be broken" : "cover fill found no room");
+                    placed += FillOpenFloor(nav, ref missing);
+                    placed += Accrete(ref missing);
+                }
+
+                if (placed == 0)
+                {
                     break;
                 }
 
@@ -619,72 +836,342 @@ namespace Confluence.Arena.Generation
             return nav;
         }
 
-        /// <summary>Side-0 main-floor nodes in open floor outside every skeleton route.</summary>
-        private List<int> FillerCandidates(ArenaNav nav, float gap)
+        /// <summary>Rocks in the largest open spaces, each centered where clearance leaves room around it.</summary>
+        private int FillOpenFloor(ArenaNav nav, ref float missing)
         {
-            var result = new List<int>();
-            float minRoom = gap + FillerMinHalfDiagonal;
+            List<FillerSpot> candidates = FillerCandidates(nav);
+            candidates.Sort((x, y) =>
+            {
+                int c = y.Room.CompareTo(x.Room);
+                return c != 0 ? c : x.Node.CompareTo(y.Node);
+            });
+
+            var chosen = new List<Vec3>(); // x, z and the clearance radius in Y
+            for (int i = 0; i < candidates.Count && missing > 0f; i++)
+            {
+                Vec3 p = nav.NodePosition(candidates[i].Node);
+                float clearance = nav.Clearance(candidates[i].Node);
+                if (!FarFromChosen(p, clearance, chosen))
+                {
+                    continue;
+                }
+
+                float area = PlaceRock(p.XZ(), candidates[i].Room, _rng.Range(0f, 180f));
+                if (area > 0f)
+                {
+                    missing -= area;
+                    chosen.Add(new Vec3(p.X, clearance, p.Z));
+                }
+            }
+
+            return chosen.Count;
+        }
+
+        /// <summary>
+        /// Breaks a lane with a thin rock across it at an interior point (or across its mirror image). The rock may
+        /// extend one existing obstacle but keeps a capsule passage to every other solid, so no passage closes.
+        /// </summary>
+        private static bool InterruptedBy(FiringLane lane, List<YawBox> boxes)
+        {
+            for (int i = 0; i < boxes.Count; i++)
+            {
+                if (LaneMeter.Interrupts(lane, boxes[i]))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool TryBreakLane(FiringLane lane, out YawBox placed)
+        {
+            placed = default(YawBox);
+            Vec2 dir = (lane.B - lane.A).Normalized();
+            Vec2 across = new Vec2(dir.Y, -dir.X);
+
+            // Interior points every 0.5 m, from the middle of the lane outward.
+            var fractions = new List<float> { 0.5f };
+            float step = 0.5f / Math.Max(1f, lane.Length);
+            for (float f = 0.5f - step; f >= 0.1f; f -= step)
+            {
+                fractions.Add(f);
+                fractions.Add(1f - f);
+            }
+
+            for (int i = 0; i < fractions.Count; i++)
+            {
+                Vec2 p = Vec2.Lerp(lane.A, lane.B, fractions[i]);
+                Vec2 side = across;
+                Vec2 along = dir;
+                if (!MirrorMath.IsSideZeroHalf(p))
+                {
+                    // Break the mirror image of the lane instead: it is just as long, and its rock mirrors back here.
+                    p = MirrorMath.Point(p);
+                    side = -across;
+                    along = -dir;
+                }
+
+                for (int s = -1; s <= 1; s += 2)
+                {
+                    if (TrySpur(p, side * s, along, out placed))
+                    {
+                        return true;
+                    }
+                }
+
+                // Where no obstacle is near enough to grow a spur from, a free-standing post across the lane.
+                float height = _rng.Range(2.2f, 3.0f);
+                var post = new YawBox(new Vec3(p.X, height * 0.5f, p.Y), new Vec3(SpurThickness * 0.5f, height * 0.5f, 0.6f), CMath.YawOf(side));
+                if (AttachedRockFits(post, out int touched))
+                {
+                    AddAttachedPair(post, touched);
+                    placed = post;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// A thin spur grown from the nearest obstacle across the lane point p: it starts inside that obstacle's
+        /// face and ends just past the lane, so it interrupts the lane while extending only one obstacle.
+        /// </summary>
+        private bool TrySpur(Vec2 p, Vec2 toward, Vec2 along, out YawBox placed)
+        {
+            placed = default(YawBox);
+            float hit = float.PositiveInfinity;
+            foreach (Solid s in _layout.Solids)
+            {
+                if (s.Kind == SolidKind.Floor || s.Walkable || s.Box.Bottom > ArenaRules.Headroom || s.Box.Top < ArenaRules.LaneBandHigh)
+                {
+                    continue;
+                }
+
+                if (LaneMeter.LineVsBox(p, toward, s.Box, out float t0, out float t1) && t1 >= 0f && t0 >= 0f)
+                {
+                    hit = Math.Min(hit, t0);
+                }
+            }
+
+            if (hit > SpurMaxReach)
+            {
+                return false;
+            }
+
+            float start = -SpurOvershoot;
+            float end = hit + SpurEmbed;
+            Vec2 mid = p + toward * ((start + end) * 0.5f);
+            float height = _rng.Range(2.2f, 3.0f);
+            var box = new YawBox(new Vec3(mid.X, height * 0.5f, mid.Y), new Vec3(SpurThickness * 0.5f, height * 0.5f, (end - start) * 0.5f), CMath.YawOf(toward));
+            if (!AttachedRockFits(box, out int touched))
+            {
+                return false;
+            }
+
+            AddAttachedPair(box, touched);
+            placed = box;
+            return true;
+        }
+
+        /// <summary>
+        /// Grows existing obstacles with small attached rocks until cover reaches the target: each rock touches one
+        /// solid and keeps a capsule passage to all others, so obstacle clusters grow without sealing floor.
+        /// </summary>
+        private int Accrete(ref float missing)
+        {
+            var anchors = new List<Solid>();
+            foreach (Solid s in _layout.Solids)
+            {
+                if (!s.Walkable && s.Kind != SolidKind.Floor && s.Kind != SolidKind.AlcoveWall && s.Box.Bottom <= 0.05f
+                    && s.Box.Top >= ArenaRules.CoverMinHeight && MirrorMath.IsSideZeroHalf(s.Box.Center.XZ())
+                    && !_attached.Contains(s.Id) && !_hasAttachment.Contains(s.Id))
+                {
+                    anchors.Add(s);
+                }
+            }
+
+            int placed = 0;
+            for (int attempt = 0; attempt < AccretionTries && missing > 0f && anchors.Count > 0; attempt++)
+            {
+                Solid anchor = anchors[_rng.NextInt(anchors.Count)];
+                float angle = _rng.Range(0f, 360f);
+                Vec2 outward = Vec2.FromYaw(angle);
+                Vec2 surface = anchor.Box.ClosestPointXZ(anchor.Box.Center.XZ() + outward * 20f);
+                float sx = _rng.Range(0.8f, 2.4f);
+                float sz = _rng.Range(0.8f, 1.6f);
+                Vec2 c = surface + outward * (Math.Min(sx, sz) * 0.5f - 0.1f);
+                float height = _rng.Range(1.6f, 3.0f);
+                var box = new YawBox(new Vec3(c.X, height * 0.5f, c.Y), new Vec3(sx * 0.5f, height * 0.5f, sz * 0.5f), _rng.Range(0f, 180f));
+                if (!AttachedRockFits(box, out int touched) || (touched >= 0 && touched != anchor.Id))
+                {
+                    continue;
+                }
+
+                AddAttachedPair(box, touched);
+                anchors.Remove(anchor);
+                missing -= sx * sz;
+                placed++;
+            }
+
+            return placed;
+        }
+
+        /// <summary>
+        /// A rock fits when it stays in side 0 clear of its own image, inside the contour strip, outside the skeleton
+        /// zones and patches, and within <see cref="FillerGap"/> of at most one non-walkable solid.
+        /// </summary>
+        private bool AttachedRockFits(YawBox box, out int touchedId)
+        {
+            touchedId = -1;
+            Rect2 bounds = Rect2.Around(box);
+            if (bounds.MaxZ > -IslandGap * 0.5f || OverlapsKeepOut(bounds))
+            {
+                return false;
+            }
+
+            for (int i = 0; i < 4; i++)
+            {
+                if (_layout.Boundary.RadialMargin(box.FootprintCorner(i).ToXZ(), 0f) < ArenaRules.ContourStripWidth)
+                {
+                    return false;
+                }
+            }
+
+            if (Footprint2D.Distance(box, MirrorMath.Box(box)) < FillerGap)
+            {
+                return false;
+            }
+
+            int touching = 0;
+            foreach (Solid s in _layout.Solids)
+            {
+                if (s.Kind == SolidKind.Floor || s.Box.Bottom > ArenaRules.Headroom)
+                {
+                    continue;
+                }
+
+                float d = Footprint2D.Distance(box, s.Box);
+                if (d >= FillerGap)
+                {
+                    continue;
+                }
+
+                // One attachment per original obstacle, never to another attached rock: an obstacle grows into an L or
+                // T at most, never a cup that could trap floor as the boundary contracts (spec L676).
+                if (s.Walkable || ++touching > 1 || _attached.Contains(s.Id) || _hasAttachment.Contains(s.Id))
+                {
+                    return false;
+                }
+
+                touchedId = s.Id;
+            }
+
+            Vec2 center = box.Center.XZ();
+            float radius = box.HalfExtents.X + box.HalfExtents.Z;
+            foreach (MaterialPatch m in _layout.Materials)
+            {
+                float extent = m.IsCircle ? m.Radius : m.HalfSize.Length();
+                if (Vec2.Distance(m.Center, center) < extent + radius)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private void AddAttachedPair(YawBox box, int touchedId)
+        {
+            Solid rock = _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, box, ArenaMaterials.Rock, 0f));
+            _attached.Add(rock.Id);
+            _attached.Add(rock.MirrorId);
+            _removable.Add(rock.Id);
+            _removable.Add(rock.MirrorId);
+            if (touchedId >= 0)
+            {
+                _hasAttachment.Add(touchedId);
+                Solid touched = _layout.FindSolid(touchedId);
+                if (touched != null)
+                {
+                    _hasAttachment.Add(touched.MirrorId);
+                }
+            }
+
+            Rect2 bounds = Rect2.Around(box);
+            _occupied.Add(bounds);
+            _occupied.Add(bounds.Mirrored());
+        }
+
+        private void AddRockPair(YawBox box)
+        {
+            _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, box, ArenaMaterials.Rock, 0f));
+            Rect2 bounds = Rect2.Around(box);
+            _occupied.Add(bounds);
+            _occupied.Add(bounds.Mirrored());
+        }
+
+        /// <summary>A node where a filler rock fits, with the half diagonal the rock may take there.</summary>
+        private struct FillerSpot
+        {
+            public int Node;
+            public float Room;
+        }
+
+        /// <summary>
+        /// Side-0 main-floor spots for filler rocks. Outside the skeleton a rock keeps a capsule passage
+        /// (<see cref="FillerGap"/>) to everything; inside a skeleton zone it must keep a full route
+        /// (<see cref="RouteGap"/>) around itself and stay off the protected cores: the designated lane, the final floor
+        /// ring, and the bastion between its back wall and its screen.
+        /// </summary>
+        private List<FillerSpot> FillerCandidates(ArenaNav nav)
+        {
+            var result = new List<FillerSpot>();
+            float laneHalf = _p.LaneHalfLength > 0f ? _p.LaneHalfLength : _p.Radius + 2f;
+            Rect2 core = _bastion.Core();
             for (int node = 0; node < nav.NodeCount; node++)
             {
-                float room = nav.Clearance(node);
-                if (room < minRoom)
+                float clearance = nav.Clearance(node);
+                if (clearance < FillerGap + FillerMinHalfDiagonal)
                 {
                     continue;
                 }
 
                 Vec3 p = nav.NodePosition(node);
-                if (MathF.Abs(p.Y) > 0.05f || p.Z > -(room - gap) - IslandGap * 0.5f)
+                if (MathF.Abs(p.Y) > 0.05f)
                 {
                     continue;
                 }
 
-                float half = Math.Min(room - gap, FillerMaxHalfDiagonal);
-                Rect2 r = Rect2.FromCenter(p.XZ(), 2f * half, 2f * half);
-                if (_layout.Boundary.RadialMargin(p, 0f) < half + ArenaRules.ContourStripWidth || OverlapsKeepOut(r))
+                float room = Math.Min(clearance - FillerGap, FillerMaxHalfDiagonal);
+                Rect2 r = Rect2.FromCenter(p.XZ(), 2f * room, 2f * room);
+                if (OverlapsKeepOut(r))
+                {
+                    room = Math.Min(clearance - RouteGap, FillerMaxHalfDiagonal);
+                    if (room < FillerMinHalfDiagonal)
+                    {
+                        continue;
+                    }
+
+                    Vec2 q = p.XZ();
+                    bool inLane = MathF.Abs(q.Y) <= LaneZoneHalf + room && MathF.Abs(q.X) <= laneHalf + room;
+                    bool nearFloor = q.Length() <= _layout.FinalFloorRadius + 1.5f + room;
+                    if (inLane || nearFloor || core.Expanded(room).Contains(q) || core.Mirrored().Expanded(room).Contains(q))
+                    {
+                        continue;
+                    }
+                }
+
+                if (p.Z > -room - IslandGap * 0.5f || _layout.Boundary.RadialMargin(p, 0f) < room + ArenaRules.ContourStripWidth)
                 {
                     continue;
                 }
 
-                result.Add(node);
+                result.Add(new FillerSpot { Node = node, Room = room });
             }
 
             return result;
-        }
-
-        private void PlaceLaneBreaker(ArenaNav nav, List<int> candidates, FiringLane lane, List<Vec3> chosen)
-        {
-            int best = -1;
-            float bestRoom = 0f;
-            for (int pass = 0; pass < 2 && best < 0; pass++)
-            {
-                Vec2 a = pass == 0 ? lane.A : MirrorMath.Point(lane.A);
-                Vec2 b = pass == 0 ? lane.B : MirrorMath.Point(lane.B);
-                for (int i = 0; i < candidates.Count; i++)
-                {
-                    Vec2 p = nav.NodePosition(candidates[i]).XZ();
-                    Vec2 c = Intersections.ClosestPointOnSegment(p, a, b);
-                    float t = Vec2.Distance(a, c) / Math.Max(1e-3f, Vec2.Distance(a, b));
-                    float room = nav.Clearance(candidates[i]);
-                    float reach = Math.Min(FillerMaxHalfDiagonal, room - LaneBreakerGap) * 0.8f;
-                    if (Vec2.Distance(p, c) <= reach && t > 0.12f && t < 0.88f && room > bestRoom)
-                    {
-                        best = candidates[i];
-                        bestRoom = room;
-                    }
-                }
-            }
-
-            if (best < 0)
-            {
-                return;
-            }
-
-            Vec3 q = nav.NodePosition(best);
-            float yaw = CMath.YawOf(lane.B - lane.A) + 90f;
-            if (PlaceRock(q.XZ(), bestRoom - LaneBreakerGap, yaw, elongate: true) > 0f)
-            {
-                chosen.Add(new Vec3(q.X, bestRoom, q.Z));
-            }
         }
 
         private static bool FarFromChosen(Vec3 p, float room, List<Vec3> chosen)
@@ -718,7 +1205,9 @@ namespace Confluence.Arena.Generation
             float hz = halfDiagonal * sin;
             float height = _rng.Range(2.2f, 3.2f);
             var box = new YawBox(new Vec3(center.X, height * 0.5f, center.Y), new Vec3(hx, height * 0.5f, hz), CMath.WrapAngle360(yaw));
-            _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, box, ArenaMaterials.Rock, 0f));
+            Solid placed = _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, box, ArenaMaterials.Rock, 0f));
+            _removable.Add(placed.Id);
+            _removable.Add(placed.MirrorId);
             Rect2 bounds = Rect2.Around(box);
             _occupied.Add(bounds);
             _occupied.Add(bounds.Mirrored());
@@ -736,6 +1225,70 @@ namespace Confluence.Arena.Generation
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Contraction repair (spec L676): while some accessible cell would lose its route to the final floor as the
+        /// boundary contracts, remove the filler rock or prop pair nearest that cell. Skeleton terrain, modules, and
+        /// biome sources stay; anything left failing is caught by validation and the seed is retried.
+        /// </summary>
+        private void RepairContraction()
+        {
+            for (int iteration = 0; iteration < ContractionRepairs; iteration++)
+            {
+                ArenaNav nav = ArenaNav.Build(_layout);
+                var survey = new ArenaSurvey(_layout, nav);
+                if (survey.SpawnNode(0) < 0 || survey.FinalFloorNodes.Count == 0 || !survey.FindContractionFailure(out float _, out int node))
+                {
+                    return;
+                }
+
+                Vec2 cell = nav.NodePosition(node).XZ();
+                Solid rock = null;
+                PropPlacement prop = null;
+                float best = ContractionRepairReach;
+                foreach (Solid s in _layout.Solids)
+                {
+                    if (_removable.Contains(s.Id))
+                    {
+                        float d = ArenaSurvey.FootprintDistance(s.Box, cell);
+                        if (d < best)
+                        {
+                            best = d;
+                            rock = s;
+                        }
+                    }
+                }
+
+                foreach (PropPlacement p in _layout.Props)
+                {
+                    float d = Vec2.Distance(p.Position.XZ(), cell);
+                    if (d < best)
+                    {
+                        best = d;
+                        prop = p;
+                        rock = null;
+                    }
+                }
+
+                if (prop != null)
+                {
+                    PropPlacement image = _layout.FindProp(prop.MirrorId);
+                    _layout.Props.Remove(prop);
+                    _layout.Props.Remove(image);
+                }
+                else if (rock != null)
+                {
+                    _removable.Remove(rock.Id);
+                    _removable.Remove(rock.MirrorId);
+                    _w.RemoveSolidPair(rock);
+                }
+                else
+                {
+                    Notes.Add("contraction failure without a removable obstacle nearby");
+                    return;
+                }
+            }
         }
 
         // ---- Biome dressing and props -----------------------------------------------------------------------
@@ -834,7 +1387,7 @@ namespace Confluence.Arena.Generation
                 weights.RemoveAt(pick);
                 PropShape shape = PropShapes.For(def.Id);
                 float radius = shape.PlacementRadius;
-                float clearance = radius + (shape.BlocksMovement ? 1.0f : 0.25f);
+                float clearance = radius + (shape.BlocksMovement ? PropPassage : 0.25f);
                 if (!finder.TryFind(_rng, clearance, radius, out Vec3 site))
                 {
                     continue;
@@ -880,10 +1433,10 @@ namespace Confluence.Arena.Generation
             var center = new LightShaft { Position = new Vec3(0f, 8f, 0f), Radius = _layout.FinalFloorRadius };
             center.MirrorId = _layout.LightShafts.Count;
             _layout.LightShafts.Add(center);
-            AddLightPair(new Vec3(0f, 6f, _bastion.TipZ + 1.5f), 2f);
+            AddLightPair(new Vec3(_bastion.OffsetX, 6f, _bastion.TipZ + 1.5f), 2f);
             float corridorX = _bastion.LateralExtent + 0.25f + CorridorWidth * 0.5f;
-            AddLightPair(new Vec3(-corridorX, 6f, -LaneZoneHalf - 1f), 2f);
-            AddLightPair(new Vec3(corridorX, 6f, -LaneZoneHalf - 1f), 2f);
+            AddLightPair(new Vec3(_bastion.OffsetX - corridorX, 6f, -LaneZoneHalf - 1f), 2f);
+            AddLightPair(new Vec3(_bastion.OffsetX + corridorX, 6f, -LaneZoneHalf - 1f), 2f);
         }
 
         private void AddLightPair(Vec3 position, float radius)

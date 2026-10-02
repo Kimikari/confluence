@@ -47,6 +47,36 @@ namespace Confluence.Arena.Validation
         {
             var best = default(FiringLane);
             float bestLength = -1f;
+            foreach (FiringLane lane in Sweep())
+            {
+                if (lane.Length > bestLength)
+                {
+                    bestLength = lane.Length;
+                    best = lane;
+                }
+            }
+
+            return best;
+        }
+
+        /// <summary>The longest lane of every sampled line that is longer than a threshold, longest first.</summary>
+        public List<FiringLane> LongerThan(float threshold)
+        {
+            var result = new List<FiringLane>();
+            foreach (FiringLane lane in Sweep())
+            {
+                if (lane.Length > threshold)
+                {
+                    result.Add(lane);
+                }
+            }
+
+            result.Sort((a, b) => b.Length.CompareTo(a.Length));
+            return result;
+        }
+
+        private IEnumerable<FiringLane> Sweep()
+        {
             var intervals = new List<Vec2>(64);
             for (int k = 0; k < ArenaRules.LaneDirections; k++)
             {
@@ -55,17 +85,26 @@ namespace Confluence.Arena.Validation
                 Vec2 n = new Vec2(d.Y, -d.X);
                 for (float s = -_reach; s <= _reach; s += ArenaRules.LaneLineSpacing)
                 {
-                    Vec2 origin = n * s;
-                    FiringLane lane = LongestOnLine(origin, d, intervals, float.NaN);
-                    if (!lane.IsEmpty && lane.Length > bestLength)
+                    FiringLane lane = LongestOnLine(n * s, d, intervals, float.NaN);
+                    if (!lane.IsEmpty)
                     {
-                        bestLength = lane.Length;
-                        best = lane;
+                        yield return lane;
                     }
                 }
             }
+        }
 
-            return best;
+        /// <summary>True when a footprint crosses the lane segment, so it interrupts the lane.</summary>
+        public static bool Interrupts(FiringLane lane, YawBox box)
+        {
+            Vec2 d = lane.B - lane.A;
+            float length = d.Length();
+            if (length < 1e-4f || !LineVsBox(lane.A, d / length, box, out float t0, out float t1))
+            {
+                return false;
+            }
+
+            return t1 >= 0f && t0 <= length;
         }
 
         /// <summary>

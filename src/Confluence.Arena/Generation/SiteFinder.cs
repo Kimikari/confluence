@@ -61,7 +61,7 @@ namespace Confluence.Arena.Generation
                 return false; // main floor, and far enough from the center line that the mirror image never touches
             }
 
-            if (_layout.Boundary.RadialMargin(p, 0f) < radius + ArenaRules.ContourKeepInMargin)
+            if (_layout.Boundary.RadialMargin(p, 0f) < radius + ArenaRules.ContourStripWidth)
             {
                 return false;
             }

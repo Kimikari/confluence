@@ -18,7 +18,10 @@ namespace Confluence.Arena.Generation
         public const float InteriorHalfDepth = 1.5f;
         public const float ScreenCenterHalfWidth = 1.5f;
         public const float WingAngleDeg = 20f;
-        public const float Thickness = 0.75f;
+        public const float Thickness = 1.0f;
+
+        /// <summary>Back wall thickness (anchored, 3 m tall).</summary>
+        public const float BackThickness = 1.0f;
         public const float BackWallHalfWidth = 3f;
         public const float Height = ArenaRules.TallWallHeight;
 
@@ -31,14 +34,21 @@ namespace Confluence.Arena.Generation
         private Solid _eastWing;
         private Solid _westWing;
 
-        public SpawnBastion(LayoutWriter writer, float spawnDistance, float wingLength)
+        public SpawnBastion(LayoutWriter writer, float spawnDistance, float offsetX, float wingLength)
         {
             _w = writer;
             SpawnZ = -spawnDistance;
+            OffsetX = offsetX;
             WingLength = wingLength;
         }
 
         public float SpawnZ { get; }
+
+        /// <summary>
+        /// Lateral offset of side 0's bastion. The half turn moves side 1's bastion the other way, so the exits of the
+        /// two bastions no longer line up into one straight sightline along the spawn axis (spec L310 lane limit).
+        /// </summary>
+        public float OffsetX { get; }
 
         public float WingLength { get; private set; }
 
@@ -76,21 +86,22 @@ namespace Confluence.Arena.Generation
         {
             float z = SpawnZ;
             float backZ = z - InteriorHalfDepth;
-            Solid back = _w.NewSolid(SolidKind.AlcoveWall, Box(-BackWallHalfWidth, backZ - ArenaRules.WallThickness, BackWallHalfWidth, backZ), ArenaMaterials.Alcove, 0f);
+            float x0 = OffsetX;
+            Solid back = _w.NewSolid(SolidKind.AlcoveWall, Box(x0 - BackWallHalfWidth, backZ - BackThickness, x0 + BackWallHalfWidth, backZ), ArenaMaterials.Alcove, 0f);
             _w.AddMirroredPair(back);
-            Solid center = _w.NewSolid(SolidKind.AlcoveWall, Box(-ScreenCenterHalfWidth, ScreenZ, ScreenCenterHalfWidth, ScreenZ + Thickness), ArenaMaterials.Alcove, 0f);
+            Solid center = _w.NewSolid(SolidKind.AlcoveWall, Box(x0 - ScreenCenterHalfWidth, ScreenZ, x0 + ScreenCenterHalfWidth, ScreenZ + Thickness), ArenaMaterials.Alcove, 0f);
             _w.AddMirroredPair(center);
             _eastWing = _w.AddMirroredPair(_w.NewSolid(SolidKind.AlcoveWall, WingBox(1), ArenaMaterials.Alcove, 0f));
             _westWing = _w.AddMirroredPair(_w.NewSolid(SolidKind.AlcoveWall, WingBox(-1), ArenaMaterials.Alcove, 0f));
 
             // Where the contour runs close behind the back wall, anchored rock fills the strip up to and past the
             // boundary, so no floor cell hides behind the bastion while the boundary contracts (spec L48, L676).
-            float backOuter = backZ - ArenaRules.WallThickness;
+            float backOuter = backZ - BackThickness;
             float nearest = float.PositiveInfinity;
             float farthest = 0f;
             for (float x = -BackingHalfWidth; x <= BackingHalfWidth + 1e-3f; x += BackingHalfWidth * 0.5f)
             {
-                float margin = layout.Boundary.RadialMargin(new Vec3(x, 0f, backOuter), 0f);
+                float margin = layout.Boundary.RadialMargin(new Vec3(x0 + x, 0f, backOuter), 0f);
                 nearest = Math.Min(nearest, margin);
                 farthest = Math.Max(farthest, margin);
             }
@@ -98,15 +109,15 @@ namespace Confluence.Arena.Generation
             if (nearest < BackingGapLimit)
             {
                 float depth = Math.Max(0.5f, farthest) + 1f;
-                _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, Box(-BackingHalfWidth, backOuter - depth, BackingHalfWidth, backOuter), ArenaMaterials.Rock, 0f));
+                _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, Box(x0 - BackingHalfWidth, backOuter - depth, x0 + BackingHalfWidth, backOuter), ArenaMaterials.Rock, 0f));
             }
 
-            var alcove = new YawBox(new Vec3(0f, 1.5f, z), new Vec3(InteriorHalfWidth, 1.5f, InteriorHalfDepth), 0f);
-            layout.Spawns[0] = new SpawnPoint { Side = 0, Position = new Vec3(0f, 0f, z), YawDeg = 0f, Alcove = alcove };
+            var alcove = new YawBox(new Vec3(x0, 1.5f, z), new Vec3(InteriorHalfWidth, 1.5f, InteriorHalfDepth), 0f);
+            layout.Spawns[0] = new SpawnPoint { Side = 0, Position = new Vec3(x0, 0f, z), YawDeg = 0f, Alcove = alcove };
             layout.Spawns[1] = new SpawnPoint
             {
                 Side = 1,
-                Position = MirrorMath.Point(new Vec3(0f, 0f, z)),
+                Position = MirrorMath.Point(new Vec3(x0, 0f, z)),
                 YawDeg = 180f,
                 Alcove = MirrorMath.Box(alcove),
             };
@@ -124,7 +135,13 @@ namespace Confluence.Arena.Generation
         public Rect2 Zone(float corridorWidth)
         {
             float half = LateralExtent + 0.25f + corridorWidth;
-            return new Rect2(-half, SpawnZ - InteriorHalfDepth - ArenaRules.WallThickness - 0.5f, half, TipZ + corridorWidth);
+            return new Rect2(OffsetX - half, SpawnZ - InteriorHalfDepth - BackThickness - 0.5f, OffsetX + half, TipZ + corridorWidth);
+        }
+
+        /// <summary>The bastion between its back wall and screen (no filler rock may stand here).</summary>
+        public Rect2 Core()
+        {
+            return new Rect2(OffsetX - LateralExtent, SpawnZ - InteriorHalfDepth - 1f, OffsetX + LateralExtent, TipZ + 0.75f);
         }
 
         private static void Update(ArenaLayout layout, Solid solid, YawBox box)
@@ -136,7 +153,7 @@ namespace Confluence.Arena.Generation
         private YawBox WingBox(int sign)
         {
             CMath.SinCosDeg(WingAngleDeg, out float s, out float c);
-            Vec2 start = new Vec2(sign * (ScreenCenterHalfWidth - Thickness * 0.5f), ScreenZ + Thickness * 0.5f);
+            Vec2 start = new Vec2(OffsetX + sign * (ScreenCenterHalfWidth - Thickness * 0.5f), ScreenZ + Thickness * 0.5f);
             Vec2 dir = new Vec2(sign * c, s);
             float half = WingLength * 0.5f + Thickness * 0.25f;
             Vec2 mid = start + dir * half;

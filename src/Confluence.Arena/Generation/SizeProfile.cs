@@ -12,11 +12,12 @@ namespace Confluence.Arena.Generation
     /// </summary>
     public sealed class SizeProfile
     {
-        private SizeProfile(int diameter, float spawnDistance, float frontWallHalf, int[] quota, float laneHalfLength, int outcropPairs)
+        private SizeProfile(int diameter, float spawnDistance, float bastionOffset, float frontWallHalf, int[] quota, float laneHalfLength, int outcropPairs)
         {
             Diameter = diameter;
             Radius = diameter * 0.5f;
             SpawnDistance = spawnDistance;
+            BastionOffset = bastionOffset;
             FrontWallHalfWidth = frontWallHalf;
             HalfQuota = quota;
             LaneHalfLength = laneHalfLength;
@@ -28,6 +29,9 @@ namespace Confluence.Arena.Generation
 
         /// <summary>Distance from the center to each spawn point along the spawn axis (side 0 at -Z).</summary>
         public float SpawnDistance { get; }
+
+        /// <summary>Lateral offset of each bastion from the spawn axis (seeded sign; 0 where the arena is too small).</summary>
+        public float BastionOffset { get; }
 
         /// <summary>
         /// Starting half width of the bastion's front screen. The screen hides the spawn (spec L47, L310) and sets the
@@ -56,13 +60,13 @@ namespace Confluence.Arena.Generation
             switch (diameter)
             {
                 case GlobalRules.Arena.DiameterSmall:
-                    return new SizeProfile(diameter, 8.25f, 4.5f, new[] { 0, 2, 1, 1, 1, 0 }, 0f, 6);
+                    return new SizeProfile(diameter, 8.25f, 0f, 4.5f, new[] { 0, 2, 1, 1, 1, 0 }, 8f, 6);
                 case GlobalRules.Arena.DiameterMedium:
-                    return new SizeProfile(diameter, 9.75f, 4.0f, new[] { 1, 2, 1, 1, 1, 0 }, 12f, 6);
+                    return new SizeProfile(diameter, 9.75f, 0f, 4.0f, new[] { 1, 2, 1, 1, 1, 0 }, 7f, 6);
                 case GlobalRules.Arena.DiameterLarge:
-                    return new SizeProfile(diameter, 11.0f, 3.5f, new[] { 2, 3, 2, 1, 2, 0 }, 12.5f, 7);
+                    return new SizeProfile(diameter, 11.0f, 0f, 3.5f, new[] { 2, 3, 2, 1, 2, 0 }, 7f, 7);
                 case GlobalRules.Arena.DiameterHuge:
-                    return new SizeProfile(diameter, 12.25f, 3.0f, new[] { 3, 3, 2, 2, 3, 0 }, 13f, 8);
+                    return new SizeProfile(diameter, 12.25f, 0f, 3.0f, new[] { 3, 3, 2, 2, 3, 0 }, 7f, 8);
                 default:
                     throw new ArgumentOutOfRangeException(nameof(diameter), diameter, "Arena diameters are 24, 32, 40, or 48 m (spec L306).");
             }

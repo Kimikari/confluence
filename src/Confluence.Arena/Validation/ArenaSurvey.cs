@@ -175,7 +175,8 @@ namespace Confluence.Arena.Validation
         // ---- Cover and usable area (spec L306, L310) -----------------------------------------------------
 
         /// <summary>
-        /// Solids that count as cover: non-walkable, sight-blocking pieces at least crouch-eye high (1.0 m) standing
+        /// Solids that count as cover: sight-blocking pieces at least crouch-eye high (1.0 m), including solid platforms,
+        /// standing
         /// on the main floor or on a walkable surface. Overhead pieces (lintels, bells, roofs) do not count.
         /// </summary>
         public List<Solid> CoverSolids()
@@ -200,6 +201,13 @@ namespace Confluence.Arena.Validation
 
         public static bool IsCover(Solid s, IReadOnlyList<Solid> all)
         {
+            // A solid platform at least crouch-eye high shields the floor beside it like any wall; its top is
+            // elevated floor and counts once in the usable area.
+            if (s.Walkable && s.Kind == SolidKind.Platform && s.Box.Bottom <= 0.05f && s.Box.Top >= ArenaRules.CoverMinHeight - 1e-3f)
+            {
+                return true;
+            }
+
             if (s.Walkable || s.Kind == SolidKind.Floor || !s.BlocksSight || s.Box.Top - s.Box.Bottom < ArenaRules.CoverMinHeight - 1e-3f)
             {
                 return false;
@@ -376,6 +384,54 @@ namespace Confluence.Arena.Validation
                     }
                 }
             }
+        }
+
+        // ---- Contraction (spec L48, L676) -------------------------------------------------------------
+
+        /// <summary>
+        /// First accessible cell that loses every route to the final floor while the boundary contracts. Every
+        /// <see cref="ArenaRules.ContractionSampleStepSec"/> from the start to the end of the contraction, the route
+        /// may use only cells a capsule fits inside the contour; cells within
+        /// <see cref="ArenaRules.ContractionEdgeTolerance"/> of the moving edge are already leaving the legal space.
+        /// </summary>
+        public bool FindContractionFailure(out float timeSec, out int failedNode)
+        {
+            timeSec = 0f;
+            failedNode = -1;
+            BoundaryContour b = Layout.Boundary;
+            bool[] reached = ReachableFromSpawns;
+            int count = Nav.NodeCount;
+            var angle = new float[count];
+            var dist = new float[count];
+            for (int node = 0; node < count; node++)
+            {
+                Vec3 p = Nav.NodePosition(node) - b.Center;
+                angle[node] = CMath.YawOf(new Vec3(p.X, 0f, p.Z));
+                dist[node] = MathF.Sqrt(p.X * p.X + p.Z * p.Z);
+            }
+
+            var allowed = new bool[count];
+            for (float t = b.ContractStartSec; t <= b.ContractEndSec + 1e-3f; t += ArenaRules.ContractionSampleStepSec)
+            {
+                for (int node = 0; node < count; node++)
+                {
+                    allowed[node] = b.RadiusAt(angle[node], t) - dist[node] >= ArenaRules.CapsuleClearance;
+                }
+
+                bool[] canReach = Nav.CanReach(FinalFloorNodes, NavQuery.Capsule.WithAllowed(allowed));
+                for (int node = 0; node < count; node++)
+                {
+                    if (reached[node] && !canReach[node] && b.RadiusAt(angle[node], t) - dist[node] >= ArenaRules.ContractionEdgeTolerance
+                        && Nav.Clearance(node) >= ArenaRules.CapsuleClearance)
+                    {
+                        timeSec = t;
+                        failedNode = node;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         // ---- Helpers ----------------------------------------------------------------------------------
