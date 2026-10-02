@@ -44,6 +44,9 @@ namespace Confluence.Arena.Generation
 
         private const int PlacementTries = 160;
 
+        /// <summary>Smallest footprint of a landmark module (MOD-002 Dogleg Lane and up: 8 x 4 m); cover and material pieces are smaller.</summary>
+        private const float LandmarkMinFootprintArea = 32f;
+
         /// <summary>Module picks tried for an optional island before the category gives up.</summary>
         private const int IslandAttempts = 3;
 
@@ -202,6 +205,9 @@ namespace Confluence.Arena.Generation
         private int _lastTouching;
         private int _fillRouteChecks;
         private bool _conflictsStrict;
+
+        /// <summary>True once a landmark pair stands (it replaces the arena's other topology modules).</summary>
+        private bool _landmark;
         private readonly List<Vec3> _sites = new List<Vec3>(); // placed features and props (side 0), x/z plus radius in Y
         private SpawnBastion _bastion;
         private float _wingMax;
@@ -254,11 +260,16 @@ namespace Confluence.Arena.Generation
 
             // On the small arenas the required elevation modules take the open floor first, where they leave every
             // bulwark its room: their decks and ramps are the hardest pieces to fit (spec L660), and the bulwark rings
-            // would leave none. Larger arenas keep open floor beyond the rings, so there they come with the others.
+            // would leave none. Larger arenas keep open floor beyond the rings, so there they come with the others; the
+            // 48 m arena first sets one large landmark module.
             ReserveBiomeSources();
             if (_p.Diameter <= GlobalRules.Arena.DiameterMedium)
             {
                 PlaceRequiredElevation();
+            }
+            else if (_p.Diameter >= GlobalRules.Arena.DiameterHuge && !_conservative)
+            {
+                PlaceLandmark();
             }
 
             PlaceBulwarks();
@@ -526,6 +537,25 @@ namespace Confluence.Arena.Generation
         /// The required categories come first so they get the open floor; approach, topology, and material modules
         /// then dress what is left. The central soft cover pair, when present, counts toward the cover modules.
         /// </summary>
+        /// <summary>
+        /// The 48 m arena takes one landmark pair before the bulwark rings: a topology, elevation, or approach module with
+        /// a footprint of at least 8 x 4 m. Once the rings and lane posts stand, the big route pieces (up to 10 x 10 m)
+        /// find no room; placed first, their own walls close rays the rings would otherwise have to (spec L317 skeleton
+        /// "from validated modules, matching sockets and heights", L660 composition). The landmark takes the arena's
+        /// topology budget.
+        /// </summary>
+        private void PlaceLandmark()
+        {
+            _routeBaseline = RouteConditions();
+            _openRays = OpenBulwarkRays();
+            _conflictsStrict = true;
+            ModuleCategory[] kinds = { ModuleCategory.Topology, ModuleCategory.Elevation, ModuleCategory.Approach };
+            ModuleCategory category = kinds[_rng.NextInt(kinds.Length)];
+            _landmark = PlaceOneIsland(category, true, LandmarkMinFootprintArea);
+            _conflictsStrict = false;
+            _openRays = null;
+        }
+
         private void PlaceRequiredElevation()
         {
             _routeBaseline = RouteConditions();
@@ -679,6 +709,15 @@ namespace Confluence.Arena.Generation
                     quota = Math.Max(coverPairsMin, Math.Min(quota, coverPairsMax));
                     required = coverPairsMin;
                 }
+                else if (category == ModuleCategory.Topology)
+                {
+                    quota = _landmark ? 0 : quota; // a landmark pair takes the topology budget
+                }
+                else if (category == ModuleCategory.Approach)
+                {
+                    quota -= CountModules(ModuleCategory.Approach) / 2; // an approach landmark counts
+                }
+
                 else if (_conservative)
                 {
                     quota = Math.Min(quota, category == ModuleCategory.Approach ? 1 : 0);
@@ -714,7 +753,7 @@ namespace Confluence.Arena.Generation
             return n;
         }
 
-        private bool PlaceOneIsland(ModuleCategory category, bool required)
+        private bool PlaceOneIsland(ModuleCategory category, bool required, float minFootprintArea = 0f)
         {
             IReadOnlyList<ModuleGeometry> all = _content.ModulesOf(category);
             var candidates = new List<ModuleGeometry>(all.Count);
@@ -723,7 +762,7 @@ namespace Confluence.Arena.Generation
             {
                 ModuleGeometry g = all[i];
                 int sources = CountSources(g);
-                if (sources * 2 > _sourceBudget || (_conservative && g.IsVantage))
+                if (sources * 2 > _sourceBudget || (_conservative && g.IsVantage) || g.Width * g.Depth < minFootprintArea)
                 {
                     continue;
                 }
