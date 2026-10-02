@@ -81,6 +81,23 @@ namespace Confluence.Net.Sync
     }
 
     /// <summary>
+    /// Message body carrying one input packet (see <see cref="InputPacket"/>), for use with a
+    /// <see cref="Protocol.MessageType{T}"/> on <see cref="Protocol.NetChannel.Input"/>.
+    /// </summary>
+    public sealed class InputPacketMessage<T, TCodec> : Protocol.INetMessage
+        where TCodec : IInputCodec<T>, new()
+    {
+        private static readonly TCodec Codec = new TCodec();
+
+        /// <summary>Commands oldest to newest with contiguous sequences.</summary>
+        public List<InputCommand<T>> Commands { get; } = new List<InputCommand<T>>();
+
+        public void Serialize(NetWriter writer) => InputPacket.Write(writer, Commands, Codec);
+
+        public void Deserialize(NetReader reader) => InputPacket.Read(reader, Codec, Commands);
+    }
+
+    /// <summary>
     /// Client side of the input stream. Every tick's input gets the next sequence number and is kept until the
     /// server acknowledges it (snapshot ack), which serves both redundancy and reconciliation replay. Each packet
     /// carries the newest input plus up to <see cref="Redundancy"/> earlier unacknowledged inputs, so isolated
@@ -164,15 +181,21 @@ namespace Confluence.Net.Sync
         /// <summary>Writes the newest input plus up to <see cref="Redundancy"/> earlier unacknowledged ones.</summary>
         public void WritePacket(NetWriter writer, IInputCodec<T> codec)
         {
+            FillPacket(_packet);
+            InputPacket.Write(writer, _packet, codec);
+        }
+
+        /// <summary>Fills <paramref name="commands"/> (cleared first) with the next packet's commands, oldest first.</summary>
+        public void FillPacket(List<InputCommand<T>> commands)
+        {
+            if (commands == null) throw new ArgumentNullException(nameof(commands));
             if (_unacked.Count == 0) throw new InvalidOperationException("No unacknowledged input to send.");
             int count = Math.Min(_unacked.Count, Redundancy + 1);
-            _packet.Clear();
+            commands.Clear();
             for (int i = _unacked.Count - count; i < _unacked.Count; i++)
             {
-                _packet.Add(_unacked[i]);
+                commands.Add(_unacked[i]);
             }
-
-            InputPacket.Write(writer, _packet, codec);
         }
 
         /// <summary>Starts a new stream (for example after a reconnect).</summary>
@@ -291,10 +314,16 @@ namespace Confluence.Net.Sync
         public int ReadPacket(NetReader reader, IInputCodec<T> codec)
         {
             InputPacket.Read(reader, codec, _scratch);
+            return Accept(_scratch);
+        }
+
+        /// <summary>Accepts decoded commands (oldest first); returns how many were new.</summary>
+        public int Accept(IReadOnlyList<InputCommand<T>> commands)
+        {
             int added = 0;
-            foreach (InputCommand<T> command in _scratch)
+            for (int i = 0; i < commands.Count; i++)
             {
-                if (Accept(command.Sequence, command.Input))
+                if (Accept(commands[i].Sequence, commands[i].Input))
                 {
                     added++;
                 }
