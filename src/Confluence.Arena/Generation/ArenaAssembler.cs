@@ -45,6 +45,9 @@ namespace Confluence.Arena.Generation
 
         private const int AccretionTries = 400;
 
+        /// <summary>Lane breakers may add a second attachment to an obstacle (contraction repair removes any that trap floor).</summary>
+        private const int LaneBreakerAttachLimit = 2;
+
         private const int ContractionRepairs = 8;
 
         /// <summary>Only an obstacle this close to a stranded cell is removed to repair it.</summary>
@@ -129,7 +132,7 @@ namespace Confluence.Arena.Generation
         private readonly HashSet<int> _removable = new HashSet<int>();
         private readonly HashSet<int> _bulwarks = new HashSet<int>();
         private string _why;
-        private readonly HashSet<int> _hasAttachment = new HashSet<int>();
+        private readonly Dictionary<int, int> _attachments = new Dictionary<int, int>();
 
         public ArenaAssembler(ArenaContent content, ulong seed, int diameter, BiomeDef biome, IContentAvailability props, bool conservative)
         {
@@ -603,8 +606,14 @@ namespace Confluence.Arena.Generation
             bool staggered = outer <= BulwarkRadius;
             if (!staggered)
             {
-                // No room for a second row: one continuous arc at the inner radius.
-                PlaceArc(a0, a1, Math.Min(inner, BulwarkRadius));
+                // No room for a second row: one continuous arc of short pieces at the inner radius.
+                float r = Math.Min(inner, BulwarkRadius);
+                float stepDeg = BulwarkPieceLength / r * CMath.Rad2Deg;
+                for (float a = a0; a < a1; a += stepDeg)
+                {
+                    PlaceArc(a, Math.Min(a + stepDeg, a1), r);
+                }
+
                 return;
             }
 
@@ -627,7 +636,7 @@ namespace Confluence.Arena.Generation
         /// <summary>One straight bulwark piece spanning an arc of a circle (angles in degrees).</summary>
         private void PlaceArc(float b0, float b1, float radius)
         {
-            for (float r = radius; r <= BulwarkRadius + 0.01f; r += 0.5f)
+            for (float r = radius; r <= BulwarkRadius + 0.51f; r += 0.25f)
             {
                 Vec2 p0 = Vec2.FromYaw(b0) * r;
                 Vec2 p1 = Vec2.FromYaw(b1) * r;
@@ -957,7 +966,7 @@ namespace Confluence.Arena.Generation
             // Interior points every 0.25 m, from the middle of the lane outward.
             var fractions = new List<float> { 0.5f };
             float step = 0.25f / Math.Max(1f, lane.Length);
-            for (float f = 0.5f - step; f >= 0.1f; f -= step)
+            for (float f = 0.5f - step; f >= 0.03f; f -= step)
             {
                 fractions.Add(f);
                 fractions.Add(1f - f);
@@ -987,7 +996,7 @@ namespace Confluence.Arena.Generation
                 // Where no obstacle is near enough to grow a spur from, a free-standing post across the lane.
                 float height = _rng.Range(2.2f, 3.0f);
                 var post = new YawBox(new Vec3(p.X, height * 0.5f, p.Y), new Vec3(SpurThickness * 0.5f, height * 0.5f, 0.6f), CMath.YawOf(side));
-                if (AttachedRockFits(post, out int touched))
+                if (AttachedRockFits(post, out int touched, LaneBreakerAttachLimit))
                 {
                     AddAttachedPair(post, touched);
                     placed = post;
@@ -1029,7 +1038,7 @@ namespace Confluence.Arena.Generation
             Vec2 mid = p + toward * ((start + end) * 0.5f);
             float height = _rng.Range(2.2f, 3.0f);
             var box = new YawBox(new Vec3(mid.X, height * 0.5f, mid.Y), new Vec3(SpurThickness * 0.5f, height * 0.5f, (end - start) * 0.5f), CMath.YawOf(toward));
-            if (!AttachedRockFits(box, out int touched))
+            if (!AttachedRockFits(box, out int touched, LaneBreakerAttachLimit))
             {
                 return false;
             }
@@ -1050,7 +1059,7 @@ namespace Confluence.Arena.Generation
             {
                 if (!s.Walkable && s.Kind != SolidKind.Floor && s.Kind != SolidKind.AlcoveWall && s.Box.Bottom <= 0.05f
                     && s.Box.Top >= ArenaRules.CoverMinHeight && MirrorMath.IsSideZeroHalf(s.Box.Center.XZ())
-                    && !_attached.Contains(s.Id) && !_hasAttachment.Contains(s.Id))
+                    && !_attached.Contains(s.Id) && AttachmentsOf(s.Id) == 0)
                 {
                     anchors.Add(s);
                 }
@@ -1090,7 +1099,9 @@ namespace Confluence.Arena.Generation
 
         private void Rej(string r) { Rejects.TryGetValue(r, out int n); Rejects[r] = n + 1; }
 
-        private bool AttachedRockFits(YawBox box, out int touchedId)
+        private int AttachmentsOf(int solidId) => _attachments.TryGetValue(solidId, out int n) ? n : 0;
+
+        private bool AttachedRockFits(YawBox box, out int touchedId, int attachLimit = 1)
         {
             touchedId = -1;
             Rect2 bounds = Rect2.Around(box);
@@ -1127,7 +1138,7 @@ namespace Confluence.Arena.Generation
                 // One attachment per original obstacle, never to another attached rock: an obstacle grows into an L or
                 // T at most, never a cup that could trap floor as the boundary contracts (spec L676).
                 // A rock may stand against a deck or ramp side but never on or into it.
-                if ((s.Walkable && d <= 0.05f) || ++touching > 1 || _attached.Contains(s.Id) || _hasAttachment.Contains(s.Id))
+                if ((s.Walkable && d <= 0.05f) || ++touching > 1 || _attached.Contains(s.Id) || AttachmentsOf(s.Id) >= attachLimit)
                 {
                     Rej(s.Walkable && d <= 0.05f ? "walk" : touching > 1 ? "touch2" : _attached.Contains(s.Id) ? "attached" : "hasattach"); return false;
                 }
@@ -1158,11 +1169,11 @@ namespace Confluence.Arena.Generation
             _removable.Add(rock.MirrorId);
             if (touchedId >= 0)
             {
-                _hasAttachment.Add(touchedId);
+                _attachments[touchedId] = AttachmentsOf(touchedId) + 1;
                 Solid touched = _layout.FindSolid(touchedId);
                 if (touched != null)
                 {
-                    _hasAttachment.Add(touched.MirrorId);
+                    _attachments[touched.MirrorId] = AttachmentsOf(touched.MirrorId) + 1;
                 }
             }
 
