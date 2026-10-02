@@ -167,7 +167,7 @@ namespace Confluence.Casting
         {
             if (HasAny(tags, new[] { "summon", "field" })) return CastWeight.MajorFieldOrSummon;
             if (HasAny(tags, CastingRules.ControlTags)) return CastWeight.Control;
-            return castTimeSec <= CastingRules.QuickCastMaxWindupSec + 1e-9 ? CastWeight.Quick : CastWeight.Heavy;
+            return Ticks.FromSeconds(castTimeSec) <= CastingRules.QuickCastMaxWindupTicks ? CastWeight.Quick : CastWeight.Heavy;
         }
 
         public CastableSpell WithMana(float mana)

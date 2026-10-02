@@ -14,7 +14,9 @@ namespace Confluence.Casting
         /// Spec L92 names quick versus heavy casts without a threshold. A cast whose intrinsic windup is at most
         /// 0.35 s is quick (0.20 s recovery, 85% move speed); longer windups are heavy (0.35 s, 70%).
         /// </summary>
-        public const float QuickCastMaxWindupSec = 0.35f;
+        public const double QuickCastMaxWindupSec = 0.35;
+
+        public static readonly int QuickCastMaxWindupTicks = Ticks.FromSeconds(QuickCastMaxWindupSec);
 
         /// <summary>Spec L90 "0.15 second re-cast lock" in ticks.</summary>
         public static readonly int RecastLockTicks = Ticks.FromSeconds(GlobalRules.Casting.PreCommitCancelRecastLockSec);
