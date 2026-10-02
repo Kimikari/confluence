@@ -135,6 +135,16 @@ order, rebuild, minimal layout).
 Run: `Unity.exe -batchmode -nographics -projectPath client -runTests -testPlatform EditMode -testResults
 out/unity-editmode.xml -logFile out/unity-editmode.log` or `build-client.ps1 -Tests`.
 
+## Verification (2026-10-02)
+
+- `powershell -ExecutionPolicy Bypass -File tools/build-client.ps1 -Tests -Smoke`: sync OK, EditMode 33/33
+  passed, `[Build] RESULT Succeeded errors=0 warnings=0` (about 1 min), smoke exit 0 with `out/client-shot.png`.
+- Screenshots checked by eye: arena fly view (all materials, props with glyphs, final ring, striped boundary,
+  legend), overview at `-previewTime 70` (contracted contour), walk view in the alcove (ward) and after it
+  opens, main menu, Play card, settings overlay, Codex, Training.
+- Unity batch mode works with the Hub license (log shows "Access token is unavailable" from the licensing
+  client, which is harmless).
+
 ## Status / next steps
 
 Done: project + configuration, sync and build scripts, app shell and menus, catalogue service, arena renderer,
