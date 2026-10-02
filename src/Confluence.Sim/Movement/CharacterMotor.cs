@@ -45,6 +45,7 @@ namespace Confluence.Sim.Movement
             }
 
             report = default;
+            MotorTuning tuning = c.Tuning.OrStandard();
             Vec3 start = s.Position;
             bool wasGrounded = s.Grounded;
             float supportBefore = s.SupportY;
@@ -71,7 +72,7 @@ namespace Confluence.Sim.Movement
             // Sprint (spec L80): forward movement, stamina for this tick, not crouched, dodging, or locked.
             bool sprint = c.SprintHeld && !moveLocked && !c.IsLocked(MotorLocks.Sprint) && !s.Crouched
                 && s.DodgeTicks == 0 && move.Y > SimRules.Motor.SprintMinForwardInput;
-            float sprintCost = GlobalRules.Movement.SprintStaminaPerSecond * dt;
+            float sprintCost = tuning.SprintStaminaPerSecond * dt;
             if (sprint && stamina - spent >= sprintCost)
             {
                 spent += sprintCost;
@@ -88,14 +89,14 @@ namespace Confluence.Sim.Movement
 
             // Dodge (spec L82): grounded, off cooldown, full stamina cost; travels its distance over its duration.
             if (c.DodgePressed && s.Grounded && s.DodgeTicks == 0 && s.DodgeCooldownTicks == 0 && !moveLocked
-                && !c.IsLocked(MotorLocks.Dodge) && stamina - spent >= GlobalRules.Movement.DodgeStaminaCost)
+                && !c.IsLocked(MotorLocks.Dodge) && stamina - spent >= tuning.DodgeStaminaCost)
             {
                 Vec3 dir = wishDir.LengthSquared() > 0f ? wishDir : -forward;
                 int ticks = DodgeTicks;
                 s.DodgeTicks = ticks;
-                s.DodgeVelocity = dir * (GlobalRules.Movement.DodgeDistance / (ticks * dt));
-                s.DodgeCooldownTicks = DodgeCooldownTicks;
-                spent += GlobalRules.Movement.DodgeStaminaCost;
+                s.DodgeVelocity = dir * (tuning.DodgeDistance / (ticks * dt));
+                s.DodgeCooldownTicks = tuning.DodgeCooldownTicks;
+                spent += tuning.DodgeStaminaCost;
                 report.DodgeStarted = true;
                 s.Sprinting = false;
             }
@@ -126,10 +127,10 @@ namespace Confluence.Sim.Movement
             float vy = s.Velocity.Y;
             bool jumped = false;
             if (c.JumpPressed && s.Grounded && s.DodgeTicks == 0 && !moveLocked && !c.IsLocked(MotorLocks.Jump)
-                && stamina - spent >= GlobalRules.Movement.JumpStaminaCost)
+                && stamina - spent >= tuning.JumpStaminaCost)
             {
                 vy = GlobalRules.Movement.JumpLaunchSpeed;
-                spent += GlobalRules.Movement.JumpStaminaCost;
+                spent += tuning.JumpStaminaCost;
                 jumped = true;
                 report.Jumped = true;
                 s.Grounded = false;
@@ -208,19 +209,20 @@ namespace Confluence.Sim.Movement
 
         /// <summary>
         /// Maximum horizontal speed: walk, sprint, or crouch; limited by the casting factor of walk speed
-        /// (spec L92), then scaled by the capped bonus and strongest slow (spec L116, L124).
+        /// (spec L92), then scaled by the gait's capped bonus (spec L124) and the strongest slow (spec L116).
         /// </summary>
         public static float MaxSpeed(bool crouched, bool sprinting, in MotorCommand c)
         {
-            float speed = crouched ? GlobalRules.Movement.CrouchSpeed
-                : sprinting ? GlobalRules.Movement.SprintSpeed : GlobalRules.Movement.WalkSpeed;
+            MotorTuning t = c.Tuning.OrStandard();
+            float speed = crouched ? t.CrouchSpeed : sprinting ? t.SprintSpeed : t.WalkSpeed;
             float cast = CMath.Clamp(Finite(c.CastSpeedFactor, 1f), 0f, 1f);
             if (cast < 1f)
             {
-                speed = Math.Min(speed, GlobalRules.Movement.WalkSpeed * cast);
+                speed = Math.Min(speed, t.WalkSpeed * cast);
             }
 
-            return speed * Math.Max(0f, Finite(c.SpeedMultiplier, 1f));
+            float bonus = sprinting && !crouched ? t.SprintMultiplier : t.WalkMultiplier;
+            return speed * Math.Max(0f, Finite(bonus, 1f)) * Math.Max(0f, Finite(c.SpeedMultiplier, 1f));
         }
 
         /// <summary>Starts a displacement (knockback or dash) that overrides horizontal velocity for its ticks.</summary>

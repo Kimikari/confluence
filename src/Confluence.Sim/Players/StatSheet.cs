@@ -1,21 +1,22 @@
-using System;
-using System.Collections.Generic;
-using Confluence.Core.Geometry;
 using Confluence.Core.Rules;
-using Confluence.Sim.Hashing;
+using Confluence.Sim.Stats;
 
 namespace Confluence.Sim.Players
 {
-    /// <summary>Statistics that equipment, augments, and buffs modify. Each has a global cap (spec L112-L124).</summary>
+    /// <summary>
+    /// Statistics that equipment, augments, buffs, and drawbacks modify. Each stat is additive in its own unit (meters,
+    /// seconds, points, or fractions); its effective value applies the global caps (spec L78-L124, L175). The values
+    /// are kept in this order so serialized ids stay stable; new stats are appended.
+    /// </summary>
     public enum StatKind
     {
-        /// <summary>Fractional movement speed bonus; effective at most +20% (spec L124).</summary>
+        /// <summary>Fractional movement speed bonus for every gait; effective at most +20% with the gait bonuses (spec L124).</summary>
         MovementBonus,
 
         /// <summary>Permanent cooldown reduction; at most 25%, and no recharge below 0.5 s (spec L124).</summary>
         CooldownReduction,
 
-        /// <summary>Cost reduction from all sources; at least 70% of the cost is paid (spec L124).</summary>
+        /// <summary>Cost reduction fraction from all sources; at least 70% of the cost is paid (spec L124).</summary>
         CostReduction,
 
         /// <summary>Refund fraction of a payment; at most 25% (spec L90, L124).</summary>
@@ -42,11 +43,83 @@ namespace Confluence.Sim.Players
         /// <summary>Channel resistance (per channel); -15% to 35% (spec L112).</summary>
         Resistance,
 
-        /// <summary>Other passive damage reduction (all channels or one); combined with resistance at most 45% (spec L112).</summary>
+        /// <summary>
+        /// Other passive damage reduction (all channels or one); combined with resistance at most 45% (spec L112).
+        /// Negative values are vulnerabilities ("incoming damage increases 2%").
+        /// </summary>
         PassiveReduction,
 
         /// <summary>Ice traction 0-1 from a declared traction item (spec L175).</summary>
         Traction,
+
+        /// <summary>Added maximum mana ("Maximum mana increases 8"); static capacity, not regeneration (spec L579).</summary>
+        MaxManaBonus,
+
+        /// <summary>Added maximum stamina ("Maximum stamina decreases 4").</summary>
+        MaxStaminaBonus,
+
+        /// <summary>Mana regeneration percentage of the base 10/s ("increases 8%, within +40% cap"): at most 14/s (spec L78).</summary>
+        ManaRegenPercent,
+
+        /// <summary>Stamina regeneration percentage of the base 20/s (spec L78).</summary>
+        StaminaRegenPercent,
+
+        /// <summary>Seconds added to the 1.5 s mana regeneration delay (spec L78); the delay never goes below 0.</summary>
+        ManaRegenDelaySec,
+
+        /// <summary>Seconds added to the 1 s stamina regeneration delay ("delay decreases 0.1 s", spec L78).</summary>
+        StaminaRegenDelaySec,
+
+        /// <summary>Walk speed bonus fraction ("Walking speed decreases 2%"); shares the +20% cap (spec L124).</summary>
+        WalkSpeedBonus,
+
+        /// <summary>Sprint speed bonus fraction ("Sprint speed increases 3%, within +20% cap", spec L124).</summary>
+        SprintSpeedBonus,
+
+        /// <summary>Stamina per second added to the 12/s sprint drain (spec L80).</summary>
+        SprintStaminaPerSecond,
+
+        /// <summary>Stamina added to the 10 jump cost (spec L80).</summary>
+        JumpStaminaCost,
+
+        /// <summary>Stamina added to the 25 dodge cost (spec L82).</summary>
+        DodgeStaminaCost,
+
+        /// <summary>Meters added to the 3 m dodge; a dodge never exceeds the 8 m dash cap (spec L82, L124).</summary>
+        DodgeDistance,
+
+        /// <summary>Seconds added to the 1.6 s dodge cooldown; never below the 0.5 s minimum recharge (spec L82, L124).</summary>
+        DodgeCooldownSec,
+
+        /// <summary>Stamina added to the 25 guard cost (spec L104).</summary>
+        GuardStaminaCost,
+
+        /// <summary>Seconds added to the guard hold; the guard still lasts at most 0.8 s (spec L104).</summary>
+        GuardMaxHoldSec,
+
+        /// <summary>Seconds added to the 3 s guard cooldown; never below the 0.5 s minimum recharge (spec L104, L124).</summary>
+        GuardCooldownSec,
+
+        /// <summary>Damage added to the common melee profile (spec L100).</summary>
+        MeleeDamage,
+
+        /// <summary>Stamina added to the common melee strike cost (spec L100).</summary>
+        MeleeStaminaCost,
+
+        /// <summary>Meters added to the common melee reach (spec L100).</summary>
+        MeleeReach,
+
+        /// <summary>Seconds added to the common melee windup (spec L102).</summary>
+        MeleeWindupSec,
+
+        /// <summary>Seconds added to the complete common melee cycle (spec L100).</summary>
+        MeleeCycleSec,
+
+        /// <summary>Fractional bonus to the attacker's original spell hits ("Direct player damage decreases 2%").</summary>
+        SpellDamageBonus,
+
+        /// <summary>Fractional bonus to the attacker's common melee hits ("Damage increases 4%").</summary>
+        WeaponDamageBonus,
     }
 
     /// <summary>One modifier from a named source.</summary>
@@ -60,260 +133,47 @@ namespace Confluence.Sim.Players
         public float Value;
         public string SourceId;
 
-        public StatModifier(StatKind stat, float value, string sourceId, DamageChannel channel = DamageChannel.None)
+        /// <summary>Tick at which a timed modifier ends (spec L433 "duration"); 0 for one that lasts until removed.</summary>
+        public int ExpireTick;
+
+        public StatModifier(StatKind stat, float value, string sourceId, DamageChannel channel = DamageChannel.None, int expireTick = 0)
         {
             Stat = stat;
             Value = value;
             SourceId = sourceId;
             Channel = channel;
+            ExpireTick = expireTick;
         }
+
+        public bool IsTimed => ExpireTick > 0;
     }
 
-    /// <summary>A line of the build inspector: raw and effective value and whether a cap binds (spec L355).</summary>
+    /// <summary>A line of the build inspector: base, raw and effective value and whether a cap binds (spec L355).</summary>
     public struct StatLine
     {
         public StatKind Stat;
         public DamageChannel Channel;
+
+        /// <summary>Readable name for the build panel.</summary>
+        public string Label;
+
+        /// <summary>Unmodified rule value (0 for pure bonuses).</summary>
+        public float Base;
+
         public float Raw;
         public float Effective;
+
+        /// <summary>The binding global limit, or NaN when the stat has none.</summary>
+        public float Cap;
+
         public bool Capped;
     }
 
     /// <summary>
-    /// Modifier collection of one player with global cap enforcement. Raw values sum (passive reductions combine
-    /// multiplicatively); effective values apply the caps, so the inspector can show both (spec L355).
+    /// The per-player stat block (<see cref="StatBlock"/>). Kept under this name because <see cref="DuelPlayer.Stats"/>
+    /// and existing callers use it.
     /// </summary>
-    public sealed class StatSheet
+    public sealed class StatSheet : StatBlock
     {
-        private static readonly DamageChannel[] Channels =
-        {
-            DamageChannel.Physical, DamageChannel.Thermal, DamageChannel.Electrical, DamageChannel.Corrosive, DamageChannel.Arcane,
-        };
-
-        private readonly List<StatModifier> _modifiers = new List<StatModifier>();
-
-        public IReadOnlyList<StatModifier> Modifiers => _modifiers;
-
-        public void Add(StatModifier modifier) => _modifiers.Add(modifier);
-
-        public void Add(StatKind stat, float value, string sourceId, DamageChannel channel = DamageChannel.None)
-        {
-            _modifiers.Add(new StatModifier(stat, value, sourceId, channel));
-        }
-
-        /// <summary>Removes every modifier from a source (an item unequipped, a buff ended). Returns the count removed.</summary>
-        public int RemoveSource(string sourceId)
-        {
-            return _modifiers.RemoveAll(m => string.Equals(m.SourceId, sourceId, StringComparison.Ordinal));
-        }
-
-        /// <summary>Uncapped sum of a stat (for one channel, resistance and passive reduction consider that channel).</summary>
-        public float Raw(StatKind stat, DamageChannel channel = DamageChannel.None)
-        {
-            if (stat == StatKind.PassiveReduction)
-            {
-                return 1f - PassiveProduct(channel);
-            }
-
-            float sum = 0f;
-            for (int i = 0; i < _modifiers.Count; i++)
-            {
-                StatModifier m = _modifiers[i];
-                if (m.Stat != stat)
-                {
-                    continue;
-                }
-
-                if (stat == StatKind.Resistance && m.Channel != channel)
-                {
-                    continue;
-                }
-
-                sum += m.Value;
-            }
-
-            return sum;
-        }
-
-        // ----- effective values ------------------------------------------------------------------------------
-
-        public float MovementBonus => Math.Min(Raw(StatKind.MovementBonus), GlobalRules.Modifiers.MovementBonusCap);
-
-        /// <summary>Speed multiplier from movement modifiers alone (slows are applied separately).</summary>
-        public float MovementMultiplier => Math.Max(0f, 1f + MovementBonus);
-
-        public float CooldownReduction => CMath01(Raw(StatKind.CooldownReduction), GlobalRules.Modifiers.CooldownReductionCap);
-
-        public float CostReduction => CMath01(Raw(StatKind.CostReduction), GlobalRules.Modifiers.CostReductionCap);
-
-        public float RefundFraction => CMath01(Raw(StatKind.RefundFraction), GlobalRules.Modifiers.RefundCapFraction);
-
-        public int DashCharges => Math.Max(0, Math.Min((int)Math.Floor(Raw(StatKind.DashCharges)), GlobalRules.Modifiers.MaxDashCharges));
-
-        public float Lifesteal => CMath01(Raw(StatKind.Lifesteal), GlobalRules.Healing.LifestealFractionCap);
-
-        public float Traction => CMath01(Raw(StatKind.Traction), 1f);
-
-        /// <summary>Mana regeneration per second after modifiers, capped at 14 (spec L78).</summary>
-        public float ManaRegenPerSecond
-        {
-            get
-            {
-                float raw = GlobalRules.Resources.ManaRegenPerSecond + Raw(StatKind.ManaRegenBonus);
-                return Math.Max(0f, Math.Min(raw, GlobalRules.Resources.ManaRegenCapPerSecond));
-            }
-        }
-
-        /// <summary>Maximum health: 300 plus bonuses, capped at 450 (spec L114).</summary>
-        public float MaxHealth
-        {
-            get
-            {
-                float raw = GlobalRules.Resources.BaseHealth + Raw(StatKind.MaxHealthBonus);
-                return Math.Max(1f, Math.Min(raw, GlobalRules.Resources.MaxHealthCap));
-            }
-        }
-
-        /// <summary>Channel resistance clamped to [-15%, 35%] (spec L112).</summary>
-        public float Resistance(DamageChannel channel)
-        {
-            return CMath.Clamp(Raw(StatKind.Resistance, channel), GlobalRules.Damage.NegativeResistanceFloor, GlobalRules.Damage.ChannelResistanceCap);
-        }
-
-        /// <summary>
-        /// Damage multiplier of resistance and all other passive reductions for a channel: multiplicative, with a
-        /// total reduction cap of 45% (spec L112). Negative resistance can raise it above 1.
-        /// </summary>
-        public float PassiveMultiplier(DamageChannel channel)
-        {
-            float m = (1f - Resistance(channel)) * PassiveProduct(channel);
-            return Math.Max(m, 1f - GlobalRules.Damage.PassiveReductionCap);
-        }
-
-        /// <summary>Recharge after permanent cooldown reduction; never below 0.5 s unless the base already is (spec L124).</summary>
-        public float EffectiveCooldownSec(float baseSec)
-        {
-            if (!(baseSec > 0f))
-            {
-                return 0f;
-            }
-
-            float reduced = baseSec * (1f - CooldownReduction);
-            return Math.Max(reduced, Math.Min(baseSec, GlobalRules.Modifiers.MinRechargeSec));
-        }
-
-        /// <summary>Paid cost after reductions: at least 70% of the original (spec L124).</summary>
-        public float EffectiveCost(float baseCost)
-        {
-            return Math.Max(0f, baseCost) * Math.Max(GlobalRules.Modifiers.MinPaidCostFraction, 1f - CostReduction);
-        }
-
-        /// <summary>A refund of a payment, at most 25% of it (spec L90, L124).</summary>
-        public float CapRefund(float payment, float requested)
-        {
-            float cap = Math.Max(0f, payment) * GlobalRules.Modifiers.RefundCapFraction;
-            return Math.Max(0f, Math.Min(requested, cap));
-        }
-
-        /// <summary>Dash distance after modifiers, at most 8 m (spec L124).</summary>
-        public float EffectiveDashDistance(float baseMeters)
-        {
-            return Math.Max(0f, Math.Min(baseMeters + Raw(StatKind.DashDistance), GlobalRules.Modifiers.MaxDashDistance));
-        }
-
-        /// <summary>Teleport distance after modifiers, at most 10 m (spec L124).</summary>
-        public float EffectiveTeleportDistance(float baseMeters)
-        {
-            return Math.Max(0f, Math.Min(baseMeters + Raw(StatKind.TeleportDistance), GlobalRules.Modifiers.MaxTeleportDistance));
-        }
-
-        /// <summary>Raw versus effective values for every modified stat, for the inspector (spec L355).</summary>
-        public List<StatLine> Inspect()
-        {
-            var lines = new List<StatLine>();
-            AddLine(lines, StatKind.MovementBonus, Raw(StatKind.MovementBonus), MovementBonus);
-            AddLine(lines, StatKind.CooldownReduction, Raw(StatKind.CooldownReduction), CooldownReduction);
-            AddLine(lines, StatKind.CostReduction, Raw(StatKind.CostReduction), CostReduction);
-            AddLine(lines, StatKind.RefundFraction, Raw(StatKind.RefundFraction), RefundFraction);
-            AddLine(lines, StatKind.DashCharges, Raw(StatKind.DashCharges), DashCharges);
-            AddLine(lines, StatKind.DashDistance, Raw(StatKind.DashDistance), Raw(StatKind.DashDistance));
-            AddLine(lines, StatKind.TeleportDistance, Raw(StatKind.TeleportDistance), Raw(StatKind.TeleportDistance));
-            AddLine(lines, StatKind.ManaRegenBonus, GlobalRules.Resources.ManaRegenPerSecond + Raw(StatKind.ManaRegenBonus), ManaRegenPerSecond);
-            AddLine(lines, StatKind.Lifesteal, Raw(StatKind.Lifesteal), Lifesteal);
-            AddLine(lines, StatKind.MaxHealthBonus, GlobalRules.Resources.BaseHealth + Raw(StatKind.MaxHealthBonus), MaxHealth);
-            AddLine(lines, StatKind.Traction, Raw(StatKind.Traction), Traction);
-            for (int c = 0; c < Channels.Length; c++)
-            {
-                DamageChannel ch = Channels[c];
-                if (HasModifier(StatKind.Resistance, ch))
-                {
-                    lines.Add(Line(StatKind.Resistance, ch, Raw(StatKind.Resistance, ch), Resistance(ch)));
-                }
-
-                if (HasModifier(StatKind.PassiveReduction, DamageChannel.None) || HasModifier(StatKind.PassiveReduction, ch)
-                    || HasModifier(StatKind.Resistance, ch))
-                {
-                    float raw = 1f - (1f - Raw(StatKind.Resistance, ch)) * PassiveProduct(ch);
-                    lines.Add(Line(StatKind.PassiveReduction, ch, raw, 1f - PassiveMultiplier(ch)));
-                }
-            }
-
-            return lines;
-        }
-
-        public void Hash(ref StateHasher h)
-        {
-            h.Add(_modifiers.Count);
-            for (int i = 0; i < _modifiers.Count; i++)
-            {
-                h.Add((int)_modifiers[i].Stat);
-                h.Add((int)_modifiers[i].Channel);
-                h.Add(_modifiers[i].Value);
-                h.Add(_modifiers[i].SourceId);
-            }
-        }
-
-        private float PassiveProduct(DamageChannel channel)
-        {
-            float product = 1f;
-            for (int i = 0; i < _modifiers.Count; i++)
-            {
-                StatModifier m = _modifiers[i];
-                if (m.Stat == StatKind.PassiveReduction && (m.Channel == DamageChannel.None || m.Channel == channel))
-                {
-                    product *= 1f - CMath01(m.Value, 1f);
-                }
-            }
-
-            return product;
-        }
-
-        private bool HasModifier(StatKind stat, DamageChannel channel)
-        {
-            for (int i = 0; i < _modifiers.Count; i++)
-            {
-                if (_modifiers[i].Stat == stat && _modifiers[i].Channel == channel)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private void AddLine(List<StatLine> lines, StatKind stat, float raw, float effective)
-        {
-            if (HasModifier(stat, DamageChannel.None))
-            {
-                lines.Add(Line(stat, DamageChannel.None, raw, effective));
-            }
-        }
-
-        private static StatLine Line(StatKind stat, DamageChannel channel, float raw, float effective)
-        {
-            return new StatLine { Stat = stat, Channel = channel, Raw = raw, Effective = effective, Capped = Math.Abs(raw - effective) > 1e-6f };
-        }
-
-        private static float CMath01(float value, float cap) => Math.Max(0f, Math.Min(value, cap));
     }
 }

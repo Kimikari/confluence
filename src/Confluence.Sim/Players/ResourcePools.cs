@@ -39,9 +39,14 @@ namespace Confluence.Sim.Players
         public bool Alive => Health > 0f;
 
         /// <summary>Restores every pool to full for a new duel (spec L46, L78).</summary>
-        public void RestoreForDuel(float maxHealth)
+        public void RestoreForDuel(float maxHealth) => RestoreForDuel(maxHealth, GlobalRules.Resources.BaseMana, GlobalRules.Resources.BaseStamina);
+
+        /// <summary>Restores every pool to full for a new duel with the player's modified maxima (spec L46, L78, L579).</summary>
+        public void RestoreForDuel(float maxHealth, float maxMana, float maxStamina)
         {
             MaxHealth = Math.Min(Math.Max(1f, maxHealth), GlobalRules.Resources.MaxHealthCap);
+            MaxMana = Math.Max(1f, maxMana);
+            MaxStamina = Math.Max(1f, maxStamina);
             Health = MaxHealth;
             Mana = MaxMana;
             Stamina = MaxStamina;
@@ -153,18 +158,41 @@ namespace Confluence.Sim.Players
             Health = Math.Min(Health, MaxHealth);
         }
 
+        /// <summary>Changes maximum mana (static capacity, spec L579), keeping current mana at most the new maximum.</summary>
+        public void SetMaxMana(float maxMana)
+        {
+            MaxMana = Math.Max(1f, maxMana);
+            Mana = Math.Min(Mana, MaxMana);
+        }
+
+        /// <summary>Changes maximum stamina, keeping current stamina at most the new maximum.</summary>
+        public void SetMaxStamina(float maxStamina)
+        {
+            MaxStamina = Math.Max(1f, maxStamina);
+            Stamina = Math.Min(Stamina, MaxStamina);
+        }
+
         /// <summary>Per-tick regeneration (tick-order step 7). No passive health regeneration exists (spec L78).</summary>
         public void Regenerate(int tick, float manaRegenPerSecond)
         {
-            if (tick - LastManaSpendTick >= ManaRegenDelayTicks)
+            Regenerate(tick, manaRegenPerSecond, GlobalRules.Resources.StaminaRegenPerSecond, ManaRegenDelayTicks, StaminaRegenDelayTicks);
+        }
+
+        /// <summary>
+        /// Per-tick regeneration with the player's modified rates and delays (spec L78): mana at most 14/s after
+        /// modifiers.
+        /// </summary>
+        public void Regenerate(int tick, float manaRegenPerSecond, float staminaRegenPerSecond, int manaDelayTicks, int staminaDelayTicks)
+        {
+            if (tick - LastManaSpendTick >= manaDelayTicks)
             {
                 float rate = Math.Min(manaRegenPerSecond, GlobalRules.Resources.ManaRegenCapPerSecond);
                 Mana = Math.Min(MaxMana, Mana + rate / Ticks.PerSecond);
             }
 
-            if (tick - LastStaminaSpendTick >= StaminaRegenDelayTicks)
+            if (tick - LastStaminaSpendTick >= staminaDelayTicks)
             {
-                Stamina = Math.Min(MaxStamina, Stamina + GlobalRules.Resources.StaminaRegenPerSecond / Ticks.PerSecond);
+                Stamina = Math.Min(MaxStamina, Stamina + Math.Max(0f, staminaRegenPerSecond) / Ticks.PerSecond);
             }
         }
 
@@ -174,6 +202,8 @@ namespace Confluence.Sim.Players
             h.Add(MaxHealth);
             h.Add(Mana);
             h.Add(Stamina);
+            h.Add(MaxMana);
+            h.Add(MaxStamina);
             h.Add(LastManaSpendTick);
             h.Add(LastStaminaSpendTick);
             h.Add(ManaCommitted);

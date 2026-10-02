@@ -10,6 +10,7 @@ using Confluence.Sim.Hashing;
 using Confluence.Sim.Input;
 using Confluence.Sim.Movement;
 using Confluence.Sim.Players;
+using Confluence.Sim.Stats;
 using Confluence.Sim.Status;
 using Confluence.Sim.World;
 
@@ -333,12 +334,12 @@ namespace Confluence.Sim.Duel
                 Stamina = p.Resources.Stamina,
                 CastSpeedFactor = casting.MovementFactor,
                 Traction = p.Stats.Traction,
+                Tuning = p.Stats.Motor, // gait bonuses (+20% cap) and stamina costs from the stat block (spec L80-L82, L124)
             };
 
             SurfaceInfo surface = SurfaceUnder(p);
             cmd.Surface = surface;
-            float slow = Math.Min(Math.Max(p.Statuses.StrongestSlow, surface.SlowFraction), GlobalRules.Control.SlowCap);
-            cmd.SpeedMultiplier = p.Stats.MovementMultiplier * (1f - slow);
+            cmd.SpeedMultiplier = 1f - StatBlock.EffectiveSlow(p.Statuses.StrongestSlow, surface.SlowFraction); // spec L116, L175
 
             MotorLocks locks = MotorLocks.None;
             if (!p.Alive || Phase == DuelPhase.Ended)
@@ -431,9 +432,9 @@ namespace Confluence.Sim.Duel
             GuardState g = p.Guard;
             if (g.Active)
             {
-                if (!p.IsHeld(InputButtons.Guard) || g.HoldExpired(Tick) || p.Statuses.IsStunned || !p.Alive || p.IsRecalling)
+                if (!p.IsHeld(InputButtons.Guard) || g.HoldExpired(Tick, p.Stats.GuardMaxHoldTicks) || p.Statuses.IsStunned || !p.Alive || p.IsRecalling)
                 {
-                    g.Release(Tick);
+                    g.Release(Tick, p.Stats.GuardCooldownTicks);
                     Emit(new GuardEvent { Change = GuardChange.Released }, p.Index);
                 }
 
@@ -445,7 +446,7 @@ namespace Confluence.Sim.Duel
                 return;
             }
 
-            if (p.Resources.TrySpendStamina(GlobalRules.Guard.StaminaCost, Tick)) // spec L104: 25 stamina upfront
+            if (p.Resources.TrySpendStamina(p.Stats.GuardStaminaCost, Tick)) // spec L104: 25 stamina upfront (after modifiers)
             {
                 g.Start(Tick);
                 Emit(new GuardEvent { Change = GuardChange.Started }, p.Index);
@@ -512,7 +513,7 @@ namespace Confluence.Sim.Duel
                 return;
             }
 
-            MeleeProfile profile = p.CurrentMeleeProfile;
+            MeleeProfile profile = p.Stats.EffectiveMelee(p.CurrentMeleeProfile); // spec L100-L102 after modifiers
             if (!p.Resources.TrySpendStamina(profile.Stamina, Tick))
             {
                 return;
@@ -726,7 +727,7 @@ namespace Confluence.Sim.Duel
                 EmitStatus(p, _statusScratch[i], StatusChange.Expired);
             }
 
-            p.Resources.Regenerate(Tick, p.Stats.ManaRegenPerSecond);
+            p.Resources.Regenerate(Tick, p.Stats.ManaRegenPerSecond, p.Stats.StaminaRegenPerSecond, p.Stats.ManaRegenDelayTicks, p.Stats.StaminaRegenDelayTicks);
             float lost = p.Shields.Expire(Tick);
             if (lost > 0f)
             {
@@ -1528,7 +1529,7 @@ namespace Confluence.Sim.Duel
             _alcoves[p.Index] = alcove;
             p.Motor = MotorState.At(spawn.Position, spawn.YawDeg);
             CharacterMotor.SnapToGround(ref p.Motor, Collision);
-            p.Resources.RestoreForDuel(p.Stats.MaxHealth);
+            p.Resources.RestoreForDuel(p.Stats.MaxHealth, p.Stats.MaxMana, p.Stats.MaxStamina);
             if (p.Setup.ReserveShields != null)
             {
                 for (int i = 0; i < p.Setup.ReserveShields.Count; i++)
