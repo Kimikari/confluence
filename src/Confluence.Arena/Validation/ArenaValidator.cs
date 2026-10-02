@@ -377,81 +377,20 @@ namespace Confluence.Arena.Validation
                     return;
                 }
 
-                // "At least two approaches interrupt a ranged firing lane": disjoint spawn-to-spawn routes that cross
-                // the designated lane.
-                List<List<int>> routes = SpawnToSpawnRoutes();
-                int crossing = 0;
-                for (int i = 0; i < routes.Count; i++)
+                // "At least two approaches interrupt a ranged firing lane": disjoint 2.5 m approaches from the spawns
+                // that reach the designated lane's corridor, where a player steps into and across the lane.
+                List<int> corridor = _survey.LaneCorridorNodes(designated, ArenaRules.LaneCorridorHalfWidth);
+                int interrupting = 0;
+                for (int side = 0; side < 2; side++)
                 {
-                    if (PathCrosses(routes[i], designated))
-                    {
-                        crossing++;
-                    }
+                    interrupting += _survey.DisjointApproaches(side, corridor).Count;
                 }
 
-                Metric("lane_interrupting_approaches", crossing);
-                if (crossing < GlobalRules.Arena.MinApproachesInterruptingLane)
+                Metric("lane_interrupting_approaches", interrupting);
+                if (interrupting < GlobalRules.Arena.MinApproachesInterruptingLane)
                 {
-                    Fail("lane-interrupt", crossing + " approach(es) cross the firing lane");
+                    Fail("lane-interrupt", interrupting + " approach(es) reach the firing lane");
                 }
-            }
-
-            private List<List<int>> SpawnToSpawnRoutes()
-            {
-                var result = new List<List<int>>();
-                int a = _survey.SpawnNode(0);
-                int b = _survey.SpawnNode(1);
-                List<int> first = _nav.FindPath(a, b, NavQuery.Route, out float _);
-                if (first.Count == 0)
-                {
-                    return result;
-                }
-
-                result.Add(first);
-                // Routes from spawn to spawn meet on the central ring, so only their approaches must stay apart.
-                bool[] blocked = _survey.BlockNear(first, ArenaRules.ApproachSeparation, _layout.Spawns[0].Position.XZ(), ArenaRules.AlcoveExemptRadius,
-                    ArenaRules.CentralCoverRadius + 1f);
-                Vec2 other = _layout.Spawns[1].Position.XZ();
-                for (int i = 0; i < blocked.Length; i++)
-                {
-                    if (blocked[i] && Vec2.Distance(_nav.NodePosition(i).XZ(), other) <= ArenaRules.AlcoveExemptRadius)
-                    {
-                        blocked[i] = false;
-                    }
-                }
-
-                List<int> second = _nav.FindPath(a, b, NavQuery.Route.WithBlocked(blocked), out float _);
-                if (second.Count > 0)
-                {
-                    result.Add(second);
-                }
-
-                return result;
-            }
-
-            private bool PathCrosses(List<int> path, FiringLane lane)
-            {
-                for (int i = 1; i < path.Count; i++)
-                {
-                    Vec2 p = _nav.NodePosition(path[i - 1]).XZ();
-                    Vec2 q = _nav.NodePosition(path[i]).XZ();
-                    if (SegmentsIntersect(p, q, lane.A, lane.B))
-                    {
-                        return true;
-                    }
-                }
-
-                return false;
-            }
-
-            private static bool SegmentsIntersect(Vec2 p, Vec2 q, Vec2 a, Vec2 b)
-            {
-                float d1 = Vec2.Cross(b - a, p - a);
-                float d2 = Vec2.Cross(b - a, q - a);
-                float d3 = Vec2.Cross(q - p, a - p);
-                float d4 = Vec2.Cross(q - p, b - p);
-                return ((d1 <= 0f && d2 >= 0f) || (d1 >= 0f && d2 <= 0f)) && ((d3 <= 0f && d4 >= 0f) || (d3 >= 0f && d4 <= 0f))
-                    && !(d1 == 0f && d2 == 0f);
             }
 
             // ---- Cover and usable area (spec L306, L310) ---------------------------------------------------

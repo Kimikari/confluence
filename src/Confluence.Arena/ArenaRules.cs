@@ -80,6 +80,9 @@ namespace Confluence.Arena
         public const float LaneBandLow = 1.2f;
         public const float LaneBandHigh = GlobalRules.Movement.StandingEyeHeight;
 
+        /// <summary>Half width of a lane's corridor: the band a player stands in to interrupt the lane (the 3.5 m lane zone).</summary>
+        public const float LaneCorridorHalfWidth = 1.75f;
+
         /// <summary>Directions sampled when measuring lanes (every 7.5 degrees over a half turn).</summary>
         public const int LaneDirections = 24;
 

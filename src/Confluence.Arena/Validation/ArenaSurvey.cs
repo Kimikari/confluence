@@ -304,18 +304,21 @@ namespace Confluence.Arena.Validation
         /// the shortest route that keeps at least <see cref="ArenaRules.ApproachSeparation"/> from it everywhere
         /// except inside the spawn alcove and on the final floor, so no single 3 m placement touches both.
         /// </summary>
-        public List<List<int>> DisjointApproaches(int side)
+        public List<List<int>> DisjointApproaches(int side) => DisjointApproaches(side, FinalFloorNodes);
+
+        /// <summary>Up to two disjoint 2.5 m approaches from a spawn to any of the target nodes (see above).</summary>
+        public List<List<int>> DisjointApproaches(int side, IReadOnlyList<int> targets)
         {
             var result = new List<List<int>>();
             int start = SpawnNode(side);
-            if (start < 0 || FinalFloorNodes.Count == 0)
+            if (start < 0 || targets.Count == 0)
             {
                 return result;
             }
 
             int[] parents = new int[Nav.NodeCount];
             float[] dist = Nav.Distances(new[] { start }, NavQuery.Route, parents);
-            int goal = ArgMin(dist, FinalFloorNodes);
+            int goal = ArgMin(dist, targets);
             if (goal < 0)
             {
                 return result;
@@ -327,10 +330,32 @@ namespace Confluence.Arena.Validation
             bool[] blocked = BlockNear(first, ArenaRules.ApproachSeparation, Layout.Spawns[side].Position.XZ(), ArenaRules.AlcoveExemptRadius);
             NavQuery separated = NavQuery.Route.WithBlocked(blocked);
             dist = Nav.Distances(new[] { start }, separated, parents);
-            goal = ArgMin(dist, FinalFloorNodes);
+            goal = ArgMin(dist, targets);
             if (goal >= 0)
             {
                 result.Add(ArenaNav.TracePath(parents, goal));
+            }
+
+            return result;
+        }
+
+        /// <summary>Capsule nodes on the main floor inside a lane's corridor (within half a lane zone of its segment).</summary>
+        public List<int> LaneCorridorNodes(FiringLane lane, float halfWidth)
+        {
+            var result = new List<int>();
+            for (int node = 0; node < Nav.NodeCount; node++)
+            {
+                Vec3 p = Nav.NodePosition(node);
+                if (MathF.Abs(p.Y - Layout.Center.Y) > ArenaRules.FloorLevelTolerance || Nav.Clearance(node) < ArenaRules.CapsuleClearance)
+                {
+                    continue;
+                }
+
+                Vec2 q = p.XZ();
+                if (Vec2.Distance(Intersections.ClosestPointOnSegment(q, lane.A, lane.B), q) <= halfWidth)
+                {
+                    result.Add(node);
+                }
             }
 
             return result;
