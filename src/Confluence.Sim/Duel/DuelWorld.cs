@@ -68,6 +68,7 @@ namespace Confluence.Sim.Duel
         private readonly MaterialsContext _materialsContext;
         private readonly List<ContactDamageRequest> _contactRequests = new List<ContactDamageRequest>();
         private readonly List<StatusInstance> _statusScratch = new List<StatusInstance>();
+        private readonly List<StatusInstance> _expiredScratch = new List<StatusInstance>(); // DoT pulses may reuse _statusScratch
         private readonly List<DotPulse> _pulseScratch = new List<DotPulse>();
         private readonly List<OwnedEntity> _ownedScratch = new List<OwnedEntity>();
         private readonly List<int> _solidScratch = new List<int>();
@@ -186,6 +187,7 @@ namespace Confluence.Sim.Duel
                 return;
             }
 
+            Effects.CarryOver(); // events emitted after the last dispatch (between steps) still raise their triggers
             Tick++;
             _tickEvents.Clear();
             if (Phase == DuelPhase.Alcove && Tick > AlcoveTicks)
@@ -746,8 +748,8 @@ namespace Confluence.Sim.Duel
         private void StepStatusesAndResources(DuelPlayer p)
         {
             _pulseScratch.Clear();
-            _statusScratch.Clear();
-            p.Statuses.Tick(Tick, _pulseScratch, _statusScratch);
+            _expiredScratch.Clear();
+            p.Statuses.Tick(Tick, _pulseScratch, _expiredScratch);
             for (int i = 0; i < _pulseScratch.Count; i++)
             {
                 StatusInstance s = _pulseScratch[i].Status;
@@ -757,9 +759,9 @@ namespace Confluence.Sim.Duel
                 ApplyDamage(dot);
             }
 
-            for (int i = 0; i < _statusScratch.Count; i++)
+            for (int i = 0; i < _expiredScratch.Count; i++)
             {
-                EmitStatus(p, _statusScratch[i], StatusChange.Expired);
+                EmitStatus(p, _expiredScratch[i], StatusChange.Expired);
             }
 
             p.Resources.Regenerate(Tick, p.Stats.ManaRegenPerSecond, p.Stats.StaminaRegenPerSecond, p.Stats.ManaRegenDelayTicks, p.Stats.StaminaRegenDelayTicks);

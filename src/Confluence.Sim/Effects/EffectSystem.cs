@@ -141,14 +141,7 @@ namespace Confluence.Sim.Effects
                 _hosts[i].RefreshConditional();
             }
 
-            _queue.Clear();
-            IReadOnlyList<DuelEvent> events = World.TickEvents;
-            _damageById.Clear();
-            for (int i = _cursor; i < events.Count; i++)
-            {
-                Translate(events[i]);
-            }
-
+            TranslateNewEvents(); // after any carried-over triggers of the previous tick
             _queue.AddRange(_external);
             _external.Clear();
             bool combat = World.Phase == DuelPhase.Combat;
@@ -177,6 +170,30 @@ namespace Confluence.Sim.Effects
             _queue.Clear();
             _cursor = World.TickEvents.Count; // outputs of the actions above are the secondary generation
             SyncResourceMaxima();
+        }
+
+        /// <summary>
+        /// Called by the world before it clears the tick's events: events emitted after the last dispatch (between
+        /// steps, or after step 7) are translated now and fire at the next dispatch point.
+        /// </summary>
+        public void CarryOver()
+        {
+            if (_cursorTick == World.Tick)
+            {
+                TranslateNewEvents();
+            }
+        }
+
+        private void TranslateNewEvents()
+        {
+            IReadOnlyList<DuelEvent> events = World.TickEvents;
+            _damageById.Clear();
+            for (int i = _cursor; i < events.Count; i++)
+            {
+                Translate(events[i]);
+            }
+
+            _cursor = events.Count;
         }
 
         /// <summary>
