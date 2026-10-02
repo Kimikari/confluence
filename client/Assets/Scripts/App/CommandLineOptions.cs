@@ -16,12 +16,22 @@ namespace Confluence.Client.App
         Overview,
     }
 
-    /// <summary>Main-menu panel opened at start (for screenshots of the menu's sub-panels).</summary>
+    /// <summary>Main-menu entry opened at start, so smoke screenshots can cover every menu screen.</summary>
     public enum MenuPanel
     {
         None,
+
+        /// <summary>The Play card (host, port, display name).</summary>
         Play,
+
+        /// <summary>The settings overlay.</summary>
         Settings,
+
+        /// <summary>The Codex screen.</summary>
+        Codex,
+
+        /// <summary>The Training screen.</summary>
+        Training,
     }
 
     /// <summary>
@@ -31,7 +41,7 @@ namespace Confluence.Client.App
     /// <item>-arenaPreview: skip the menu and open the sample arena preview.</item>
     /// <item>-previewView fly|walk|overview: starting preview camera (default fly).</item>
     /// <item>-previewTime &lt;seconds&gt;: initial combat time for the boundary contour (default 0).</item>
-    /// <item>-menuPanel play|settings: open that main-menu panel at start.</item>
+    /// <item>-menuPanel play|settings|codex|training: open that main-menu entry at start.</item>
     /// <item>-screenshot &lt;path&gt;: write a PNG of the screen shortly before quitting (or after 3 s).</item>
     /// <item>-quitAfter &lt;seconds&gt;: quit after this much real time; the exit code is 1 if errors were logged.</item>
     /// </list>

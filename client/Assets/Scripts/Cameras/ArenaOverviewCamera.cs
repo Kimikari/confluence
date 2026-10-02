@@ -29,7 +29,7 @@ namespace Confluence.Client.Cameras
         public float Yaw { get; private set; }
 
         /// <summary>Downward tilt in degrees (90 = straight down).</summary>
-        public float Tilt { get; private set; } = 62f;
+        public float Tilt { get; private set; } = 72f;
 
         public float Distance { get; private set; }
 

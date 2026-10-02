@@ -52,7 +52,7 @@ namespace Confluence.Client.Arena
                 float t = Frac((vertical ? u : v) * 4f);
                 bool bar = t < 0.22f;
                 l = bar ? 1f : 0.8f;
-                a = bar ? 0.55f : 0.12f;
+                a = bar ? 0.38f : 0.07f; // light enough to see through from inside the alcove
             }, TextureWrapMode.Repeat);
         }
 

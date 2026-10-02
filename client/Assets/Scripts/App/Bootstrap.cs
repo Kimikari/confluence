@@ -93,9 +93,26 @@ namespace Confluence.Client.App
         {
             AppState next = _context.Options.ArenaPreview ? AppState.ArenaPreview : AppState.MainMenu;
             _context.States.TransitionTo(next);
-            if (next == AppState.MainMenu && _context.Options.MenuPanel == MenuPanel.Settings)
+            if (next == AppState.MainMenu)
             {
-                _context.OpenSettings();
+                OpenStartPanel(_context.Options.MenuPanel);
+            }
+        }
+
+        // -menuPanel: the Play card is opened by MainMenuScreen itself.
+        private void OpenStartPanel(MenuPanel panel)
+        {
+            switch (panel)
+            {
+                case MenuPanel.Settings:
+                    _context.OpenSettings();
+                    break;
+                case MenuPanel.Codex:
+                    _context.States.TransitionTo(AppState.Codex);
+                    break;
+                case MenuPanel.Training:
+                    _context.States.TransitionTo(AppState.Training);
+                    break;
             }
         }
 
