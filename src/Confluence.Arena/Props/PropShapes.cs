@@ -8,7 +8,9 @@ namespace Confluence.Arena.Props
     /// <summary>
     /// Physical footprint of one prop definition. The catalogue gives mass, durability, and effect prose but no
     /// dimensions, so the shapes below are read from each effect text (for example PROP-014 "Opaque 1.8 m cover",
-    /// PROP-026 "marked 4 m track", PROP-003 "marked 3 m length"). Placement, navigation, and the Sim share them.
+    /// PROP-026 "marked 4 m track", PROP-003 "marked 3 m length"). The generator writes each placement's collision
+    /// box from its shape (<see cref="PropShapes.WriteCollision"/>); placement, navigation, validation, and the Sim
+    /// read that box.
     /// </summary>
     public sealed class PropShape
     {
@@ -81,7 +83,10 @@ namespace Confluence.Arena.Props
 
         public static int Count => Shapes.Count;
 
-        /// <summary>Collision box of a placement (null shape when the prop is floor level).</summary>
+        /// <summary>
+        /// Collision box a placement must carry, computed from its shape (false for floor-level props that players
+        /// walk over, and for unknown definitions). Generated layouts store it in <see cref="PropPlacement.CollisionBox"/>.
+        /// </summary>
         public static bool TryGetCollisionBox(PropPlacement placement, out YawBox box)
         {
             box = default;
@@ -92,6 +97,37 @@ namespace Confluence.Arena.Props
 
             box = shape.BoxAt(placement.Position, placement.YawDeg);
             return true;
+        }
+
+        /// <summary>
+        /// Writes a placement's collision volume from its shape (<see cref="PropPlacement.CollisionBox"/> and
+        /// <see cref="PropPlacement.HasCollision"/>), so the Sim, navigation, and validators all read one footprint.
+        /// Call again after moving or turning the placement.
+        /// </summary>
+        public static void WriteCollision(PropPlacement placement)
+        {
+            if (placement == null) throw new ArgumentNullException(nameof(placement));
+            placement.HasCollision = TryGetCollisionBox(placement, out YawBox box);
+            placement.CollisionBox = box;
+        }
+
+        /// <summary>True when the placement's stored collision volume is exactly what its shape gives.</summary>
+        public static bool CollisionMatchesShape(PropPlacement placement)
+        {
+            bool expected = TryGetCollisionBox(placement, out YawBox box);
+            if (placement.HasCollision != expected)
+            {
+                return false;
+            }
+
+            if (!expected)
+            {
+                return true;
+            }
+
+            YawBox stored = placement.CollisionBox;
+            return Vec3.Distance(stored.Center, box.Center) <= 1e-4f && Vec3.Distance(stored.HalfExtents, box.HalfExtents) <= 1e-4f
+                && MathF.Abs(CMath.DeltaAngle(stored.YawDeg, box.YawDeg)) <= 1e-3f;
         }
 
         private static Dictionary<string, PropShape> Build()

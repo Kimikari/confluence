@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using Confluence.Arena.Modules;
+using Confluence.Arena.Props;
 using Confluence.Core.Arena;
 using Confluence.Core.Geometry;
 using Confluence.Core.Rules;
@@ -165,12 +166,15 @@ namespace Confluence.Arena.Generation
 
         // ---- Props ------------------------------------------------------------------------------------
 
+        /// <summary>Adds a side-0 prop and its side-1 image, each with its collision box written from the prop shape.</summary>
         public PropPlacement AddPropPair(string propId, Vec3 position, float yawDeg)
         {
             var a = new PropPlacement { Id = _nextPropId++, PropId = propId, Position = position, YawDeg = CMath.WrapAngle360(yawDeg) };
             var b = new PropPlacement { Id = _nextPropId++, PropId = propId, Position = MirrorMath.Point(position), YawDeg = MirrorMath.Yaw(yawDeg) };
             a.MirrorId = b.Id;
             b.MirrorId = a.Id;
+            PropShapes.WriteCollision(a);
+            PropShapes.WriteCollision(b);
             Layout.Props.Add(a);
             Layout.Props.Add(b);
             return a;

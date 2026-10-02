@@ -81,6 +81,11 @@ namespace Confluence.Arena
                 h.V3(p.Position);
                 h.F(p.YawDeg);
                 h.I32(p.MirrorId);
+                h.Bool(p.HasCollision);
+                if (p.HasCollision)
+                {
+                    h.Box(p.CollisionBox);
+                }
             }
 
             h.I32(layout.Spawns == null ? -1 : layout.Spawns.Length);

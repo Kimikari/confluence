@@ -571,6 +571,13 @@ namespace Confluence.Arena.Validation
                         return;
                     }
 
+                    // The Sim collides with the stored box and navigation routes around it: it must be the shape's.
+                    if (!PropShapes.CollisionMatchesShape(p))
+                    {
+                        Fail("props", p.PropId + " (prop " + p.Id + ") carries a collision box that differs from its shape");
+                        return;
+                    }
+
                     // Never the spawn floor or the final-circle support (prop placement text, spec L662).
                     float r = shape.PlacementRadius;
                     for (int side = 0; side < 2; side++)
@@ -915,8 +922,9 @@ namespace Confluence.Arena.Validation
 
                 foreach (PropPlacement p in _layout.Props)
                 {
-                    if (PropShapes.TryGetCollisionBox(p, out YawBox box))
+                    if (p.HasCollision)
                     {
+                        YawBox box = p.CollisionBox;
                         YawBox grown = new YawBox(box.Center, box.HalfExtents + new Vec3(1f, 0f, 1f), box.YawDeg);
                         _survey.Rect2Columns(grown, (column, center) =>
                         {

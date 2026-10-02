@@ -1147,7 +1147,7 @@ namespace Confluence.Arena.Generation
 
             for (int i = since.Props; i < _layout.Props.Count; i++)
             {
-                if (withProps && PropShapes.TryGetCollisionBox(_layout.Props[i], out YawBox box) && NearWitness(box))
+                if (withProps && _layout.Props[i].HasCollision && NearWitness(_layout.Props[i].CollisionBox))
                 {
                     return true;
                 }
