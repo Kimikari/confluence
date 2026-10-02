@@ -91,7 +91,7 @@ namespace Confluence.Arena.Generation
             }
 
             var rejected = new List<ArenaValidationReport>();
-            var validator = new ArenaValidator(Content.Modules) { FailFast = true };
+            var validator = new ArenaValidator(Content.Modules) { FailFast = true, MinPropDefinitions = MinPropDefinitions(request.Props) };
             for (int attempt = 0; attempt < GlobalRules.Arena.MaxRetrySeeds; attempt++)
             {
                 ulong seed = ArenaSchedule.AttemptSeed(request.MatchSeed, request.Round, attempt);
@@ -142,7 +142,7 @@ namespace Confluence.Arena.Generation
                 return cached.Clone();
             }
 
-            var validator = new ArenaValidator(Content.Modules);
+            var validator = new ArenaValidator(Content.Modules) { MinPropDefinitions = MinPropDefinitions(props) };
             for (int k = 0; k < FallbackSearchLimit; k++)
             {
                 ulong seed = FallbackSeed(diameter, biome.Id, k);
@@ -166,6 +166,22 @@ namespace Confluence.Arena.Generation
 
             // Never release an invalid arena (spec L323). Tests prove every size and biome has a fallback.
             throw new InvalidOperationException("No valid fallback layout for " + diameter + " m " + biome.Id + ".");
+        }
+
+        /// <summary>Prop definitions an arena must hold: three, or all of them when the filter offers fewer (spec L662).</summary>
+        public int MinPropDefinitions(IContentAvailability props)
+        {
+            props = props ?? ContentAvailability.All;
+            int available = 0;
+            for (int i = 0; i < Content.Props.Count; i++)
+            {
+                if (props.IsAvailable(Content.Props[i].Id))
+                {
+                    available++;
+                }
+            }
+
+            return Math.Min(GlobalRules.Arena.PropDefinitionsMin, available);
         }
 
         /// <summary>Recorded seed of fallback k for a size and biome (independent of any match).</summary>

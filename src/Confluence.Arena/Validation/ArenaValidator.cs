@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using Confluence.Arena.Biomes;
 using Confluence.Arena.Modules;
 using Confluence.Arena.Navigation;
 using Confluence.Arena.Props;
@@ -26,6 +27,12 @@ namespace Confluence.Arena.Validation
         }
 
         public bool FailFast { get; set; }
+
+        /// <summary>
+        /// Fewest prop definitions an arena must hold (spec L662 "three to eight"); the generator lowers it when the
+        /// availability filter offers fewer.
+        /// </summary>
+        public int MinPropDefinitions { get; set; } = GlobalRules.Arena.PropDefinitionsMin;
 
         public ArenaValidationReport Validate(ArenaLayout layout, ArenaNav nav = null)
         {
@@ -531,9 +538,58 @@ namespace Confluence.Arena.Validation
 
                 Metric("prop_definitions", definitions.Count);
                 Metric("prop_instances", _layout.Props.Count);
-                if (_layout.Props.Count > GlobalRules.Arena.MaxPropInstances || definitions.Count > GlobalRules.Arena.PropDefinitionsMax)
+                if (_layout.Props.Count > GlobalRules.Arena.MaxPropInstances || definitions.Count > GlobalRules.Arena.PropDefinitionsMax
+                    || definitions.Count < _owner.MinPropDefinitions)
                 {
                     Fail("props", _layout.Props.Count + " instances of " + definitions.Count + " definitions");
+                }
+
+                CheckBiomeFeatures();
+            }
+
+            /// <summary>The biome's announced rule has its mirrored sources and objects in place (spec L335, L668).</summary>
+            private void CheckBiomeFeatures()
+            {
+                if (_layout.BiomeId == null || !BiomeFeatures.TryGet(_layout.BiomeId, out BiomeFeature f))
+                {
+                    return;
+                }
+
+                int expected = 2 * f.Pairs;
+                int found;
+                switch (f.Kind)
+                {
+                    case BiomeFeatureKind.Solid:
+                        found = 0;
+                        foreach (Solid s in _layout.Solids)
+                        {
+                            if (s.Material == f.Material && s.ModuleIndex < 0)
+                            {
+                                found++;
+                            }
+                        }
+
+                        break;
+                    case BiomeFeatureKind.Gusts:
+                        found = _layout.Gusts.Count > 0 ? expected : 0;
+                        break;
+                    default:
+                        found = 0;
+                        foreach (MaterialPatch m in _layout.Materials)
+                        {
+                            if (m.RefillRule == f.Rule)
+                            {
+                                found++;
+                            }
+                        }
+
+                        break;
+                }
+
+                Metric("biome_features", found);
+                if (found < expected)
+                {
+                    Fail("biome", f.BiomeId + " has " + found + " of " + expected + " rule features");
                 }
             }
 

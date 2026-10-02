@@ -123,7 +123,7 @@ namespace Confluence.Arena.Biomes
             Add(new BiomeFeature
             {
                 // Durability from the porous wall module MOD-021 ("porous wall 100").
-                BiomeId = "BIO-005", Kind = BiomeFeatureKind.Solid, SizeX = 3f, SizeZ = 0.6f, Height = 2f, Material = ArenaMaterials.Porous, Durability = 100f,
+                BiomeId = "BIO-005", Kind = BiomeFeatureKind.Solid, SizeX = 2f, SizeZ = 0.6f, Height = 2f, Material = ArenaMaterials.Porous, Durability = 100f,
                 Geometry = "Two mirrored porous walls that absorb their first water unit and release it when struck for 20.",
             });
             Add(new BiomeFeature
@@ -148,7 +148,7 @@ namespace Confluence.Arena.Biomes
             });
             Add(new BiomeFeature
             {
-                BiomeId = "BIO-009", Kind = BiomeFeatureKind.Solid, SizeX = 2f, SizeZ = 0.3f, Height = 2f, SolidKind = SolidKind.Wall,
+                BiomeId = "BIO-009", Kind = BiomeFeatureKind.Solid, SizeX = 1.6f, SizeZ = 0.3f, Height = 2f, SolidKind = SolidKind.Wall,
                 Material = ArenaMaterials.AcousticPlate, Durability = 0f,
                 Geometry = "Two anchored acoustic plates that ring publicly for 1 s when struck.",
             });
@@ -172,7 +172,7 @@ namespace Confluence.Arena.Biomes
             });
             Add(new BiomeFeature
             {
-                BiomeId = "BIO-013", Kind = BiomeFeatureKind.Solid, SizeX = 3f, SizeZ = 0.5f, Height = 1.8f, Material = ArenaMaterials.Hedge, Durability = 60f,
+                BiomeId = "BIO-013", Kind = BiomeFeatureKind.Solid, SizeX = 2f, SizeZ = 0.5f, Height = 1.8f, Material = ArenaMaterials.Hedge, Durability = 60f,
                 Geometry = "Two 60-durability hedge panels with one finite fuel layer.",
             });
             Add(new BiomeFeature
@@ -203,7 +203,7 @@ namespace Confluence.Arena.Biomes
             });
             Add(new BiomeFeature
             {
-                BiomeId = "BIO-018", Kind = BiomeFeatureKind.Solid, SizeX = 2.5f, SizeZ = 0.3f, Height = 2.5f, SolidKind = SolidKind.Barrier,
+                BiomeId = "BIO-018", Kind = BiomeFeatureKind.Solid, SizeX = 2f, SizeZ = 0.3f, Height = 2.5f, SolidKind = SolidKind.Barrier,
                 Material = ArenaMaterials.Shutter, Durability = 0f,
                 Geometry = "Two brass shutters (collision when closed) toggling at 20 s and 40 s with 2 s warnings.",
             });
@@ -216,12 +216,12 @@ namespace Confluence.Arena.Biomes
             Add(new BiomeFeature
             {
                 // Durability from the heat sink faces of MOD-045 ("metal plate 90").
-                BiomeId = "BIO-020", Kind = BiomeFeatureKind.Solid, SizeX = 2f, SizeZ = 0.4f, Height = 2f, Material = ArenaMaterials.HeatSink, Durability = 90f,
+                BiomeId = "BIO-020", Kind = BiomeFeatureKind.Solid, SizeX = 1.6f, SizeZ = 0.4f, Height = 2f, Material = ArenaMaterials.HeatSink, Durability = 90f,
                 Geometry = "Two heat sinks absorbing the first 2 heat units on their face.",
             });
             Add(new BiomeFeature
             {
-                BiomeId = "BIO-021", Kind = BiomeFeatureKind.Solid, SizeX = 1.5f, SizeZ = 0.6f, Height = 1.4f, Material = ArenaMaterials.Crystal, Durability = 45f,
+                BiomeId = "BIO-021", Kind = BiomeFeatureKind.Solid, SizeX = 1.2f, SizeZ = 0.6f, Height = 1.4f, Material = ArenaMaterials.Crystal, Durability = 45f,
                 Geometry = "Two 45-durability brittle crystal covers that fracture under a 20+ impact.",
             });
             Add(new BiomeFeature
@@ -239,7 +239,7 @@ namespace Confluence.Arena.Biomes
             });
             Add(new BiomeFeature
             {
-                BiomeId = "BIO-024", Kind = BiomeFeatureKind.Solid, SizeX = 1.2f, SizeZ = 1.2f, Height = 0.9f, SolidKind = SolidKind.Barrier,
+                BiomeId = "BIO-024", Kind = BiomeFeatureKind.Solid, SizeX = 1.0f, SizeZ = 1.0f, Height = 0.9f, SolidKind = SolidKind.Barrier,
                 Material = ArenaMaterials.Basin, Durability = 0f, PatchOnTop = true, Water = 2, Flags = MaterialFlags.Water,
                 Rule = "BIO-024:basin;releases=1-unit-per-direct-impact;max-releases=2",
                 Geometry = "Two sealed basins holding Water 2 that release one unit per direct impact, at most twice.",

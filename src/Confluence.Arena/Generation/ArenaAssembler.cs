@@ -82,7 +82,7 @@ namespace Confluence.Arena.Generation
         private const float BulwarkPaddingDeg = 2f;
 
         /// <summary>Free space around a movement-blocking prop: a capsule passage the navigation grid always resolves.</summary>
-        private const float PropPassage = 1.3f;
+        private const float PropPassage = 1.25f;
 
         /// <summary>Spur geometry for lane breaking: thin, reaching at most 3 m from an obstacle, ending 0.4 m past the lane.</summary>
         private const float SpurThickness = 0.6f;
@@ -91,7 +91,6 @@ namespace Confluence.Arena.Generation
         private const float SpurOvershoot = 0.4f;
         private const float SpurEmbed = 0.2f;
 
-        private static readonly bool UseCorridors = System.Environment.GetEnvironmentVariable("ARENA_CORRIDORS") == "1";
 
         /// <summary>Half length of the rock closing each end of the designated lane (it also closes the strips beside it).</summary>
         private const float LaneEndHalfLength = 2.5f;
@@ -140,7 +139,6 @@ namespace Confluence.Arena.Generation
         private readonly HashSet<int> _attached = new HashSet<int>();
         private readonly HashSet<int> _removable = new HashSet<int>();
         private readonly HashSet<int> _bulwarks = new HashSet<int>();
-        private string _why;
         private readonly Dictionary<int, int> _attachments = new Dictionary<int, int>();
 
         public ArenaAssembler(ArenaContent content, ulong seed, int diameter, BiomeDef biome, IContentAvailability props, bool conservative)
@@ -180,6 +178,9 @@ namespace Confluence.Arena.Generation
             PlaceLaneEnds();
             PlaceBulwarks();
             PlaceSkeletonLanePosts();
+
+            // The biome rule's sources and objects come first: the rest of the arena is built around them.
+            DressBiome(ArenaNav.Build(_layout, NoProps));
             ReserveBiomeSources();
             PlaceIslands();
             PlaceOutcrops(_p.OutcropPairs);
@@ -187,7 +188,6 @@ namespace Confluence.Arena.Generation
             ArenaNav nav = ArenaNav.Build(_layout, NoProps);
             nav = FillTerrain(nav);
 
-            DressBiome(nav);
             PlaceProps(nav);
             RepairContraction();
             AddLighting();
@@ -331,11 +331,6 @@ namespace Confluence.Arena.Generation
             foreach (Rect2 zone in _bastion.Zones(ExitWidth))
             {
                 AddKeepOut(zone);
-            }
-            if (UseCorridors)
-            {
-                AddKeepOut(Corridor(1));
-                AddKeepOut(Corridor(-1));
             }
 
             // Firing lane zone along X (both halves of it are in the side-0 list after mirroring).
@@ -820,13 +815,11 @@ namespace Confluence.Arena.Generation
         private bool BulwarkFits(YawBox box, float solidGap = IslandGap, float contourMargin = ArenaRules.ContourKeepInMargin)
         {
             Rect2 bounds = Rect2.Around(box);
-            _why = "half";
             if (bounds.MaxZ > -IslandGap * 0.5f || Footprint2D.Distance(box, MirrorMath.Box(box)) < IslandGap)
             {
                 return false;
             }
 
-            _why = "keepout";
             for (int i = 0; i < _keepOut.Count; i++)
             {
                 Rect2 k = _keepOut[i];
@@ -842,12 +835,10 @@ namespace Confluence.Arena.Generation
                 if (s.Kind != SolidKind.Floor && s.Box.Bottom < ArenaRules.Headroom && !_bulwarks.Contains(s.Id)
                     && Footprint2D.Distance(box, s.Box) < solidGap)
                 {
-                    _why = "solid " + s.Id + " " + s.Material;
                     return false;
                 }
             }
 
-            _why = "contour";
 
             for (int i = 0; i < 4; i++)
             {
@@ -997,7 +988,6 @@ namespace Confluence.Arena.Generation
                         continue;
                     }
 
-                    Rejects.Clear();
                     if (TryBreakLane(lanes[i], out YawBox rock))
                     {
                         placedBoxes.Add(rock);
@@ -1006,12 +996,10 @@ namespace Confluence.Arena.Generation
                     }
                     else if (i == 0)
                     {
-                        var parts = new List<string>(); foreach (var kv in Rejects) parts.Add(kv.Key + "=" + kv.Value);
-                        Notes.Add("lane of " + lanes[i].Length + " m could not be broken [" + string.Join(",", parts) + "] " + lanes[i].A + " " + lanes[i].B);
+                        Notes.Add("lane of " + lanes[i].Length + " m could not be broken");
                     }
                 }
 
-                Notes.Add("DEBUG pass " + pass + " lanes " + lanes.Count + " (max " + (lanes.Count > 0 ? lanes[0].Length : 0f) + ") broken " + placed + " cover " + stats.CoverFraction);
                 if (missing > 0f)
                 {
                     placed += FillOpenFloor(nav, ref missing);
@@ -1215,24 +1203,22 @@ namespace Confluence.Arena.Generation
         /// A rock fits when it stays in side 0 clear of its own image, inside the contour strip, outside the skeleton
         /// zones and patches, and within <see cref="FillerGap"/> of at most one non-walkable solid.
         /// </summary>
-        public readonly Dictionary<string, int> Rejects = new Dictionary<string, int>();
-
-        private void Rej(string r) { Rejects.TryGetValue(r, out int n); Rejects[r] = n + 1; }
-
         private int AttachmentsOf(int solidId) => _attachments.TryGetValue(solidId, out int n) ? n : 0;
 
         private bool AttachedRockFits(YawBox box, out int touchedId, int attachLimit = 1)
         {
             touchedId = -1;
             Rect2 bounds = Rect2.Around(box);
-            if (!InAuthoredHalf(box.Center.XZ())) { Rej("half"); return false; }
-            if (OverlapsKeepOut(bounds)) { Rej("keepout"); return false; }
+            if (!InAuthoredHalf(box.Center.XZ()) || OverlapsKeepOut(bounds))
+            {
+                return false;
+            }
 
             for (int i = 0; i < 4; i++)
             {
                 if (_layout.Boundary.RadialMargin(box.FootprintCorner(i).ToXZ(), 0f) < ArenaRules.ContourStripWidth)
                 {
-                    Rej("contour"); return false;
+                    return false;
                 }
             }
 
@@ -1260,7 +1246,7 @@ namespace Confluence.Arena.Generation
                 // A rock may stand against a deck or ramp side but never on or into it.
                 if ((s.Walkable && d <= 0.05f) || ++touching > 1 || _attached.Contains(s.Id) || AttachmentsOf(s.Id) >= attachLimit)
                 {
-                    Rej(s.Walkable && d <= 0.05f ? "walk" : touching > 1 ? "touch2" : _attached.Contains(s.Id) ? "attached" : "hasattach"); return false;
+                    return false;
                 }
 
                 touchedId = s.Id;
@@ -1273,7 +1259,7 @@ namespace Confluence.Arena.Generation
                 float extent = m.IsCircle ? m.Radius : m.HalfSize.Length();
                 if (Vec2.Distance(m.Center, center) < extent + radius)
                 {
-                    Rej("patch"); return false;
+                    return false;
                 }
             }
 
@@ -1366,6 +1352,11 @@ namespace Confluence.Arena.Generation
                     continue;
                 }
 
+                if (OnPatch(p.XZ(), room))
+                {
+                    continue;
+                }
+
                 result.Add(new FillerSpot { Node = node, Room = room });
             }
 
@@ -1424,6 +1415,21 @@ namespace Confluence.Arena.Generation
             float laneHalf = _p.LaneHalfLength > 0f ? _p.LaneHalfLength : _p.Radius + 2f;
             Rect2 core = _bastion.Core();
             return new List<Rect2> { core, core.Mirrored(), new Rect2(-laneHalf, -LaneZoneHalf, laneHalf, LaneZoneHalf) };
+        }
+
+        /// <summary>True when a disc would cover part of a material patch (beds, pools, and tracks stay open floor).</summary>
+        private bool OnPatch(Vec2 center, float radius)
+        {
+            foreach (MaterialPatch m in _layout.Materials)
+            {
+                float extent = m.IsCircle ? m.Radius : m.HalfSize.Length();
+                if (Vec2.Distance(m.Center, center) < extent + radius && m.SurfaceY == 0f)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private bool OverlapsKeepOut(Rect2 r)
@@ -1526,6 +1532,9 @@ namespace Confluence.Arena.Generation
 
                 float yaw = 90f * _rng.NextInt(4);
                 _sites.Add(new Vec3(site.X, radius, site.Z));
+                Rect2 claim = Rect2.FromCenter(site.XZ(), 2f * radius, 2f * radius);
+                _occupied.Add(claim);
+                _occupied.Add(claim.Mirrored());
                 switch (f.Kind)
                 {
                     case BiomeFeatureKind.Patch:

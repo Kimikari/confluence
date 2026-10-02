@@ -39,6 +39,9 @@ namespace Confluence.Arena.Generation
         /// <summary>Clearance a blocking object inside a skeleton zone keeps around itself (a 2.5 m route plus margin).</summary>
         public const float RouteClearance = 2.75f;
 
+        /// <summary>Margin between a site's footprint and the initial contour.</summary>
+        public const float SiteContourMargin = 1.0f;
+
         public bool TryFind(Rng rng, float clearance, float radius, bool blocksMovement, out Vec3 site)
         {
             var candidates = new List<int>();
@@ -71,7 +74,7 @@ namespace Confluence.Arena.Generation
                 return false; // main floor, and far enough from the center line that the mirror image never touches
             }
 
-            if (_layout.Boundary.RadialMargin(p, 0f) < radius + ArenaRules.ContourStripWidth)
+            if (_layout.Boundary.RadialMargin(p, 0f) < radius + SiteContourMargin)
             {
                 return false;
             }
