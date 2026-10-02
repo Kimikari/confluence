@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Confluence.Tools.Ledger</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Confluence.Core\Confluence.Core.csproj" />
+    <ProjectReference Include="..\Confluence.Reactions\Confluence.Reactions.csproj" />
+    <ProjectReference Include="..\Confluence.Casting\Confluence.Casting.csproj" />
+    <ProjectReference Include="..\Confluence.Arena\Confluence.Arena.csproj" />
+    <ProjectReference Include="..\Confluence.Economy\Confluence.Economy.csproj" />
+    <ProjectReference Include="..\Confluence.Sim\Confluence.Sim.csproj" />
+    <ProjectReference Include="..\Confluence.Match\Confluence.Match.csproj" />
+  </ItemGroup>
+</Project>

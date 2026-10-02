@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>Confluence.Sim</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Confluence.Core\Confluence.Core.csproj" />
+    <ProjectReference Include="..\Confluence.Reactions\Confluence.Reactions.csproj" />
+    <ProjectReference Include="..\Confluence.Casting\Confluence.Casting.csproj" />
+  </ItemGroup>
+</Project>

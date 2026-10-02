@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>Confluence.Match</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Confluence.Core\Confluence.Core.csproj" />
+    <ProjectReference Include="..\Confluence.Economy\Confluence.Economy.csproj" />
+    <ProjectReference Include="..\Confluence.Arena\Confluence.Arena.csproj" />
+  </ItemGroup>
+</Project>
