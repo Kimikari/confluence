@@ -413,7 +413,9 @@ namespace Confluence.Sim.Duel
             }
 
             float yaw = p.Motor.YawDeg;
+            int dodgeCooldown = p.Motor.DodgeCooldownTicks; // a fall never refreshes the dodge
             p.Motor = MotorState.At(target, yaw);
+            p.Motor.DodgeCooldownTicks = dodgeCooldown;
             CharacterMotor.SnapToGround(ref p.Motor, Collision);
             RemoveStatusKind(p, StatusKind.Displaced, StatusChange.Removed);
             p.RecallEndTick = Tick + Ticks.FromSeconds(GlobalRules.Terrain.OutOfMapRecallSec);
@@ -626,6 +628,7 @@ namespace Confluence.Sim.Duel
                 CanCast = !blocked,
                 CanUseSignature = !blocked,
                 CanUseItems = !itemsBlocked,
+                CanChannel = !blocked && !p.Motor.Sprinting, // spec L80: sprint disallows channels
                 Reason = reason,
             };
         }

@@ -24,6 +24,10 @@ namespace Confluence.Sim.Duel
         public bool CanCast;
         public bool CanUseSignature;
         public bool CanUseItems;
+
+        /// <summary>A channel may start or continue: casting is allowed and the player is not sprinting (spec L80).</summary>
+        public bool CanChannel;
+
         public CastBlockReason Reason;
     }
 

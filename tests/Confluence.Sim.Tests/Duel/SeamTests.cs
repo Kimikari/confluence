@@ -60,6 +60,18 @@ namespace Confluence.Sim.Tests.Duel
         }
 
         [Fact]
+        public void Sprinting_Forbids_Channels()
+        {
+            var spells = new FakeSpells(null);
+            DuelWorld w = TestWorlds.Duel(spells: spells);
+            w.Step(TestWorlds.A, TestWorlds.B);
+            Assert.True(spells.LastPermissions[0].CanChannel);
+            w.Step(TestWorlds.A.Moving(0f, 1f).With(InputButtons.Sprint), TestWorlds.B);
+            Assert.True(spells.LastPermissions[0].CanCast);
+            Assert.False(spells.LastPermissions[0].CanChannel);
+        }
+
+        [Fact]
         public void Stun_And_Displacement_Interrupt_The_Cast_And_Credit_The_Interrupter()
         {
             var spells = new FakeSpells(null) { InterruptSucceeds = true };
