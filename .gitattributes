@@ -1,0 +1,13 @@
+* text=auto
+*.cs text eol=crlf
+*.md text
+*.json text
+*.png binary
+*.jpg binary
+*.dll binary
+*.exr binary
+*.hdr binary
+*.wav binary
+*.ogg binary
+*.fbx binary
+*.glb binary
