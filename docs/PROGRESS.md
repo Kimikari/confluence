@@ -19,6 +19,7 @@ Stage 0 — complete (Core: 557 tests passing). Stage 1 — rules subsystems in 
 ### 2026-10-02 — Stage 1 launch
 - Stage 1 runs as a workflow of eight parallel agents (Reactions, Casting, Arena, Economy, Match, Sim core, Net foundation, Unity client foundation), each in its own git worktree, followed by a merge agent. Script: `.claude/workflows/stage1a.js` (local, gitignored).
 - The first attempt was interrupted by an account usage limit before any agent committed work; it was relaunched with WIP-commit instructions. If an attempt is interrupted again, unmerged work survives on `worktree-wf_*` branches; rerun the script with `args: { only: [labels], resume: { label: branch } }` and the agent merges its old branch first.
+- Second attempt was also interrupted by the usage limit after about 40k lines of WIP. All work is committed on worktree branches (`worktree-wf_74e4af8e-68e-N`): 1 reactions, 2 casting, 3 arena, 4 economy, 5 match, 6 sim-core, 7 net, 8 unity-client (worktrees under `.claude/worktrees/`). Resumed in place with `args.inPlace` and two batches. If interrupted again: commit any leftovers in each worktree, then rerun with the same `inPlace` map and `only` limited to unfinished labels, passing finished reports through `priorDone` (from the workflow journal).
 - Unity batchmode project creation works with the activated license (confirmed during the first attempt).
 
 ## What runs
