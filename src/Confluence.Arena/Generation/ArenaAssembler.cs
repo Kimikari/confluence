@@ -33,6 +33,9 @@ namespace Confluence.Arena.Generation
         /// <summary>Width of the guaranteed approach corridors and bastion exits (2.5 m routes plus quantization).</summary>
         public const float CorridorWidth = 3.0f;
 
+        /// <summary>Width of the bastion exits and crossover kept clear beside and in front of the screen (a 2.5 m route plus margin).</summary>
+        public const float ExitWidth = 2.75f;
+
         /// <summary>Clear space kept around the center module footprint.</summary>
         public const float CenterGap = 1.0f;
 
@@ -47,8 +50,8 @@ namespace Confluence.Arena.Generation
         /// <summary>Only an obstacle this close to a stranded cell is removed to repair it.</summary>
         private const float ContractionRepairReach = 4f;
 
-        /// <summary>Sightlines through the center meet a tall solid within this radius (twice it stays under 28 m).</summary>
-        private const float BulwarkRadius = 13f;
+        /// <summary>Center of the bulwark walls at most this far out: their inner faces keep lanes through the center under 28 m.</summary>
+        private const float BulwarkRadius = 14f;
 
         private const float BulwarkMinRadius = 8f;
         private const float BulwarkThickness = 1f;
@@ -71,6 +74,13 @@ namespace Confluence.Arena.Generation
 
         /// <summary>Radial thickness of each lane-end block; it also closes the sightlines past the center module.</summary>
         private const float LaneEndThickness = 3f;
+
+        /// <summary>Inner end of the lane-end nose: just outside the 10 m center module.</summary>
+        private const float LaneNoseInnerX = 5.25f;
+
+        /// <summary>Smallest lateral half extent of the bastion screen beyond the 24 m arena.</summary>
+        private const float WingTipMinExtent = 5.5f;
+
 
         private static readonly ArenaNavOptions NoProps = new ArenaNavOptions { PropsAsObstacles = false };
 
@@ -100,6 +110,7 @@ namespace Confluence.Arena.Generation
         private readonly List<Vec3> _sites = new List<Vec3>(); // placed features and props (side 0), x/z plus radius in Y
         private SpawnBastion _bastion;
         private float _wingMax;
+        private float _wingMin;
         private ModuleGeometry _center;
         private int _sourceBudget = GlobalRules.Arena.MaxNaturalSourcePatches;
         private readonly HashSet<int> _attached = new HashSet<int>();
@@ -269,7 +280,15 @@ namespace Confluence.Arena.Generation
             float offset = _p.BastionOffset * (_rng.NextBool() ? 1f : -1f);
             _bastion = new SpawnBastion(_w, _p.SpawnDistance, offset, SpawnBastion.WingLengthFor(_p.FrontWallHalfWidth));
             _wingMax = SpawnBastion.WingLengthFor(_p.FrontWallHalfWidth + 4.0f);
+
+            // Beyond the smallest arena the wing tips reach past the center module (half width 5 m); with the lane-end
+            // noses, every straight line parallel to the spawn axis meets a screen or a block (spec L310 lane limit).
+            _wingMin = _p.Diameter > GlobalRules.Arena.DiameterSmall ? SpawnBastion.WingLengthFor(WingTipMinExtent) : 0.75f;
             _bastion.Build(_layout);
+            if (_bastion.WingLength < _wingMin)
+            {
+                _bastion.SetWingLength(_layout, _wingMin);
+            }
         }
 
         /// <summary>Side approach corridor east (sign 1) or west (sign -1) of the bastion, running to the firing lane.</summary>
@@ -284,7 +303,7 @@ namespace Confluence.Arena.Generation
         private void AddSkeletonKeepOuts()
         {
             // Bastion, its exits, and the crossover strip in front of the screen.
-            AddKeepOut(_bastion.Zone(CorridorWidth));
+            AddKeepOut(_bastion.Zone(ExitWidth));
             if (UseCorridors)
             {
                 AddKeepOut(Corridor(1));
@@ -496,6 +515,17 @@ namespace Confluence.Arena.Generation
             Rect2 r = Rect2.Around(box);
             _occupied.Add(r);
             _occupied.Add(r.Mirrored());
+
+            if (_p.Diameter > GlobalRules.Arena.DiameterSmall)
+            {
+                // A nose beside the lane zone closes the strip between the block and the center module, so no line
+                // along the spawn axis passes between them; on the far side the mirrored block's nose does the same.
+                YawBox nose = Box(-x, LaneZoneHalf + 0.25f, -LaneNoseInnerX, LaneZoneHalf + 1.25f, 0f, ArenaRules.TallWallHeight);
+                _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, nose, ArenaMaterials.Rock, 0f));
+                Rect2 n = Rect2.Around(nose);
+                _occupied.Add(n);
+                _occupied.Add(n.Mirrored());
+            }
         }
 
         /// <summary>
@@ -765,7 +795,7 @@ namespace Confluence.Arena.Generation
                     step = -0.75f;
                 }
 
-                float next = CMath.Clamp(_bastion.WingLength + step, 0.75f, _wingMax);
+                float next = CMath.Clamp(_bastion.WingLength + step, _wingMin, _wingMax);
                 if (step == 0f || next == _bastion.WingLength)
                 {
                     break;
