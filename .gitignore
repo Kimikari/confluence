@@ -24,3 +24,4 @@ client/MemoryCaptures/
 /out/
 *.log
 .claude/worktrees/
+.claude/workflows/

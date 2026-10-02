@@ -1,7 +1,7 @@
 # Progress
 
 ## Current stage
-Stage 0 — Foundation and tooling (in progress).
+Stage 0 — complete (Core: 557 tests passing). Stage 1 — rules subsystems in progress.
 
 ## Session log
 ### 2026-10-01 — session 1
@@ -15,6 +15,11 @@ Stage 0 — Foundation and tooling (in progress).
 - Geometry: `SphereSweepVsYawBox` takes its normal from the primitive it hit, which is exact at radius 0; new exact `Intersections.SphereSweepVsRamp`.
 - Json: `JsonWriter.FormatNumber` computes the shortest round-trip text itself, so .NET and Unity/Mono give identical output.
 - Validator: transformation gates must be compulsory; nonzero augment costs, out-of-range difficulty, damaging spells without a channel, and stale channel tags are errors; capacity checks for every count leaf; per-wizard acquisition witnesses (D-030) and draft-schedule feasibility (D-032); exclusive groups inside worked builds; compound predicates count all/any roots only (D-031).
+
+### 2026-10-02 — Stage 1 launch
+- Stage 1 runs as a workflow of eight parallel agents (Reactions, Casting, Arena, Economy, Match, Sim core, Net foundation, Unity client foundation), each in its own git worktree, followed by a merge agent. Script: `.claude/workflows/stage1a.js` (local, gitignored).
+- The first attempt was interrupted by an account usage limit before any agent committed work; it was relaunched with WIP-commit instructions. If an attempt is interrupted again, unmerged work survives on `worktree-wf_*` branches; rerun the script with `args: { only: [labels], resume: { label: branch } }` and the agent merges its old branch first.
+- Unity batchmode project creation works with the activated license (confirmed during the first attempt).
 
 ## What runs
 - `node tools/spec.mjs toc`, `node tools/cat.mjs stats`.
