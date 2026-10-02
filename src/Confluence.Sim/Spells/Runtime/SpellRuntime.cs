@@ -113,8 +113,7 @@ namespace Confluence.Sim.Spells
 
             _events.Clear();
             caster.Machine.Step(frame, _events);
-            var events = new List<CastEvent>(_events); // effects may re-enter the runtime (lethal hits interrupt)
-            Process(caster, events);
+            Process(caster, _events); // re-entrant interrupts (a lethal hit) process their own event lists
             SweepCasts();
         }
 
