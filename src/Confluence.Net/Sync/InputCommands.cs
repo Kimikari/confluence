@@ -354,8 +354,13 @@ namespace Confluence.Net.Sync
             }
 
             _pending.Add(sequence, input);
-            if (sequence > _newestReceived) _newestReceived = sequence;
             Accepted++;
+            if (sequence > _newestReceived)
+            {
+                _newestReceived = sequence;
+                TrimSurplus(); // keeps the pending set within MaxBufferedTicks between server ticks
+            }
+
             return true;
         }
 
@@ -406,17 +411,33 @@ namespace Confluence.Net.Sync
 
         private void TrimSurplus()
         {
-            // Inputs ahead of consumption: everything from the next sequence through the newest received.
-            while (_newestReceived >= _nextSequence && _newestReceived - _nextSequence + 1 > (uint)MaxBufferedTicks)
+            // Inputs ahead of consumption span the next sequence through the newest received. Jump straight to the
+            // newest MaxBufferedTicks of them: the cost depends on the pending count, never on how far a (possibly
+            // forged) newest sequence lies ahead.
+            if (_newestReceived < _nextSequence || _newestReceived - _nextSequence < (uint)MaxBufferedTicks)
             {
-                if (_pending.TryGetValue(_nextSequence, out T skipped))
-                {
-                    _pending.Remove(_nextSequence);
-                    _lastKnown = skipped;
-                }
+                return;
+            }
 
-                _nextSequence++;
-                Skipped++;
+            uint keepFrom = _newestReceived - (uint)MaxBufferedTicks + 1;
+            while (_pending.Count > 0)
+            {
+                KeyValuePair<uint, T> oldest = Oldest();
+                if (oldest.Key >= keepFrom) break;
+                _pending.Remove(oldest.Key);
+                _lastKnown = oldest.Value;
+            }
+
+            Skipped += keepFrom - _nextSequence;
+            _nextSequence = keepFrom;
+        }
+
+        private KeyValuePair<uint, T> Oldest()
+        {
+            using (SortedDictionary<uint, T>.Enumerator e = _pending.GetEnumerator())
+            {
+                e.MoveNext();
+                return e.Current;
             }
         }
     }

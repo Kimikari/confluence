@@ -65,7 +65,8 @@ state (L427), snapshot rate (L421, DECISIONS D-005).
 - **Inputs.** `InputSendBuffer` numbers inputs from 1 and sends each packet with the newest input plus up to
   `InputRedundancy` (4) older unacknowledged ones. `InputReceiveBuffer` dedupes, orders, consumes one per server
   tick, repeats the last input for up to 6 ticks when starved (then neutral), never lets the client bank more
-  than 12 ticks ahead, and exposes `LastProcessedSequence` for the snapshot header ack. Late inputs whose
+  than 12 ticks ahead (trimmed on accept by jumping the cursor, so a forged far-future sequence costs O(pending)),
+  and exposes `LastProcessedSequence` for the snapshot header ack. Late inputs whose
   sequence was already substituted are dropped.
 - **Snapshots.** `SnapshotHeader` (server tick, last processed input, optional baseline tick). `SnapshotBuffer<T>`
   stores snapshots by tick (out-of-order inserts, duplicates and stale ones rejected) and samples a render tick

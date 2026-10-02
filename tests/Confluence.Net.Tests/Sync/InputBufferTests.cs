@@ -166,6 +166,25 @@ namespace Confluence.Net.Tests.Sync
         }
 
         [Fact]
+        public void A_Forged_Far_Future_Sequence_Costs_Nothing_And_Stays_Bounded()
+        {
+            // Skipping must not walk every sequence between the cursor and a forged newest one (a hang otherwise).
+            var receive = new InputReceiveBuffer<TestInput>();
+            for (uint seq = 1; seq <= 5; seq++) receive.Accept(seq, InputFor(seq));
+            Assert.True(receive.Accept(4_000_000_000u, InputFor(9)));
+            Assert.Equal(1, receive.BufferedCount);
+            Assert.Equal(4_000_000_000L - NetRules.InputMaxBufferedTicks, receive.Skipped);
+            Assert.False(receive.Accept(6, InputFor(6))); // now far behind the cursor
+            Assert.True(receive.BufferedCount <= NetRules.InputMaxBufferedTicks);
+
+            // The stream continues at the newest window: lost sequences stand in with the last known input.
+            ConsumedInput<TestInput> next = receive.ConsumeNext();
+            Assert.Equal(InputSource.Lost, next.Source);
+            Assert.Equal(4_000_000_000u - (uint)NetRules.InputMaxBufferedTicks + 1, next.Sequence);
+            Assert.Equal(InputFor(5).MoveX, next.Input.MoveX);
+        }
+
+        [Fact]
         public void Malformed_Input_Packets_Are_Rejected()
         {
             var writer = new NetWriter();
