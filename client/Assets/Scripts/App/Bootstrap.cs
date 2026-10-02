@@ -155,9 +155,8 @@ namespace Confluence.Client.App
         private void EnterPreview()
         {
             CommandLineOptions options = _context.Options;
-            var layout = SampleLayouts.CreatePreviewLayout(_context.Catalogue.Catalogue);
             _menuCamera.gameObject.SetActive(false);
-            _preview = ArenaPreviewController.Create(layout, _context.Catalogue.Catalogue, _context.Settings, _context.Ui,
+            _preview = ArenaPreviewController.Create(_context.Catalogue.Catalogue, _context.Settings, _context.Ui, options.ArenaRequest,
                 options.PreviewView, options.PreviewTimeSec, captureCursor: !options.IsSmokeTest, onExit: LeavePreview);
         }
 

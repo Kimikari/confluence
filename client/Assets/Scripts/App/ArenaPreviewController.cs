@@ -1,4 +1,5 @@
 using System;
+using Confluence.Arena.Generation;
 using Confluence.Client.Arena;
 using Confluence.Client.Cameras;
 using Confluence.Client.Input;
@@ -13,9 +14,11 @@ using UnityEngine;
 namespace Confluence.Client.App
 {
     /// <summary>
-    /// The ArenaPreview state: renders a layout and lets the player inspect it with the first-person rig (walk
-    /// or fly) or the rotatable overview camera, while a combat clock drives the boundary contour and the
-    /// final-cover schedule. Owns everything it creates and releases it on destroy.
+    /// The ArenaPreview state: generates an arena with Confluence.Arena's seeded generator (seed, round, diameter,
+    /// and biome pickers; spec §7), renders it, and lets the player inspect it with the first-person rig (walking
+    /// with the Sim CharacterMotor, or flying) or the rotatable overview camera, while a combat clock drives the
+    /// boundary contour and the final-cover schedule. Regenerating rebuilds the renderer and the walker's collision
+    /// world. Owns everything it creates and releases it on destroy.
     /// </summary>
     public sealed class ArenaPreviewController : MonoBehaviour
     {
@@ -24,53 +27,115 @@ namespace Confluence.Client.App
         private PreviewInput _input;
         private UiShell _ui;
         private ArenaPreviewHud _hud;
+        private ArenaGenerationService _generation;
+        private Catalogue _catalogue;
+        private ClientSettings _settings;
         private Action _onExit;
+        private PreviewView _startView;
+        private IDisposable _smokeHold;
         private bool _captureCursor;
         private bool _overview;
+        private bool _generatorOpen;
         private float _hudRefresh;
 
         public ArenaRenderer Arena { get; private set; }
         public FirstPersonRig Rig { get; private set; }
         public ArenaOverviewCamera Overview { get; private set; }
+        public GeneratedArena Generated { get; private set; }
         public float CombatTimeSec { get; private set; }
         public bool ClockPaused { get; private set; }
 
-        public static ArenaPreviewController Create(ArenaLayout layout, Catalogue catalogue, ClientSettings settings, UiShell ui,
+        public static ArenaPreviewController Create(Catalogue catalogue, ClientSettings settings, UiShell ui, ArenaRequest request,
             PreviewView view, float startTimeSec, bool captureCursor, Action onExit)
         {
             var go = new GameObject("Arena preview");
             ArenaPreviewController preview = go.AddComponent<ArenaPreviewController>();
+            preview._catalogue = catalogue;
+            preview._settings = settings;
             preview._ui = ui;
             preview._onExit = onExit;
             preview._captureCursor = captureCursor;
+            preview._startView = view;
             preview._input = new PreviewInput();
             preview._input.Enable();
-
-            preview.Arena = ArenaRenderer.Create(layout, catalogue, go.transform);
-            preview.Rig = FirstPersonRig.Create(go.transform, layout, preview._input, settings);
-            Vector3 center = CoreSpace.ToUnity(layout.Center);
-            preview.Overview = ArenaOverviewCamera.Create(go.transform, center, ArenaQueries.OuterRadius(layout), preview._input, settings);
-
-            preview._hud = new ArenaPreviewHud(preview.Arena, catalogue);
-            ui?.SetHud(preview._hud.Root);
-
             preview.CombatTimeSec = Mathf.Clamp(startTimeSec, ArenaRenderer.AlcoveStartSec, GlobalRules.Round.CombatMaxSec);
-            preview.Arena.SetCombatTime(preview.CombatTimeSec);
-            preview.ApplyStartView(view);
+
+            var generator = new ArenaGeneratorPanel(catalogue, request, preview.Regenerate);
+            preview._hud = new ArenaPreviewHud(catalogue, generator);
+            ui?.SetHud(preview._hud.Root);
+            preview._generation = new ArenaGenerationService(catalogue);
+            preview._generation.Completed += preview.OnGenerated;
+            preview.Regenerate(request);
             return preview;
+        }
+
+        /// <summary>Starts generating a new arena; the current one stays until the new one is released.</summary>
+        public void Regenerate(ArenaRequest request)
+        {
+            _smokeHold?.Dispose();
+            _smokeHold = SmokeTestDriver.Hold("arena generation");
+            _generation.Begin(request);
+            _hud.Generator.SetStatus(_generation);
         }
 
         public void ShowOverview(bool overview)
         {
             _overview = overview;
+            if (Rig == null)
+            {
+                return;
+            }
+
             Rig.Camera.enabled = !overview;
-            Rig.InputEnabled = !overview;
             Overview.Camera.enabled = overview;
             Overview.InputEnabled = overview;
             Rig.Camera.gameObject.tag = overview ? "Untagged" : "MainCamera";
             Overview.gameObject.tag = overview ? "MainCamera" : "Untagged";
-            UpdateCursor();
+            UpdateInteraction();
+        }
+
+        private void OnGenerated(ArenaGenerationService service)
+        {
+            _hud.Generator.SetStatus(service);
+            if (service.State != ArenaGenerationState.Done)
+            {
+                Debug.LogError("[Preview] Arena generation failed: " + service.Error);
+                _smokeHold?.Dispose();
+                return;
+            }
+
+            Generated = service.Result;
+            ArenaLayout layout = Generated.Layout;
+            Debug.Log("[Preview] " + ArenaReportText.Release(layout) + ": " + layout.Diameter + " m " + layout.BiomeId + " in "
+                + service.Seconds.ToString("0.0") + " s");
+            bool first = Arena == null;
+            if (first)
+            {
+                Arena = ArenaRenderer.Create(layout, _catalogue, transform);
+                Rig = FirstPersonRig.Create(transform, layout, _input, _settings);
+                Overview = ArenaOverviewCamera.Create(transform, CoreSpace.ToUnity(layout.Center), ArenaQueries.OuterRadius(layout), _input, _settings);
+            }
+            else
+            {
+                Arena.Build(layout, _catalogue);
+                Rig.SetLayout(layout);
+                Overview.Retarget(CoreSpace.ToUnity(layout.Center), ArenaQueries.OuterRadius(layout));
+            }
+
+            Arena.SetCombatTime(CombatTimeSec);
+            _hud.Bind(Arena, Generated);
+            if (first)
+            {
+                ApplyStartView(_startView);
+            }
+            else if (Rig.Mode == FirstPersonMode.Fly)
+            {
+                PlaceEstablishingShot();
+            }
+
             RefreshHud();
+            _smokeHold?.Dispose();
+            _smokeHold = null;
         }
 
         private void ApplyStartView(PreviewView view)
@@ -112,9 +177,26 @@ namespace Confluence.Client.App
 
         private void Update()
         {
+            _generation.Poll();
             if (_input.Back.WasPressedThisFrame())
             {
+                if (_generatorOpen && !_overview)
+                {
+                    SetGeneratorOpen(false);
+                    return;
+                }
+
                 _onExit?.Invoke();
+                return;
+            }
+
+            if (_input.ToggleGenerator.WasPressedThisFrame())
+            {
+                SetGeneratorOpen(!_generatorOpen);
+            }
+
+            if (Arena == null)
+            {
                 return;
             }
 
@@ -123,7 +205,7 @@ namespace Confluence.Client.App
                 ShowOverview(!_overview);
             }
 
-            if (!_overview && _input.ToggleFly.WasPressedThisFrame())
+            if (!_overview && !_generatorOpen && _input.ToggleFly.WasPressedThisFrame())
             {
                 Rig.SetMode(Rig.Mode == FirstPersonMode.Fly ? FirstPersonMode.Walk : FirstPersonMode.Fly);
                 RefreshHud();
@@ -135,6 +217,31 @@ namespace Confluence.Client.App
             {
                 RefreshHud();
             }
+        }
+
+        private void SetGeneratorOpen(bool open)
+        {
+            _generatorOpen = open;
+            UpdateInteraction();
+            if (open)
+            {
+                _hud.Generator.FocusGenerate();
+            }
+        }
+
+        // The generator panel is always shown with the free-cursor overview, and on demand (G) in first person.
+        private void UpdateInteraction()
+        {
+            _hud.ShowGenerator(_overview || _generatorOpen);
+            if (Rig != null)
+            {
+                Rig.InputEnabled = !_overview && !_generatorOpen;
+            }
+
+            bool locked = _captureCursor && !_overview && !_generatorOpen;
+            Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
+            Cursor.visible = !locked;
+            RefreshHud();
         }
 
         private void UpdateClock()
@@ -177,27 +284,22 @@ namespace Confluence.Client.App
 
         private void RefreshHud()
         {
-            if (_hud == null)
+            if (_hud == null || Arena == null)
             {
                 return;
             }
 
             _hudRefresh = 0.1f;
-            string mode = _overview ? "overview (rotatable top-down)" : Rig.Mode == FirstPersonMode.Walk ? "walk (preview motor)" : "free fly";
-            _hud.SetMode(mode, !_overview);
+            string mode = _overview ? "overview (rotatable top-down)"
+                : Rig.Mode == FirstPersonMode.Walk ? "walk (Sim CharacterMotor, unlimited stamina)" : "free fly";
+            _hud.SetMode(mode, !_overview && !_generatorOpen);
             float minRadius = Arena.Layout.Boundary != null ? Arena.Layout.Boundary.MinRadiusAt(CombatTimeSec) : 0f;
             _hud.SetClock(CombatTimeSec, ClockPaused, minRadius);
         }
 
-        private void UpdateCursor()
-        {
-            bool locked = _captureCursor && !_overview;
-            Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
-            Cursor.visible = !locked;
-        }
-
         private void OnDestroy()
         {
+            _smokeHold?.Dispose();
             _input?.Dispose();
             _input = null;
             if (_ui != null)

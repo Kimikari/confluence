@@ -6,8 +6,9 @@ namespace Confluence.Client.Input
 {
     /// <summary>
     /// Input System actions for the arena preview, created in code (no .inputactions asset). Mouse look reads the
-    /// raw delta with no acceleration (spec L369). Remapping and controller layouts arrive with the
-    /// accessibility stage (IMPLEMENTATION_PLAN Stage 7).
+    /// raw delta with no acceleration (spec L369). Walk mode follows the default duel bindings of spec L84 where they
+    /// apply (Shift sprint, Space jump, Ctrl crouch, Alt dodge); fly mode reuses Ctrl/C to descend. Remapping and
+    /// controller layouts arrive with the accessibility stage (IMPLEMENTATION_PLAN Stage 7).
     /// </summary>
     public sealed class PreviewInput : IDisposable
     {
@@ -30,8 +31,10 @@ namespace Confluence.Client.Input
             Descend = _map.AddAction("Descend", InputActionType.Button, "<Keyboard>/leftCtrl");
             Descend.AddBinding("<Keyboard>/c");
             Sprint = _map.AddAction("Sprint", InputActionType.Button, "<Keyboard>/leftShift");
+            Dodge = _map.AddAction("Dodge", InputActionType.Button, "<Keyboard>/leftAlt");
             ToggleFly = _map.AddAction("ToggleFly", InputActionType.Button, "<Keyboard>/f");
             ToggleOverview = _map.AddAction("ToggleOverview", InputActionType.Button, "<Keyboard>/tab");
+            ToggleGenerator = _map.AddAction("ToggleGenerator", InputActionType.Button, "<Keyboard>/g");
             Back = _map.AddAction("Back", InputActionType.Button, "<Keyboard>/escape");
             Orbit = _map.AddAction("Orbit", InputActionType.Button, "<Mouse>/rightButton");
             Zoom = _map.AddAction("Zoom", InputActionType.Value, "<Mouse>/scroll/y");
@@ -46,10 +49,21 @@ namespace Confluence.Client.Input
         public InputAction Move { get; }
         public InputAction Look { get; }
         public InputAction Jump { get; }
+
+        /// <summary>Fly: move down. Walk: crouch (spec L84 Ctrl).</summary>
         public InputAction Descend { get; }
+
         public InputAction Sprint { get; }
+
+        /// <summary>Walk: dodge (spec L84 Alt).</summary>
+        public InputAction Dodge { get; }
+
         public InputAction ToggleFly { get; }
         public InputAction ToggleOverview { get; }
+
+        /// <summary>Shows or hides the arena generator panel (and frees the cursor while it is open).</summary>
+        public InputAction ToggleGenerator { get; }
+
         public InputAction Back { get; }
         public InputAction Orbit { get; }
         public InputAction Zoom { get; }
