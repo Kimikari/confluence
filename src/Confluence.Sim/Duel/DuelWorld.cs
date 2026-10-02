@@ -838,6 +838,16 @@ namespace Confluence.Sim.Duel
             return difference > 0f ? 0 : 1;
         }
 
+        /// <summary>The equal/ahead/behind indicator is shown throughout the final 15 s of combat (spec L53).</summary>
+        public bool JudgementIndicatorVisible => Phase == DuelPhase.Combat && CombatSeconds >= GlobalRules.Round.JudgementIndicatorStartSec;
+
+        /// <summary>The timer judgement from one player's view: 1 ahead, 0 equal (a draw), -1 behind (spec L53).</summary>
+        public int JudgementIndicator(int player)
+        {
+            int leader = TimerJudgement(out _);
+            return leader < 0 ? 0 : leader == player ? 1 : -1;
+        }
+
         private void End(DuelOutcome outcome, int winner, DuelEndReason reason)
         {
             Phase = DuelPhase.Ended;
@@ -928,6 +938,11 @@ namespace Confluence.Sim.Duel
             if (resolution.Dealt > 0f)
             {
                 BreakInvisibility(target); // spec L120: invisibility ends on damage
+            }
+
+            if (resolution.Lethal)
+            {
+                Spells.Interrupt(request.Target, InterruptCause.Death);
             }
 
             if (resolution.Knockback > 0f && !request.BypassesMitigation)
@@ -1150,7 +1165,10 @@ namespace Confluence.Sim.Duel
                 }
 
                 ticks = Math.Max(1, Math.Min(ticks, control.Instance.ExpireTick - Tick));
-                Spells.Interrupt(target, InterruptCause.Displacement);
+                if (Spells.Interrupt(target, InterruptCause.Displacement) && sourcePlayer >= 0 && sourcePlayer < PlayerCount)
+                {
+                    _players[sourcePlayer].Feats.OnInterrupt(); // FEAT-019: hostile displacement interrupted a committed cast
+                }
             }
 
             float speed = distance / (ticks * Ticks.Dt);
