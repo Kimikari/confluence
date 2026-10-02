@@ -23,7 +23,8 @@ namespace Confluence.Match
             IsFirstShop = isFirstShop;
             BaselineIncome = baselineIncome;
             WinnerBonus = winnerBonus;
-            HighestUnlockedTier = Schedules.HighestUnlockedTier(mode, round);
+            // L38: tier 4 stays unlocked through the bracket, whatever the round number.
+            HighestUnlockedTier = bracketRound > 0 ? GlobalRules.Economy.TierCount : Schedules.HighestUnlockedTier(mode, round);
         }
 
         public int Player { get; }
