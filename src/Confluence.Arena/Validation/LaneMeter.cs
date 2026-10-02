@@ -40,6 +40,87 @@ namespace Confluence.Arena.Validation
             _contour = layout.Boundary;
             _blockers = nav.BandBlockers(ArenaRules.LaneBandLow, ArenaRules.LaneBandHigh);
             _reach = _contour.MaxRadiusAt(0f) + 0.5f;
+            _centers = new Vec2[_blockers.Count];
+            _radii = new float[_blockers.Count];
+            for (int i = 0; i < _blockers.Count; i++)
+            {
+                YawBox b = _blockers[i];
+                _centers[i] = b.Center.XZ();
+                _radii[i] = MathF.Sqrt(b.HalfExtents.X * b.HalfExtents.X + b.HalfExtents.Z * b.HalfExtents.Z);
+                _maxRadius = Math.Max(_maxRadius, _radii[i]);
+            }
+        }
+
+        private readonly Vec2[] _centers;
+        private readonly float[] _radii;
+        private float _maxRadius;
+
+        /// <summary>
+        /// Blockers sorted by their offset across one sweep direction, so each line tests only the blockers whose
+        /// bounding circle it can cross (the result is identical to testing them all).
+        /// </summary>
+        private sealed class DirectionIndex
+        {
+            public int[] Order;
+            public float[] Offset;
+        }
+
+        private DirectionIndex IndexFor(Vec2 n)
+        {
+            int count = _blockers.Count;
+            var order = new int[count];
+            var offset = new float[count];
+            for (int i = 0; i < count; i++)
+            {
+                order[i] = i;
+                offset[i] = Vec2.Dot(_centers[i], n);
+            }
+
+            Array.Sort((float[])offset.Clone(), order);
+            var sorted = new float[count];
+            for (int i = 0; i < count; i++)
+            {
+                sorted[i] = offset[order[i]];
+            }
+
+            return new DirectionIndex { Order = order, Offset = sorted };
+        }
+
+        private void Candidates(DirectionIndex index, float s, List<int> result)
+        {
+            result.Clear();
+            float lo = s - _maxRadius - 1e-3f;
+            int start = LowerBound(index.Offset, lo);
+            for (int k = start; k < index.Offset.Length && index.Offset[k] <= s + _maxRadius + 1e-3f; k++)
+            {
+                int i = index.Order[k];
+                if (Math.Abs(index.Offset[k] - s) <= _radii[i] + 1e-3f)
+                {
+                    result.Add(i);
+                }
+            }
+
+            result.Sort();
+        }
+
+        private static int LowerBound(float[] sorted, float value)
+        {
+            int lo = 0;
+            int hi = sorted.Length;
+            while (lo < hi)
+            {
+                int mid = (lo + hi) / 2;
+                if (sorted[mid] < value)
+                {
+                    lo = mid + 1;
+                }
+                else
+                {
+                    hi = mid;
+                }
+            }
+
+            return lo;
         }
 
         /// <summary>Longest open lane over every sampled line (and its endpoints).</summary>
@@ -82,6 +163,8 @@ namespace Confluence.Arena.Validation
                     hi = Math.Max(hi, proj);
                 }
 
+                DirectionIndex index = IndexFor(n);
+                var candidates = new List<int>(32);
                 for (float s = -_reach; s <= _reach; s += ArenaRules.LaneLineSpacing)
                 {
                     if (s < lo - ArenaRules.LaneLineSpacing || s > hi + ArenaRules.LaneLineSpacing)
@@ -89,7 +172,8 @@ namespace Confluence.Arena.Validation
                         continue;
                     }
 
-                    FiringLane lane = LongestOnLine(n * s, d, intervals, float.NaN);
+                    Candidates(index, s, candidates);
+                    FiringLane lane = LongestOnLine(n * s, d, intervals, float.NaN, candidates);
                     if (!lane.IsEmpty && lane.Length > bestLength)
                     {
                         bestLength = lane.Length;
@@ -120,14 +204,17 @@ namespace Confluence.Arena.Validation
         private IEnumerable<FiringLane> Sweep()
         {
             var intervals = new List<Vec2>(64);
+            var candidates = new List<int>(32);
             for (int k = 0; k < ArenaRules.LaneDirections; k++)
             {
                 float yaw = k * 180f / ArenaRules.LaneDirections;
                 Vec2 d = Vec2.FromYaw(yaw);
                 Vec2 n = new Vec2(d.Y, -d.X);
+                DirectionIndex index = IndexFor(n);
                 for (float s = -_reach; s <= _reach; s += ArenaRules.LaneLineSpacing)
                 {
-                    FiringLane lane = LongestOnLine(n * s, d, intervals, float.NaN);
+                    Candidates(index, s, candidates);
+                    FiringLane lane = LongestOnLine(n * s, d, intervals, float.NaN, candidates);
                     if (!lane.IsEmpty)
                     {
                         yield return lane;
@@ -162,11 +249,13 @@ namespace Confluence.Arena.Validation
         /// Longest open run on the line origin + t * d. When mustContain is a number, only the run covering that t
         /// counts.
         /// </summary>
-        private FiringLane LongestOnLine(Vec2 origin, Vec2 d, List<Vec2> intervals, float mustContain)
+        private FiringLane LongestOnLine(Vec2 origin, Vec2 d, List<Vec2> intervals, float mustContain, List<int> candidates = null)
         {
             intervals.Clear();
-            for (int i = 0; i < _blockers.Count; i++)
+            int count = candidates == null ? _blockers.Count : candidates.Count;
+            for (int c = 0; c < count; c++)
             {
+                int i = candidates == null ? c : candidates[c];
                 if (LineVsBox(origin, d, _blockers[i], out float t0, out float t1) && t1 >= -_reach && t0 <= _reach)
                 {
                     intervals.Add(new Vec2(t0, t1));
@@ -203,15 +292,33 @@ namespace Confluence.Arena.Validation
         /// <summary>First and last standable main-floor sample inside the contour within [t0, t1].</summary>
         private FiringLane StandableSpan(Vec2 origin, Vec2 d, float t0, float t1)
         {
+            // The first standable sample from the start and the last from the end (the same pair a full scan finds).
             float first = float.NaN;
             float last = float.NaN;
             float start = MathF.Ceiling(t0 / SampleStep) * SampleStep;
+            int samples = 0;
             for (float t = start; t <= t1; t += SampleStep)
             {
+                samples++;
+            }
+
+            for (int k = 0; k < samples; k++)
+            {
+                float t = start + k * SampleStep;
                 if (IsStandable(origin + d * t))
                 {
-                    first = float.IsNaN(first) ? t : first;
+                    first = t;
+                    break;
+                }
+            }
+
+            for (int k = samples - 1; k >= 0 && !float.IsNaN(first); k--)
+            {
+                float t = start + k * SampleStep;
+                if (IsStandable(origin + d * t))
+                {
                     last = t;
+                    break;
                 }
             }
 

@@ -29,6 +29,25 @@ namespace Confluence.Arena.Generation
             return best;
         }
 
+        /// <summary>
+        /// True when the footprints come closer than the gap. Footprints whose bounding circles are farther apart
+        /// are rejected without the exact test (the common case when scanning every solid).
+        /// </summary>
+        public static bool Within(YawBox a, YawBox b, float gap)
+        {
+            float dx = a.Center.X - b.Center.X;
+            float dz = a.Center.Z - b.Center.Z;
+            float reach = Radius(a) + Radius(b) + gap;
+            if (dx * dx + dz * dz >= reach * reach)
+            {
+                return false;
+            }
+
+            return Distance(a, b) < gap;
+        }
+
+        private static float Radius(YawBox box) => MathF.Sqrt(box.HalfExtents.X * box.HalfExtents.X + box.HalfExtents.Z * box.HalfExtents.Z);
+
         /// <summary>Separating-axis overlap test of two rotated rectangles.</summary>
         public static bool Overlap(YawBox a, YawBox b)
         {
