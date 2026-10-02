@@ -155,6 +155,30 @@
     color: rgb(200, 204, 214);
 }
 
+/* Dark text inputs (text fields, integer fields, slider value boxes) and toggles; the default runtime theme's
+   light input boxes are unreadable with the light text color inherited from .cf-root. */
+.cf-root .unity-base-text-field__input {
+    background-color: rgb(16, 19, 28);
+    border-color: rgb(92, 102, 132);
+    color: rgb(232, 228, 216);
+    --unity-cursor-color: rgb(244, 214, 140);
+    --unity-selection-color: rgba(244, 214, 140, 0.35);
+}
+
+.cf-root .unity-base-text-field__input:hover {
+    border-color: rgb(130, 140, 170);
+}
+
+.cf-root .unity-base-field:focus .unity-base-text-field__input {
+    border-color: rgb(244, 214, 140);
+}
+
+.cf-root .unity-toggle__checkmark {
+    background-color: rgb(16, 19, 28);
+    border-color: rgb(92, 102, 132);
+    -unity-background-image-tint-color: rgb(244, 214, 140);
+}
+
 .cf-footer {
     position: absolute;
     left: 64px;

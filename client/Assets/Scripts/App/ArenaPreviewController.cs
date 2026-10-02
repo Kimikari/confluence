@@ -54,7 +54,7 @@ namespace Confluence.Client.App
             preview._hud = new ArenaPreviewHud(preview.Arena, catalogue);
             ui?.SetHud(preview._hud.Root);
 
-            preview.CombatTimeSec = Mathf.Clamp(startTimeSec, 0f, GlobalRules.Round.CombatMaxSec);
+            preview.CombatTimeSec = Mathf.Clamp(startTimeSec, ArenaRenderer.AlcoveStartSec, GlobalRules.Round.CombatMaxSec);
             preview.Arena.SetCombatTime(preview.CombatTimeSec);
             preview.ApplyStartView(view);
             return preview;
@@ -147,7 +147,7 @@ namespace Confluence.Client.App
             float time = CombatTimeSec;
             if (_input.TimeReset.WasPressedThisFrame())
             {
-                time = 0f;
+                time = ArenaRenderer.AlcoveStartSec;
             }
 
             if (_input.TimeBack.WasPressedThisFrame())
@@ -165,13 +165,13 @@ namespace Confluence.Client.App
                 time += Time.deltaTime;
             }
 
-            // Spec L47: combat lasts at most 90 s; the preview clock loops.
+            // Spec L46-L47: a 5 s alcove phase (negative clock), then at most 90 s of combat; the preview clock loops.
             if (time > GlobalRules.Round.CombatMaxSec)
             {
-                time = 0f;
+                time = ArenaRenderer.AlcoveStartSec;
             }
 
-            CombatTimeSec = Mathf.Max(0f, time);
+            CombatTimeSec = Mathf.Max(ArenaRenderer.AlcoveStartSec, time);
             Arena.SetCombatTime(CombatTimeSec);
         }
 

@@ -115,9 +115,9 @@ namespace Confluence.Client.Tests
         [Test]
         public void MalformedValuesWarnAndFallBack()
         {
-            CommandLineOptions o = CommandLineOptions.Parse(new[] { "-quitAfter", "soon", "-previewView", "sideways", "-previewTime", "-3" });
+            CommandLineOptions o = CommandLineOptions.Parse(new[] { "-quitAfter", "-2", "-previewView", "sideways", "-previewTime", "later" });
             Assert.AreEqual(0f, o.QuitAfterSec);
-            Assert.AreEqual(0f, o.PreviewTimeSec);
+            Assert.AreEqual(CommandLineOptions.DefaultPreviewTimeSec, o.PreviewTimeSec);
             Assert.AreEqual(PreviewView.Fly, o.PreviewView);
             StringAssert.Contains("-quitAfter", o.Warnings);
             StringAssert.Contains("-previewView", o.Warnings);
@@ -131,6 +131,11 @@ namespace Confluence.Client.Tests
             Assert.IsFalse(o.ArenaPreview);
             Assert.IsNull(o.ScreenshotPath);
             Assert.IsFalse(o.IsSmokeTest);
+            Assert.AreEqual(MenuPanel.None, o.MenuPanel);
+
+            // The preview clock starts with the 5 s alcove phase (spec L46).
+            Assert.AreEqual(-5f, o.PreviewTimeSec);
+            Assert.AreEqual(-3f, CommandLineOptions.Parse(new[] { "-previewTime", "-3" }).PreviewTimeSec);
         }
     }
 

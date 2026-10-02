@@ -378,6 +378,31 @@ namespace Confluence.Client.Tests
         }
 
         [Test]
+        public void WardsAreShownOnlyDuringTheAlcovePhase()
+        {
+            // Spec L46-L47: the 5 s protected alcove phase precedes combat; the alcoves open at combat start.
+            Transform spawn = _renderer.SpawnsRoot.GetChild(0);
+            GameObject ward = spawn.Find("Ward volume").gameObject;
+            GameObject marker = spawn.Find("Spawn marker").gameObject;
+
+            _renderer.SetCombatTime(-GlobalRules.Round.AlcoveSec);
+            Assert.IsTrue(_renderer.WardsClosed);
+            Assert.IsTrue(ward.activeSelf);
+
+            _renderer.SetCombatTime(-0.01f);
+            Assert.IsTrue(ward.activeSelf);
+
+            _renderer.SetCombatTime(0f);
+            Assert.IsFalse(_renderer.WardsClosed);
+            Assert.IsFalse(ward.activeSelf);
+            Assert.IsTrue(marker.activeSelf, "spawn locations stay visible (spec L329)");
+
+            _renderer.SetCombatTime(-100f);
+            Assert.AreEqual(ArenaRenderer.AlcoveStartSec, _renderer.CombatTimeSec);
+            Assert.Greater(_renderer.Boundary.CurrentRadiusAt(0f), 14f, "the boundary is at full size before combat");
+        }
+
+        [Test]
         public void StandardizedOverheadLightPointsDown()
         {
             Light light = _renderer.OverheadLight;

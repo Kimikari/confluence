@@ -22,7 +22,7 @@ goes to `out/client/Confluence.exe` (development, Mono, x64). Close any editor t
 Player switches (`App/CommandLineOptions.cs`; Unity's own `-screen-*` / `-logFile` pass through):
 
 - `-arenaPreview` open the sample arena preview instead of the menu; `-previewView fly|walk|overview`;
-  `-previewTime <s>` initial combat clock (e.g. 70 shows the boundary mid-contraction).
+  `-previewTime <s>` initial clock, -5..90 (default -5: the alcove phase; 70 shows the boundary mid-contraction).
 - `-menuPanel play|settings|codex|training` open that menu entry at start.
 - `-screenshot <path>` PNG written 1.5 s before `-quitAfter` (or at 3 s); `-quitAfter <s>` exits with code 1 if
   any error/exception was logged (`App/SmokeTestDriver.cs`). Smoke runs use in-memory settings.
@@ -79,7 +79,8 @@ verifies this configuration before building.
   category glyph billboards (`PropPlaceholder`, catalogue `PropDef` mass/category), spawn ward volumes and
   facing markers, final-floor ring, `BoundaryView` (wall + ground line rewritten from
   `BoundaryContour.RadiusAt(yaw, t)`), overhead light + light shafts (`ArenaLighting`).
-  `SetCombatTime(t)` drives the contour and final-cover warning (83 s) / retirement (85 s).
+  `SetCombatTime(t)` drives the contour and final-cover warning (83 s) / retirement (85 s); negative t is the
+  5 s alcove phase, the only time the ward volumes show (spec L46-L47). The preview clock runs -5..90 and loops.
 - `Arena/SampleLayouts` — **temporary debug tool**: a hand-built 32 m Raincourt layout with 180-degree
   rotational symmetry (MirrorIds), alcoves, center floor, pillars, retiring hedge cover, metal/glass/wood/porous
   cover, a 23-degree ramp to a 1.5 m platform, water/sand/growth/conductor patches, five prop pairs, light shafts
@@ -103,6 +104,8 @@ verifies this configuration before building.
 - L320 "standardized overhead lighting": one fixed directional light (pitch 68, yaw 35, intensity 1.35), fixed
   ambient, and spot lights for `LightShaft`s; identical for every arena.
 - L678: `Solid.RetiresAtFinal` cover gets a hazard tint at 83 s and is hidden at 85 s; scrubbing back restores it.
+- L46-L47: the presentation clock is "combat time" with the alcove phase as -5..0 s. Ward volumes (side 0
+  vertical bars, side 1 horizontal) show only then; spawn floor markers and facing strips always show (L329).
 - L306/L331 visible boundary: translucent striped wall 6 m tall plus ground line; contraction L48 via Core's contour.
 - L341 lists Collection and Replays: shown disabled. Quit is added (not in L341) because the task requires it.
 - L421: `Application.targetFrameRate = GlobalRules.Network.TargetFrameRate` (120).
@@ -123,11 +126,12 @@ verifies this configuration before building.
 
 ## Tests (`Assets/Tests/Editor`, asmdef `Confluence.Client.Tests.Editor`)
 
-32 EditMode tests: state machine edges (combat only from the alcove), command-line parsing, settings clamps and
+33 EditMode tests: state machine edges (combat only from the alcove), command-line parsing, settings clamps and
 persistence, catalogue load through Core and StreamingAssets freshness, Core/Unity yaw and pitch mapping,
 surface classification and pattern distinctness, sample layout symmetry and rule limits, and the renderer
 (one object per element, solids match boxes and materials, ramp mesh under the Core surface, boundary vertices on
-`RadiusAt` while contracting, 83/85 s cover schedule, overhead light, legend order, rebuild, minimal layout).
+`RadiusAt` while contracting, 83/85 s cover schedule, wards only in the alcove phase, overhead light, legend
+order, rebuild, minimal layout).
 Run: `Unity.exe -batchmode -nographics -projectPath client -runTests -testPlatform EditMode -testResults
 out/unity-editmode.xml -logFile out/unity-editmode.log` or `build-client.ps1 -Tests`.
 

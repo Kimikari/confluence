@@ -16,6 +16,8 @@ namespace Confluence.Client.Arena
     /// and the standardized overhead lighting (spec L320, L329, L664). Presentation only: nothing here feeds
     /// back into collision or rules (spec L134, DECISIONS D-003). <see cref="SetCombatTime"/> drives every
     /// time-dependent visual: boundary contraction (L48) and final-center cover warning/retirement (L678).
+    /// Negative times are the 5 s alcove phase (L46): the spawn ward volumes are shown only then, because the
+    /// alcoves open when combat begins at 0 (L47). Spawn floor markers stay visible at all times (L329).
     /// </summary>
     public sealed class ArenaRenderer : MonoBehaviour
     {
@@ -28,6 +30,7 @@ namespace Confluence.Client.Arena
         private readonly List<Mesh> _meshes = new List<Mesh>();
         private readonly List<SurfaceKind> _surfaces = new List<SurfaceKind>();
         private readonly List<GameObject> _props = new List<GameObject>();
+        private readonly List<GameObject> _wards = new List<GameObject>();
         private ArenaMaterialLibrary _materials;
         private bool _ownsMaterials;
 
@@ -53,6 +56,12 @@ namespace Confluence.Client.Arena
         public int PatchCount => PatchesRoot == null ? 0 : PatchesRoot.childCount;
 
         public int PropCount => _props.Count;
+
+        /// <summary>Earliest time <see cref="SetCombatTime"/> accepts: the start of the alcove phase (spec L46).</summary>
+        public static float AlcoveStartSec => -GlobalRules.Round.AlcoveSec;
+
+        /// <summary>True while the clock is in the alcove phase and the ward volumes are shown.</summary>
+        public bool WardsClosed => CombatTimeSec < 0f;
 
         public float CombatTimeSec { get; private set; }
 
@@ -106,13 +115,22 @@ namespace Confluence.Client.Arena
             SetCombatTime(0f);
         }
 
-        /// <summary>Applies a combat time in seconds to the boundary and final-center cover (spec L48, L678).</summary>
+        /// <summary>
+        /// Applies a combat time in seconds (clamped to <see cref="AlcoveStartSec"/>) to the spawn wards (L46-L47),
+        /// the boundary (L48), and final-center cover (L678).
+        /// </summary>
         public void SetCombatTime(float timeSec)
         {
-            CombatTimeSec = Mathf.Max(0f, timeSec);
+            CombatTimeSec = Mathf.Max(AlcoveStartSec, timeSec);
             if (Boundary != null)
             {
-                Boundary.SetTime(CombatTimeSec);
+                Boundary.SetTime(Mathf.Max(0f, CombatTimeSec));
+            }
+
+            bool wardsClosed = WardsClosed;
+            for (int i = 0; i < _wards.Count; i++)
+            {
+                _wards[i].SetActive(wardsClosed);
             }
 
             for (int i = 0; i < _retiring.Count; i++)
@@ -136,6 +154,7 @@ namespace Confluence.Client.Arena
             _retiring.Clear();
             _surfaces.Clear();
             _props.Clear();
+            _wards.Clear();
             Boundary = null;
             OverheadLight = null;
             Layout = null;
@@ -290,6 +309,7 @@ namespace Confluence.Client.Arena
                     CoreSpace.Pose(spawn.Alcove, out Vector3 p, out Quaternion q);
                     wardGo.transform.SetPositionAndRotation(p, q);
                     wardRenderer.shadowCastingMode = ShadowCastingMode.Off;
+                    _wards.Add(wardGo);
                 }
 
                 // Floor marker and facing strip at the exact spawn position.

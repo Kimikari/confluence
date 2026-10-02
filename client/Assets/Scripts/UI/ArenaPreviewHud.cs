@@ -95,7 +95,11 @@ namespace Confluence.Client.UI
         public void SetClock(float timeSec, bool paused, float minRadius)
         {
             string phase;
-            if (timeSec < GlobalRules.Boundary.ContractionStartSec)
+            if (timeSec < 0f)
+            {
+                phase = "alcove ward, opens at 0 s"; // spec L46-L47
+            }
+            else if (timeSec < GlobalRules.Boundary.ContractionStartSec)
             {
                 phase = "boundary steady until 55 s";
             }
