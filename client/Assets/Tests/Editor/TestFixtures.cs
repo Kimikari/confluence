@@ -4,6 +4,7 @@ using Confluence.Client.Arena;
 using Confluence.Core.Arena;
 using Confluence.Core.Content;
 using Confluence.Core.Geometry;
+using Confluence.Core.Rules;
 
 namespace Confluence.Client.Tests
 {

@@ -3,6 +3,7 @@
     "rootNamespace": "Confluence.Client.Tests",
     "references": [
         "Confluence.Client",
+        "Unity.InputSystem",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],
@@ -14,7 +15,10 @@
     "overrideReferences": true,
     "precompiledReferences": [
         "nunit.framework.dll",
-        "Confluence.Core.dll"
+        "Confluence.Core.dll",
+        "Confluence.Arena.dll",
+        "Confluence.Economy.dll",
+        "Confluence.Sim.dll"
     ],
     "autoReferenced": false,
     "defineConstraints": [

@@ -13,9 +13,10 @@ using Confluence.Core.Geometry;
 using Confluence.Core.Rules;
 using Confluence.Core.Time;
 using Confluence.Sim.Movement;
-using Confluence.Sim.World;
 using NUnit.Framework;
 using UnityEngine;
+using CollisionWorld = Confluence.Sim.World.CollisionWorld;
+using SurfaceKind = Confluence.Client.Arena.SurfaceKind;
 
 namespace Confluence.Client.Tests
 {
