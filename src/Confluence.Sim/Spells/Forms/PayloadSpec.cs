@@ -121,6 +121,7 @@ namespace Confluence.Sim.Spells
         private float _splashRadius;
         private bool _splashExcludesDirect;
         private bool _splashHitsCaster;
+        private bool _splashBlockedByCover = true;
         private float _maxPerTarget;
         private bool _guardEligible = true;
         private float _precisionMultiplier = 1f;
@@ -143,6 +144,12 @@ namespace Confluence.Sim.Spells
 
         /// <summary>Whether the caster's own splash can damage them (default false; fields have their own rule).</summary>
         public bool SplashHitsCaster { get => _splashHitsCaster; set => _splashHitsCaster = Set(value); }
+
+        /// <summary>
+        /// Solid cover between the impact and a target stops its splash (SPL-168 "cover blocks blast"; neither sound nor
+        /// reveal grants hits through solid cover, spec L120). Default true.
+        /// </summary>
+        public bool SplashBlockedByCover { get => _splashBlockedByCover; set => _splashBlockedByCover = Set(value); }
 
         /// <summary>Total damage one target may take from this cast ("max 40"), 0 = no cap.</summary>
         public float MaxPerTarget { get => _maxPerTarget; set => _maxPerTarget = Set(value); }

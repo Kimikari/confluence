@@ -110,6 +110,10 @@ namespace Confluence.Sim.Duel
                 case MovementEvent m:
                     return m.Player == player && (m.Change == MovementChange.KnockbackStarted || m.Change == MovementChange.EdgeImpact
                         || m.Change == MovementChange.FellOutOfMap || m.Change == MovementChange.KnockbackBlockedByImmunity);
+                case Casting.CastDuelEvent c:
+                    // The opponent's committed casts and recasts behind incoming hits, and the player's own interrupted casts.
+                    return (c.Player != player && (c.Kind == Confluence.Casting.CastEventKind.Committed || c.Kind == Confluence.Casting.CastEventKind.Recast))
+                        || (c.Player == player && c.Kind == Confluence.Casting.CastEventKind.Interrupted);
                 case DuelEndEvent _:
                     return true;
                 default:

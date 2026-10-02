@@ -56,8 +56,9 @@ namespace Confluence.Sim.Tests.Duel
             Assert.Equal(3.85f, w.Player(0).Motor.Velocity.LengthXZ(), 3);
             Assert.False(w.Player(0).Motor.Sprinting);
             Assert.Equal(70f, w.Player(0).Resources.Mana, 3); // the channel counts as spending
+            spells.Status[0] = new CastingStatus { MovementFactor = 1f, Busy = true, InRecovery = true };
             w.Step(TestWorlds.A.With(InputButtons.Melee), TestWorlds.B);
-            Assert.False(w.Player(0).Melee.Busy); // a busy cast blocks common melee
+            Assert.False(w.Player(0).Melee.Busy); // cast recovery blocks common melee (spec L92); other phases yield to it (L474)
         }
 
         [Fact]

@@ -507,8 +507,10 @@ namespace Confluence.Sim.Duel
                 return;
             }
 
-            // spec L80: sprint disallows normal melee strikes; guard, swaps, and casts are separate actions.
-            if (p.Motor.Sprinting || p.Guard.Active || p.Guard.InReleaseWindow(Tick) || p.IsSwapping || Spells.GetStatus(p.Index).Busy)
+            // spec L80: sprint disallows normal melee strikes; guard, swaps, and casts are separate actions. A melee press
+            // during a preparation, windup, or channel performs the strike and the spell yields (spec L474, D-049); cast
+            // recovery cannot be cancelled (spec L92).
+            if (p.Motor.Sprinting || p.Guard.Active || p.Guard.InReleaseWindow(Tick) || p.IsSwapping || Spells.GetStatus(p.Index).InRecovery)
             {
                 return;
             }
