@@ -115,10 +115,12 @@ namespace Confluence.Arena.Generation
         }
 
         /// <summary>One unvalidated attempt from a recorded seed (deterministic; for tools, tests, and replays).</summary>
-        public ArenaLayout Assemble(ulong seed, int diameter, BiomeDef biome, IContentAvailability props = null, bool conservative = false)
+        public ArenaLayout Assemble(ulong seed, int diameter, BiomeDef biome, IContentAvailability props = null, bool conservative = false, List<string> notes = null)
         {
             var assembler = new ArenaAssembler(Content, seed, diameter, biome, props ?? ContentAvailability.All, conservative);
-            return assembler.Build();
+            ArenaLayout layout = assembler.Build();
+            notes?.AddRange(assembler.Notes);
+            return layout;
         }
 
         /// <summary>Validates a layout with the full report (every check, no fail-fast).</summary>

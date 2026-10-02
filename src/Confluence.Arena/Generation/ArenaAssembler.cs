@@ -36,9 +36,25 @@ namespace Confluence.Arena.Generation
         /// <summary>Clear space kept around the center module footprint.</summary>
         public const float CenterGap = 1.0f;
 
-        private const int PlacementTries = 40;
+        private const int PlacementTries = 160;
         private const int BastionTuningPasses = 4;
-        private const int LaneBreakPasses = 8;
+        private const int FillerPasses = 8;
+
+        /// <summary>Half length of the rock closing each end of the designated lane (it also closes the strips beside it).</summary>
+        private const float LaneEndHalfLength = 4.5f;
+
+        private static readonly ArenaNavOptions NoProps = new ArenaNavOptions { PropsAsObstacles = false };
+
+        /// <summary>
+        /// Free space a filler rock keeps to every other solid: a capsule passage (0.8 m) with margin, so rocks never
+        /// seal floor. The skeleton routes are keep-out zones, so the 2.5 m routes (spec L312) are untouched.
+        /// </summary>
+        private const float FillerGap = 1.25f;
+
+        private const float LaneBreakerGap = FillerGap;
+
+        private const float FillerMinHalfDiagonal = 0.6f;
+        private const float FillerMaxHalfDiagonal = 3.0f;
 
         private readonly ArenaContent _content;
         private readonly SizeProfile _p;
@@ -52,9 +68,8 @@ namespace Confluence.Arena.Generation
         private readonly List<Rect2> _keepOut = new List<Rect2>();
         private readonly List<Rect2> _occupied = new List<Rect2>();
         private readonly List<Vec3> _sites = new List<Vec3>(); // placed features and props (side 0), x/z plus radius in Y
-        private float _frontHalf;
-        private float _frontHalfMax;
-        private Solid _frontWall;
+        private SpawnBastion _bastion;
+        private float _wingMax;
         private ModuleGeometry _center;
         private int _sourceBudget = GlobalRules.Arena.MaxNaturalSourcePatches;
 
@@ -83,21 +98,22 @@ namespace Confluence.Arena.Generation
         public ArenaLayout Build()
         {
             _layout.Boundary = BoundaryBuilder.Build(_rng, _p);
-            _frontHalf = _p.FrontWallHalfWidth;
-            _frontHalfMax = _p.FrontWallHalfWidth + 1.5f;
 
             AddFloor();
             PlaceCenter();
             PlaceBastions();
+
+            // Reach and spawn path run through the bastions, crossover strips, and center, which stay keep-out zones
+            // from here on, so tuning on the bare skeleton fixes them for the finished arena.
+            TuneBastions();
             AddSkeletonKeepOuts();
             ReserveBiomeSources();
             PlaceIslands();
             PlaceLaneEnds();
             PlaceOutcrops(_p.OutcropPairs);
 
-            ArenaNav nav = TuneBastions();
-            nav = BreakLongLanes(nav);
-            nav = FillCover(nav);
+            ArenaNav nav = ArenaNav.Build(_layout, NoProps);
+            nav = FillTerrain(nav);
 
             DressBiome(nav);
             PlaceProps(nav);
@@ -142,13 +158,50 @@ namespace Confluence.Arena.Generation
             Rect2 footprint = LayoutWriter.Footprint(_center, Vec2.Zero, quarter);
             _keepOut.Add(footprint.Expanded(CenterGap));
 
-            // Contributing natural sources of the center (both ends are part of the same module).
             for (int i = 0; i < _center.Patches.Count; i++)
             {
                 if (_center.Patches[i].NaturalSource)
                 {
                     _sourceBudget--;
                 }
+            }
+
+            if (!HasCentralCover(_center))
+            {
+                PlaceCentralSoftCover();
+            }
+        }
+
+        /// <summary>True when the center module itself offers cover near the final floor (spec L310 "useful central cover").</summary>
+        private static bool HasCentralCover(ModuleGeometry g)
+        {
+            for (int i = 0; i < g.Pieces.Count; i++)
+            {
+                ModulePiece p = g.Pieces[i];
+                if (!p.Walkable && p.BlocksSight && p.Box.Top - p.Box.Bottom >= ArenaRules.CoverMinHeight
+                    && ArenaSurvey.FootprintDistance(p.Box, Vec2.Zero) <= ArenaRules.CentralCoverRadius - 0.5f)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Center modules whose geometry is all floor (beds, strips, gutters) receive a mirrored pair of low cover
+        /// modules on the final floor edge, as map-owned soft cover that retires at 85 s (spec L678). Their pieces
+        /// sit on the spawn axis, clear of the designated lane and of the center's patches.
+        /// </summary>
+        private void PlaceCentralSoftCover()
+        {
+            string[] lowCover = { "MOD-013", "MOD-024" };
+            ModuleGeometry g = _content.Modules.Get(lowCover[_rng.NextInt(lowCover.Length)]);
+            int firstSolid = _layout.Solids.Count;
+            _w.PlaceModulePair(g, new Vec2(0f, -3.0f), 0);
+            for (int i = firstSolid; i < _layout.Solids.Count; i++)
+            {
+                _layout.Solids[i].RetiresAtFinal = true;
             }
         }
 
@@ -174,52 +227,27 @@ namespace Confluence.Arena.Generation
             return true;
         }
 
-        /// <summary>
-        /// Protected spawn alcove (spec L46-L47): a 5 by 3 m channel between an anchored back wall and a wider
-        /// front screen, open at both ends. The screen hides the spawn from the opponent (L310) and its width sets the
-        /// walking detour to the center; the two exits give each spawn two disjoint ways out.
-        /// </summary>
         private void PlaceBastions()
         {
-            float z = -_p.SpawnDistance;
-            const float h = ArenaRules.TallWallHeight;
-            const float t = ArenaRules.WallThickness;
-            Solid back = _w.NewSolid(SolidKind.AlcoveWall, Box(-3f, z - 1.5f - t, 3f, z - 1.5f, 0f, h), ArenaMaterials.Alcove, 0f);
-            _w.AddMirroredPair(back);
-            _frontWall = _w.NewSolid(SolidKind.AlcoveWall, Box(-_frontHalf, z + 1.5f, _frontHalf, z + 1.5f + t, 0f, h), ArenaMaterials.Alcove, 0f);
-            _w.AddMirroredPair(_frontWall);
-
-            var alcove = new YawBox(new Vec3(0f, 1.5f, z), new Vec3(2.5f, 1.5f, 1.5f), 0f);
-            _layout.Spawns[0] = new SpawnPoint { Side = 0, Position = new Vec3(0f, 0f, z), YawDeg = 0f, Alcove = alcove };
-            _layout.Spawns[1] = new SpawnPoint
-            {
-                Side = 1,
-                Position = MirrorMath.Point(new Vec3(0f, 0f, z)),
-                YawDeg = 180f,
-                Alcove = MirrorMath.Box(alcove),
-            };
+            _bastion = new SpawnBastion(_w, _p.SpawnDistance, SpawnBastion.WingLengthFor(_p.FrontWallHalfWidth));
+            _wingMax = SpawnBastion.WingLengthFor(_p.FrontWallHalfWidth + 2.0f);
+            _bastion.Build(_layout);
         }
 
-        private void SetFrontHalf(float half)
+        /// <summary>Side approach corridor east (sign 1) or west (sign -1) of the bastion, running to the firing lane.</summary>
+        private Rect2 Corridor(int sign)
         {
-            _frontHalf = half;
-            float z = -_p.SpawnDistance;
-            YawBox box = Box(-half, z + 1.5f, half, z + 1.5f + ArenaRules.WallThickness, 0f, ArenaRules.TallWallHeight);
-            _frontWall.Box = box;
-            _layout.FindSolid(_frontWall.MirrorId).Box = MirrorMath.Box(box);
+            float inner = _bastion.LateralExtent + 0.25f;
+            float outer = inner + CorridorWidth;
+            return sign > 0 ? new Rect2(inner, _bastion.SpawnZ, outer, LaneZoneHalf) : new Rect2(-outer, _bastion.SpawnZ, -inner, LaneZoneHalf);
         }
 
         private void AddSkeletonKeepOuts()
         {
-            float z = -_p.SpawnDistance;
-            float wing = _frontHalfMax + CorridorWidth;
-
-            // Bastion, its exits, and the crossover strip in front of it.
-            AddKeepOut(new Rect2(-wing, z - 2.0f - 0.5f, wing, z + 2.0f + CorridorWidth));
-
-            // Side approach corridors from the exits to the firing lane.
-            AddKeepOut(new Rect2(_frontHalfMax, z, wing, LaneZoneHalf));
-            AddKeepOut(new Rect2(-wing, z, -_frontHalfMax, LaneZoneHalf));
+            // Bastion, its exits, and the crossover strip in front of the screen; then the side approach corridors.
+            AddKeepOut(_bastion.Zone(CorridorWidth));
+            AddKeepOut(Corridor(1));
+            AddKeepOut(Corridor(-1));
 
             // Firing lane zone along X (both halves of it are in the side-0 list after mirroring).
             float laneHalf = _p.LaneHalfLength > 0f ? _p.LaneHalfLength + 1f : _p.Radius + 2f;
@@ -244,7 +272,7 @@ namespace Confluence.Arena.Generation
 
         private void PlaceIslands()
         {
-            ModuleCategory[] order = { ModuleCategory.Elevation, ModuleCategory.Approach, ModuleCategory.Topology, ModuleCategory.Material, ModuleCategory.Cover };
+            ModuleCategory[] order = { ModuleCategory.Topology, ModuleCategory.Elevation, ModuleCategory.Approach, ModuleCategory.Material, ModuleCategory.Cover };
             for (int k = 0; k < order.Length; k++)
             {
                 ModuleCategory category = order[k];
@@ -352,7 +380,7 @@ namespace Confluence.Arena.Generation
 
         private bool IslandFits(Rect2 r)
         {
-            if (r.MaxZ > -LaneZoneHalf || !BoundaryBuilder.ContainsRect(_layout.Boundary, r, ArenaRules.ContourKeepInMargin))
+            if (r.MaxZ > -LaneZoneHalf || !BoundaryBuilder.ContainsRect(_layout.Boundary, r, ArenaRules.ContourStripWidth))
             {
                 return false;
             }
@@ -382,10 +410,7 @@ namespace Confluence.Arena.Generation
         /// </summary>
         private float Preference(ModuleCategory category, Rect2 r)
         {
-            float z = -_p.SpawnDistance;
-            var corridorL = new Rect2(-_frontHalfMax - CorridorWidth, z, -_frontHalfMax, LaneZoneHalf);
-            var corridorR = new Rect2(_frontHalfMax, z, _frontHalfMax + CorridorWidth, LaneZoneHalf);
-            float toCorridor = Math.Min(r.DistanceTo(corridorL), r.DistanceTo(corridorR));
+            float toCorridor = Math.Min(r.DistanceTo(Corridor(-1)), r.DistanceTo(Corridor(1)));
             float toCenter = r.Center.Length();
             switch (category)
             {
@@ -415,7 +440,7 @@ namespace Confluence.Arena.Generation
             }
 
             float x = _p.LaneHalfLength + 0.5f;
-            YawBox box = Box(-x - 0.5f, -2.75f, -x + 0.5f, 2.75f, 0f, ArenaRules.TallWallHeight);
+            YawBox box = Box(-x - 0.5f, -LaneEndHalfLength, -x + 0.5f, LaneEndHalfLength, 0f, ArenaRules.TallWallHeight);
             Solid rock = _w.NewSolid(SolidKind.Wall, box, ArenaMaterials.Rock, 0f);
             _w.AddMirroredPair(rock);
             Rect2 r = Rect2.Around(box);
@@ -496,7 +521,7 @@ namespace Confluence.Arena.Generation
         /// Adjusts each bastion's front screen so useful central cover lies 2.0-3.5 s away while the spawn path stays
         /// inside its band (spec L310). Both screens change together, so the two sides stay mirrored.
         /// </summary>
-        private ArenaNav TuneBastions()
+        private void TuneBastions()
         {
             ArenaRules.SpawnPathBand(_p.Diameter, out float pathMin, out float pathMax);
             float reachMin = GlobalRules.Arena.CentralReachMinSec * ArenaRules.CentralReachReferenceSpeed + 0.4f;
@@ -504,7 +529,7 @@ namespace Confluence.Arena.Generation
             ArenaNav nav = null;
             for (int pass = 0; pass < BastionTuningPasses; pass++)
             {
-                nav = ArenaNav.Build(_layout, new ArenaNavOptions { PropsAsObstacles = false });
+                nav = ArenaNav.Build(_layout, NoProps);
                 var survey = new ArenaSurvey(_layout, nav);
                 float reach = survey.CentralReachSeconds(0) * ArenaRules.CentralReachReferenceSpeed;
                 float path = survey.SpawnPathLength();
@@ -518,105 +543,199 @@ namespace Confluence.Arena.Generation
                     step = -0.75f;
                 }
 
-                float next = CMath.Clamp(_frontHalf + step, 2.75f, _frontHalfMax);
-                if (step == 0f || next == _frontHalf)
+                float next = CMath.Clamp(_bastion.WingLength + step, 0.75f, _wingMax);
+                if (step == 0f || next == _bastion.WingLength)
                 {
                     break;
                 }
 
-                SetFrontHalf(next);
+                _bastion.SetWingLength(_layout, next);
+            }
+        }
+
+        /// <summary>
+        /// Terrain filler (spec L310 cover and lane limits): anchored rock outcrops dropped into open floor away from
+        /// the skeleton routes. A rock goes only where navigation clearance exceeds its half diagonal plus
+        /// <see cref="FillerGap"/>, so every passage around it stays wider than a 2.5 m route and nothing is sealed.
+        /// Lanes longer than the limit get a rock across their middle first; then rocks fill the largest open areas
+        /// until cover reaches the lower part of the 18-30 percent band. Rocks are written in mirrored pairs.
+        /// </summary>
+        private ArenaNav FillTerrain(ArenaNav nav)
+        {
+            const float coverTarget = GlobalRules.Arena.CoverFractionMin + 0.025f;
+            for (int pass = 0; pass < FillerPasses; pass++)
+            {
+                var survey = new ArenaSurvey(_layout, nav);
+                CoverStats stats = survey.Cover();
+                FiringLane lane = new LaneMeter(nav, _layout).Longest();
+                bool longLane = lane.Length > GlobalRules.Arena.FiringLaneMax - 1.5f;
+                float missing = (coverTarget - stats.CoverFraction) * stats.UsableArea * 0.5f; // per side
+                if (!longLane && missing <= 0f)
+                {
+                    break;
+                }
+
+                List<int> candidates = FillerCandidates(nav, FillerGap);
+                var chosen = new List<Vec3>(); // x, z and the clearance radius in Y
+                if (longLane)
+                {
+                    PlaceLaneBreaker(nav, FillerCandidates(nav, LaneBreakerGap), lane, chosen);
+                }
+
+                if (missing > 0f)
+                {
+                    candidates.Sort((x, y) =>
+                    {
+                        int c = nav.Clearance(y).CompareTo(nav.Clearance(x));
+                        return c != 0 ? c : x.CompareTo(y);
+                    });
+                    for (int i = 0; i < candidates.Count && missing > 0f; i++)
+                    {
+                        Vec3 p = nav.NodePosition(candidates[i]);
+                        float room = nav.Clearance(candidates[i]);
+                        if (!FarFromChosen(p, room, chosen))
+                        {
+                            continue;
+                        }
+
+                        float area = PlaceRock(p.XZ(), room - FillerGap, _rng.Range(0f, 180f));
+                        if (area > 0f)
+                        {
+                            missing -= area;
+                            chosen.Add(new Vec3(p.X, room, p.Z));
+                        }
+                    }
+                }
+
+                if (chosen.Count == 0)
+                {
+                    Notes.Add(longLane ? "lane of " + lane.Length + " m could not be broken" : "cover fill found no room");
+                    break;
+                }
+
+                nav = ArenaNav.Build(_layout, NoProps);
             }
 
             return nav;
         }
 
-        /// <summary>Breaks lanes longer than the limit with anchored rock, mirrored (spec L310).</summary>
-        private ArenaNav BreakLongLanes(ArenaNav nav)
+        /// <summary>Side-0 main-floor nodes in open floor outside every skeleton route.</summary>
+        private List<int> FillerCandidates(ArenaNav nav, float gap)
         {
-            for (int pass = 0; pass < LaneBreakPasses; pass++)
+            var result = new List<int>();
+            float minRoom = gap + FillerMinHalfDiagonal;
+            for (int node = 0; node < nav.NodeCount; node++)
             {
-                var meter = new LaneMeter(nav, _layout);
-                FiringLane lane = meter.Longest();
-                if (lane.Length <= GlobalRules.Arena.FiringLaneMax - 1.5f)
+                float room = nav.Clearance(node);
+                if (room < minRoom)
                 {
-                    break;
+                    continue;
                 }
 
-                if (!TryBreak(lane))
+                Vec3 p = nav.NodePosition(node);
+                if (MathF.Abs(p.Y) > 0.05f || p.Z > -(room - gap) - IslandGap * 0.5f)
                 {
-                    Notes.Add("lane of " + lane.Length + " m could not be broken");
-                    break;
+                    continue;
                 }
 
-                nav = ArenaNav.Build(_layout, new ArenaNavOptions { PropsAsObstacles = false });
+                float half = Math.Min(room - gap, FillerMaxHalfDiagonal);
+                Rect2 r = Rect2.FromCenter(p.XZ(), 2f * half, 2f * half);
+                if (_layout.Boundary.RadialMargin(p, 0f) < half + ArenaRules.ContourStripWidth || OverlapsKeepOut(r))
+                {
+                    continue;
+                }
+
+                result.Add(node);
             }
 
-            return nav;
+            return result;
         }
 
-        private bool TryBreak(FiringLane lane)
+        private void PlaceLaneBreaker(ArenaNav nav, List<int> candidates, FiringLane lane, List<Vec3> chosen)
         {
-            float[] fractions = { 0.5f, 0.4f, 0.6f, 0.3f, 0.7f, 0.2f, 0.8f, 0.15f, 0.85f };
-            Vec2 dir = (lane.B - lane.A).Normalized();
-            float yaw = CMath.YawOf(dir) + 90f;
-            for (int pass = 0; pass < 2; pass++)
+            int best = -1;
+            float bestRoom = 0f;
+            for (int pass = 0; pass < 2 && best < 0; pass++)
             {
-                for (int i = 0; i < fractions.Length; i++)
+                Vec2 a = pass == 0 ? lane.A : MirrorMath.Point(lane.A);
+                Vec2 b = pass == 0 ? lane.B : MirrorMath.Point(lane.B);
+                for (int i = 0; i < candidates.Count; i++)
                 {
-                    Vec2 p = Vec2.Lerp(lane.A, lane.B, fractions[i]);
-                    if (pass == 1)
+                    Vec2 p = nav.NodePosition(candidates[i]).XZ();
+                    Vec2 c = Intersections.ClosestPointOnSegment(p, a, b);
+                    float t = Vec2.Distance(a, c) / Math.Max(1e-3f, Vec2.Distance(a, b));
+                    float room = nav.Clearance(candidates[i]);
+                    float reach = Math.Min(FillerMaxHalfDiagonal, room - LaneBreakerGap) * 0.8f;
+                    if (Vec2.Distance(p, c) <= reach && t > 0.12f && t < 0.88f && room > bestRoom)
                     {
-                        p = MirrorMath.Point(p); // the lane's mirror image is just as long; try breaking it there
+                        best = candidates[i];
+                        bestRoom = room;
                     }
+                }
+            }
 
-                    if (!MirrorMath.IsSideZeroHalf(p))
-                    {
-                        continue;
-                    }
+            if (best < 0)
+            {
+                return;
+            }
 
-                    var box = new YawBox(new Vec3(p.X, ArenaRules.TallWallHeight * 0.5f, p.Y), new Vec3(1.25f, ArenaRules.TallWallHeight * 0.5f, 0.5f), pass == 1 ? MirrorMath.Yaw(yaw) : yaw);
-                    Rect2 bounds = Rect2.Around(box);
-                    if (bounds.MaxZ > -LaneZoneHalf || !Clear(bounds, IslandGap)
-                        || !BoundaryBuilder.ContainsRect(_layout.Boundary, bounds, ArenaRules.ContourKeepInMargin))
-                    {
-                        continue;
-                    }
+            Vec3 q = nav.NodePosition(best);
+            float yaw = CMath.YawOf(lane.B - lane.A) + 90f;
+            if (PlaceRock(q.XZ(), bestRoom - LaneBreakerGap, yaw, elongate: true) > 0f)
+            {
+                chosen.Add(new Vec3(q.X, bestRoom, q.Z));
+            }
+        }
 
-                    _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, box, ArenaMaterials.Rock, 0f));
-                    _occupied.Add(bounds);
-                    _occupied.Add(bounds.Mirrored());
+        private static bool FarFromChosen(Vec3 p, float room, List<Vec3> chosen)
+        {
+            for (int i = 0; i < chosen.Count; i++)
+            {
+                Vec3 c = chosen[i];
+                float need = room + c.Y;
+                if (Vec2.DistanceSquared(new Vec2(c.X, c.Z), p.XZ()) < need * need
+                    || Vec2.DistanceSquared(new Vec2(-c.X, -c.Z), p.XZ()) < need * need)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>Writes a mirrored rock pair inside a circle of the given half diagonal; returns the area of one rock.</summary>
+        private float PlaceRock(Vec2 center, float halfDiagonal, float yaw, bool elongate = false)
+        {
+            halfDiagonal = Math.Min(halfDiagonal, FillerMaxHalfDiagonal);
+            if (halfDiagonal < FillerMinHalfDiagonal)
+            {
+                return 0f;
+            }
+
+            float angle = elongate ? 20f : _rng.Range(25f, 65f);
+            CMath.SinCosDeg(angle, out float sin, out float cos);
+            float hx = halfDiagonal * cos;
+            float hz = halfDiagonal * sin;
+            float height = _rng.Range(2.2f, 3.2f);
+            var box = new YawBox(new Vec3(center.X, height * 0.5f, center.Y), new Vec3(hx, height * 0.5f, hz), CMath.WrapAngle360(yaw));
+            _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, box, ArenaMaterials.Rock, 0f));
+            Rect2 bounds = Rect2.Around(box);
+            _occupied.Add(bounds);
+            _occupied.Add(bounds.Mirrored());
+            return 4f * hx * hz;
+        }
+
+        private bool OverlapsKeepOut(Rect2 r)
+        {
+            for (int i = 0; i < _keepOut.Count; i++)
+            {
+                if (r.Overlaps(_keepOut[i]))
+                {
                     return true;
                 }
             }
 
             return false;
-        }
-
-        /// <summary>Adds boundary outcrops until cover reaches the band's lower part (spec L310: 18-30 percent).</summary>
-        private ArenaNav FillCover(ArenaNav nav)
-        {
-            const float target = GlobalRules.Arena.CoverFractionMin + 0.02f;
-            for (int round = 0; round < 3; round++)
-            {
-                var survey = new ArenaSurvey(_layout, nav);
-                CoverStats stats = survey.Cover();
-                if (stats.CoverFraction >= target)
-                {
-                    break;
-                }
-
-                // Each outcrop pair adds roughly 2 * length * inside of cover; aim slightly past the target.
-                float missing = (target - stats.CoverFraction) * stats.UsableArea;
-                int pairs = Math.Max(1, (int)Math.Ceiling(missing / 2f / 5.0f));
-                if (PlaceOutcrops(pairs) == 0)
-                {
-                    break;
-                }
-
-                nav = ArenaNav.Build(_layout, new ArenaNavOptions { PropsAsObstacles = false });
-            }
-
-            return nav;
         }
 
         // ---- Biome dressing and props -----------------------------------------------------------------------
@@ -628,7 +747,7 @@ namespace Confluence.Arena.Generation
                 return;
             }
 
-            var finder = new SiteFinder(nav, _layout, _sites);
+            var finder = new SiteFinder(nav, _layout, _sites, _keepOut);
             for (int pair = 0; pair < f.Pairs; pair++)
             {
                 bool solid = f.Kind == BiomeFeatureKind.Solid;
@@ -705,7 +824,7 @@ namespace Confluence.Arena.Generation
             }
 
             int wanted = PropDefinitionCount();
-            var finder = new SiteFinder(nav, _layout, _sites);
+            var finder = new SiteFinder(nav, _layout, _sites, _keepOut);
             int placed = 0;
             while (placed < wanted && pool.Count > 0)
             {
@@ -715,7 +834,7 @@ namespace Confluence.Arena.Generation
                 weights.RemoveAt(pick);
                 PropShape shape = PropShapes.For(def.Id);
                 float radius = shape.PlacementRadius;
-                float clearance = radius + (shape.BlocksMovement ? 1.75f : 0.25f);
+                float clearance = radius + (shape.BlocksMovement ? 1.0f : 0.25f);
                 if (!finder.TryFind(_rng, clearance, radius, out Vec3 site))
                 {
                     continue;
@@ -761,9 +880,10 @@ namespace Confluence.Arena.Generation
             var center = new LightShaft { Position = new Vec3(0f, 8f, 0f), Radius = _layout.FinalFloorRadius };
             center.MirrorId = _layout.LightShafts.Count;
             _layout.LightShafts.Add(center);
-            AddLightPair(new Vec3(0f, 6f, -_p.SpawnDistance + 3.5f), 2f);
-            AddLightPair(new Vec3(-(_frontHalfMax + CorridorWidth * 0.5f), 6f, -LaneZoneHalf - 1f), 2f);
-            AddLightPair(new Vec3(_frontHalfMax + CorridorWidth * 0.5f, 6f, -LaneZoneHalf - 1f), 2f);
+            AddLightPair(new Vec3(0f, 6f, _bastion.TipZ + 1.5f), 2f);
+            float corridorX = _bastion.LateralExtent + 0.25f + CorridorWidth * 0.5f;
+            AddLightPair(new Vec3(-corridorX, 6f, -LaneZoneHalf - 1f), 2f);
+            AddLightPair(new Vec3(corridorX, 6f, -LaneZoneHalf - 1f), 2f);
         }
 
         private void AddLightPair(Vec3 position, float radius)

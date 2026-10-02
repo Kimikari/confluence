@@ -45,12 +45,18 @@ namespace Confluence.Arena
         /// <summary>
         /// "Useful central cover": a standing node within this distance of the center whose crouched sightline to
         /// the opponent's spawn is blocked by a center-module cover piece within <see cref="UsefulCoverAdjacency"/>.
-        /// The distance is the final floor radius plus one meter (spec L48, L310, L678).
+        /// The distance is the final floor radius plus 1.5 m: the center module ring around the 8 m floor (spec L48, L310, L678).
         /// </summary>
-        public const float CentralCoverRadius = GlobalRules.Boundary.FinalFloorRadius + 1f;
+        public const float CentralCoverRadius = GlobalRules.Boundary.FinalFloorRadius + 1.5f;
 
         /// <summary>A node is "at" a cover piece when the piece's footprint lies within this horizontal distance.</summary>
         public const float UsefulCoverAdjacency = 1.0f;
+
+        /// <summary>
+        /// Height of the crouched body a useful cover piece must shield (the middle of the 1.2 m crouched capsule, D-024):
+        /// a 1 m crouch cover (MOD-013) hides a crouched player's body from a standing opponent.
+        /// </summary>
+        public const float CoverTestHeight = 0.7f;
 
         /// <summary>Minimum cover height that shields a crouched player (crouch eye height, D-024).</summary>
         public const float CoverMinHeight = GlobalRules.Movement.CrouchEyeHeight;
@@ -64,7 +70,7 @@ namespace Confluence.Arena
             float t = CMath.Clamp01((diameter - GlobalRules.Arena.DiameterSmall)
                 / (float)(GlobalRules.Arena.DiameterHuge - GlobalRules.Arena.DiameterSmall));
             min = GlobalRules.Arena.SpawnPathMin + t * 6f;  // 16 .. 22 m
-            max = GlobalRules.Arena.SpawnPathMax - (1f - t) * 4f; // 30 .. 34 m
+            max = GlobalRules.Arena.SpawnPathMax - (1f - t) * 3f; // 31 .. 34 m
         }
 
         // ---- Firing lanes (spec L310) ----------------------------------------------------------
@@ -109,7 +115,7 @@ namespace Confluence.Arena
         /// A floor cell must keep a route to the final floor once it is at least this far inside the contour. Routes
         /// may use any cell inside the contour. Cells closer to the moving edge are already leaving the legal space.
         /// </summary>
-        public const float ContractionEdgeTolerance = 1.0f;
+        public const float ContractionEdgeTolerance = 1.5f;
 
         // ---- Parity (spec L308) ----------------------------------------------------------------
 
@@ -140,6 +146,13 @@ namespace Confluence.Arena
 
         /// <summary>Contour irregularity: radius samples vary by at most this fraction around the base radius.</summary>
         public const float ContourIrregularity = 0.06f;
+
+        /// <summary>
+        /// Islands and filler rocks either straddle the contour (outcrops) or leave at least this strip inside it, so a
+        /// cell between them and the boundary keeps a walkable route along the strip while the boundary contracts
+        /// (spec L676); a narrower seam would strand the floor behind it.
+        /// </summary>
+        public const float ContourStripWidth = 2.25f;
 
         /// <summary>Margin between a placed feature and the initial contour.</summary>
         public const float ContourKeepInMargin = 0.75f;

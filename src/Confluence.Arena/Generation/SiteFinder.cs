@@ -11,20 +11,23 @@ namespace Confluence.Arena.Generation
     /// <summary>
     /// Finds open main-floor spots on side 0 for biome features and props. A site needs navigation clearance (the
     /// distance to the nearest wall or edge) of at least the requested amount, so an object of the given radius
-    /// leaves a passage around itself; it keeps away from the spawn alcoves (never the spawn floor), the final circle
-    /// (never its support), the contour, existing patches, and earlier sites (spec L662 placement text).
+    /// leaves a passage around itself. Sites keep off the skeleton routes and away from the spawn alcoves (never the
+    /// spawn floor), the final circle (never its support), the contour, existing patches, and earlier sites (spec L662
+    /// placement text).
     /// </summary>
     internal sealed class SiteFinder
     {
         private readonly ArenaNav _nav;
         private readonly ArenaLayout _layout;
         private readonly List<Vec3> _sites;
+        private readonly List<Rect2> _keepOut;
 
-        public SiteFinder(ArenaNav nav, ArenaLayout layout, List<Vec3> sites)
+        public SiteFinder(ArenaNav nav, ArenaLayout layout, List<Vec3> sites, List<Rect2> keepOut)
         {
             _nav = nav;
             _layout = layout;
             _sites = sites;
+            _keepOut = keepOut;
         }
 
         public bool TryFind(Rng rng, float clearance, float radius, out Vec3 site)
@@ -66,6 +69,14 @@ namespace Confluence.Arena.Generation
             if (q.Length() < _layout.FinalFloorRadius + radius + ArenaRules.PropFinalCircleMargin + 0.5f)
             {
                 return false;
+            }
+
+            for (int i = 0; i < _keepOut.Count; i++)
+            {
+                if (_keepOut[i].DistanceTo(q) < radius + 0.25f)
+                {
+                    return false; // skeleton routes stay clear: a prop is never the only route (spec L662)
+                }
             }
 
             for (int side = 0; side < 2; side++)

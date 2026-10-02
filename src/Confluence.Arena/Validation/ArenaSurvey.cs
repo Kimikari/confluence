@@ -125,8 +125,8 @@ namespace Confluence.Arena.Validation
         /// <summary>
         /// "Useful central cover" for a side: a capsule node on the main floor within
         /// <see cref="ArenaRules.CentralCoverRadius"/> of the center, standing within
-        /// <see cref="ArenaRules.UsefulCoverAdjacency"/> of a cover solid that by itself blocks the line from the
-        /// node's crouched eye (1.0 m) to the opponent's spawn eye (1.6 m). Spawn alcove walls never count.
+        /// <see cref="ArenaRules.UsefulCoverAdjacency"/> of a cover solid that by itself blocks the line from a
+        /// crouched body (<see cref="ArenaRules.CoverTestHeight"/>) to the opponent spawn eye (1.6 m). Alcove walls never count.
         /// </summary>
         public List<int> UsefulCoverNodes(int side)
         {
@@ -150,7 +150,7 @@ namespace Confluence.Arena.Validation
                     continue;
                 }
 
-                Vec3 eye = p + new Vec3(0f, GlobalRules.Movement.CrouchEyeHeight, 0f);
+                Vec3 eye = p + new Vec3(0f, ArenaRules.CoverTestHeight, 0f);
                 for (int i = 0; i < candidates.Count; i++)
                 {
                     Solid s = candidates[i];

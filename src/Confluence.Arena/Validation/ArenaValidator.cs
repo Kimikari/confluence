@@ -623,13 +623,30 @@ namespace Confluence.Arena.Validation
                     }
                 }
 
-                // The anchored floor must remain: anchored walkable support across the disc.
+                // The anchored floor must remain: anchored walkable support across the disc. Retiring soft cover may
+                // stand on part of it until 85 s, so its footprint is not expected to carry a node yet.
+                var underRetiring = new bool[_nav.ColumnCount];
+                foreach (Solid s in _layout.Solids)
+                {
+                    if (s.RetiresAtFinal)
+                    {
+                        YawBox grown = new YawBox(s.Box.Center, s.Box.HalfExtents + new Vec3(0.5f, 0f, 0.5f), s.Box.YawDeg);
+                        _survey.Rect2Columns(grown, (column, center) =>
+                        {
+                            if (grown.ContainsXZ(center))
+                            {
+                                underRetiring[column] = true;
+                            }
+                        });
+                    }
+                }
+
                 int expected = 0;
                 int present = 0;
                 for (int col = 0; col < _nav.ColumnCount; col++)
                 {
                     Vec2 p = _nav.ColumnCenter(col);
-                    if (Vec2.Distance(p, c) > r - 0.5f)
+                    if (Vec2.Distance(p, c) > r - 0.5f || underRetiring[col])
                     {
                         continue;
                     }
@@ -647,7 +664,7 @@ namespace Confluence.Arena.Validation
                 }
 
                 // Retiring cover may stand on part of the floor until 85 s; its footprint has no node yet.
-                if (present < expected * 0.85f)
+                if (present < expected * 0.95f)
                 {
                     Fail("final-floor", "anchored floor covers " + present + " of " + expected + " cells");
                 }

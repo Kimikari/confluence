@@ -56,13 +56,13 @@ namespace Confluence.Arena.Generation
             switch (diameter)
             {
                 case GlobalRules.Arena.DiameterSmall:
-                    return new SizeProfile(diameter, 8.25f, 4.5f, new[] { 0, 2, 1, 1, 1, 0 }, 0f, 3);
+                    return new SizeProfile(diameter, 8.25f, 4.5f, new[] { 0, 2, 1, 1, 1, 0 }, 0f, 6);
                 case GlobalRules.Arena.DiameterMedium:
-                    return new SizeProfile(diameter, 9.75f, 4.0f, new[] { 1, 2, 1, 1, 1, 0 }, 12f, 4);
+                    return new SizeProfile(diameter, 9.75f, 4.0f, new[] { 1, 2, 1, 1, 1, 0 }, 12f, 6);
                 case GlobalRules.Arena.DiameterLarge:
-                    return new SizeProfile(diameter, 11.0f, 3.5f, new[] { 1, 3, 2, 1, 2, 0 }, 12.5f, 5);
+                    return new SizeProfile(diameter, 11.0f, 3.5f, new[] { 2, 3, 2, 1, 2, 0 }, 12.5f, 7);
                 case GlobalRules.Arena.DiameterHuge:
-                    return new SizeProfile(diameter, 12.25f, 3.0f, new[] { 2, 3, 2, 2, 2, 0 }, 13f, 6);
+                    return new SizeProfile(diameter, 12.25f, 3.0f, new[] { 3, 3, 2, 2, 3, 0 }, 13f, 8);
                 default:
                     throw new ArgumentOutOfRangeException(nameof(diameter), diameter, "Arena diameters are 24, 32, 40, or 48 m (spec L306).");
             }

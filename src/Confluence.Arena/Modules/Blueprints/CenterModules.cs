@@ -105,8 +105,8 @@ namespace Confluence.Arena.Modules.Blueprints
         {
             CenterKit.FinalFloor(b);
             float prism = b.Durability.Get("prisms");
-            b.RotatedBlock(0f, 4.5f, 0.8f, 0.8f, 225f, 0f, 1.8f, SolidKind.Pillar, ArenaMaterials.Prism, prism, "edge-prism");
-            b.RotatedBlock(0f, -4.5f, 0.8f, 0.8f, 45f, 0f, 1.8f, SolidKind.Pillar, ArenaMaterials.Prism, prism, "edge-prism");
+            b.RotatedBlock(0f, 4.65f, 0.8f, 0.8f, 225f, 0f, 1.8f, SolidKind.Pillar, ArenaMaterials.Prism, prism, "edge-prism");
+            b.RotatedBlock(0f, -4.65f, 0.8f, 0.8f, 45f, 0f, 1.8f, SolidKind.Pillar, ArenaMaterials.Prism, prism, "edge-prism");
             b.OpenAllEdges();
         }
     }
@@ -133,7 +133,10 @@ namespace Confluence.Arena.Modules.Blueprints
         }
     }
 
-    /// <summary>MOD-066 Split Height Center: two 1 m ledges (common-jump height) sit outside a level 8 m final floor.</summary>
+    /// <summary>
+    /// MOD-066 Split Height Center: two 1 m ledges (common-jump height) sit outside a level 8 m final floor. Each ledge
+    /// is 5 m long, leaving 2.5 m walkable corners around its ends.
+    /// </summary>
     [ContentBehavior("MOD-066")]
     public sealed class SplitHeightCenter : ModuleBlueprint
     {
@@ -143,10 +146,9 @@ namespace Confluence.Arena.Modules.Blueprints
         {
             CenterKit.FinalFloor(b);
             float top = (float)b.Def.HeightM;
-            b.Deck(-5f, 4f, 5f, 5f, top);
-            b.Deck(-5f, -5f, 5f, -4f, top);
-            b.OpenEdges(ModuleEdge.West, ModuleEdge.East);
-            b.Socket(ModuleEdge.North, 0f, 10f).Socket(ModuleEdge.South, 0f, 10f); // over the ledges by common jump
+            b.Deck(-2.5f, 4f, 2.5f, 5f, top);
+            b.Deck(-2.5f, -5f, 2.5f, -4f, top);
+            b.OpenAllEdges(); // around the ledge ends, or over them by common jump
         }
     }
 
