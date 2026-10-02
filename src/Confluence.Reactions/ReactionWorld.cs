@@ -496,6 +496,12 @@ namespace Confluence.Reactions
                 else
                 {
                     _activeMark[index] = false;
+                    ref Cell c = ref _grid[index];
+                    if ((c.State & CellState.StaticSurface) == 0)
+                    {
+                        c.State &= ~CellState.HasSurface;
+                        c.SurfaceY = 0f;
+                    }
                 }
             }
 

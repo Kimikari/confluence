@@ -55,6 +55,13 @@ namespace Confluence.Reactions.Grid
 
         /// <summary>The cell's surface height has been set by a patch or deposit.</summary>
         HasSurface = 1 << 4,
+
+        /// <summary>
+        /// The surface height comes from an arena material patch and never changes. Without it the height is set by
+        /// the first deposit on an inactive cell and cleared when the cell goes inactive again, so inactive cells hold
+        /// no dynamic state (snapshots and hashes cover active cells only).
+        /// </summary>
+        StaticSurface = 1 << 5,
     }
 
     /// <summary>

@@ -6,8 +6,8 @@ namespace Confluence.Reactions
 {
     /// <summary>
     /// Compact, deterministic serialization of a reaction world's dynamic state: active cells (only non-empty
-    /// fields), volumes, hazards, conductor states, pending conductor releases, active gusts, schedule progress, and
-    /// id counters (spec L419 "The server owns ... field states, reactions"; L664 replay records). Static arena data
+    /// fields), volumes, hazards, conductor states, pending conductor releases, active gusts, schedule progress,
+    /// field layers, ignited solids, gravity deflection history, and id counters (spec L419 "The server owns ... field states, reactions"; L664 replay records). Static arena data
     /// (solids, flags of inactive cells, light shafts) and Sim registrations (conductor shapes, prisms, gravity fields)
     /// are not included: a client or replay rebuilds the world from the same layout and registrations, then restores.
     /// Little-endian, IEEE-754 bit-exact floats, every collection in ascending id order.

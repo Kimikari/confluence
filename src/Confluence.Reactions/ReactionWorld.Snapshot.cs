@@ -124,6 +124,7 @@ namespace Confluence.Reactions
                     w.Write(ignited[i]);
                 }
 
+                GravityFields.WriteHistory(w);
                 w.Flush();
                 return new ReactionSnapshot(stream.ToArray(), _tick, active.Count, _volumes.Count);
             }
@@ -280,6 +281,8 @@ namespace Confluence.Reactions
                 {
                     _ignitedSolids.Add(r.ReadInt32());
                 }
+
+                GravityFields.ReadHistory(r);
             }
 
             _pendingVolumeEvents.Clear();
@@ -291,12 +294,13 @@ namespace Confluence.Reactions
         private static void ResetDynamic(ref Cell c)
         {
             MaterialFlags flags = c.Flags;
-            float surface = c.SurfaceY;
-            CellState keep = c.State & (CellState.HasSurface | CellState.NaturalSource);
+            bool staticSurface = (c.State & CellState.StaticSurface) != 0;
+            float surface = staticSurface ? c.SurfaceY : 0f;
+            CellState keep = c.State & (CellState.StaticSurface | CellState.NaturalSource);
             c = Cell.Empty();
             c.Flags = flags;
             c.SurfaceY = surface;
-            c.State = keep;
+            c.State = staticSurface ? keep | CellState.HasSurface : keep;
         }
 
         private void WriteCell(BinaryWriter w, int index)

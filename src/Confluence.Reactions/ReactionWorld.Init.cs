@@ -86,7 +86,7 @@ namespace Confluence.Reactions
                 ref Cell c = ref _grid[index];
                 c.Flags |= patch.Flags & ~(MaterialFlags.Ice | MaterialFlags.Water | MaterialFlags.Growth | MaterialFlags.Sand);
                 c.SurfaceY = patch.SurfaceY;
-                c.State |= CellState.HasSurface;
+                c.State |= CellState.HasSurface | CellState.StaticSurface;
                 if (patch.NaturalSource)
                 {
                     c.State |= CellState.NaturalSource;

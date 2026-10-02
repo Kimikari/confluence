@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Confluence.Core.Geometry;
 using Confluence.Core.Rules;
 
@@ -127,6 +128,46 @@ namespace Confluence.Reactions.Queries
             }
 
             return deflected;
+        }
+
+        /// <summary>Writes the per-projectile deflection history (dynamic state) in ascending key order.</summary>
+        internal void WriteHistory(BinaryWriter writer)
+        {
+            var projectiles = new List<int>(_totalDeflection.Keys);
+            projectiles.Sort();
+            writer.Write(projectiles.Count);
+            for (int i = 0; i < projectiles.Count; i++)
+            {
+                writer.Write(projectiles[i]);
+                writer.Write(_totalDeflection[projectiles[i]]);
+            }
+
+            var pairs = new List<long>(_deflectedPairs);
+            pairs.Sort();
+            writer.Write(pairs.Count);
+            for (int i = 0; i < pairs.Count; i++)
+            {
+                writer.Write(pairs[i]);
+            }
+        }
+
+        /// <summary>Replaces the deflection history with one written by <see cref="WriteHistory"/>.</summary>
+        internal void ReadHistory(BinaryReader reader)
+        {
+            _totalDeflection.Clear();
+            _deflectedPairs.Clear();
+            int projectiles = reader.ReadInt32();
+            for (int i = 0; i < projectiles; i++)
+            {
+                int id = reader.ReadInt32();
+                _totalDeflection[id] = reader.ReadSingle();
+            }
+
+            int pairs = reader.ReadInt32();
+            for (int i = 0; i < pairs; i++)
+            {
+                _deflectedPairs.Add(reader.ReadInt64());
+            }
         }
 
         /// <summary>Rotates v toward the target direction by at most maxDeg, keeping its length.</summary>

@@ -190,6 +190,41 @@ namespace Confluence.Reactions.Tests
             Assert.Equal(wet, h.World.StateHash()); // stable between steps
         }
 
+        [Fact]
+        public void Inactive_Cells_Keep_No_Deposit_Surface_Height()
+        {
+            var h = new Harness();
+            Vec3 floor = h.CellPoint(24, 24);
+            MaterialDeposit high = MaterialDeposit.Field(Material.Venom, Footprint.Point(floor.XZ()), 2f, 0.2f, Harness.PlayerA, 1);
+            high.DeclaredDamagePerSecond = 5f;
+            h.World.Deposit(high); // residue on a 2 m platform edge above this cell
+            h.StepFor(20);
+            Assert.Equal(0, h.World.ActiveCellCount);
+
+            MaterialDeposit low = MaterialDeposit.Field(Material.Venom, Footprint.Point(floor.XZ()), 0f, 2f, Harness.PlayerA, 2);
+            low.DeclaredDamagePerSecond = 5f;
+            h.World.Deposit(low);
+            h.Bodies.Add(ReactionBody.Player(1, floor));
+            Assert.Equal(5f, h.Step().DamageTo(1)); // the new residue lies on the floor, not on the old height
+        }
+
+        [Fact]
+        public void Snapshots_Carry_Gravity_Deflection_History()
+        {
+            var field = new Queries.GravityFieldDef { Id = 1, Center = Vec3.Zero, Radius = 2f };
+            var live = new ReactionWorld(CellGrid.ForDiameter(Vec2.Zero, 24f));
+            live.GravityFields.Register(field);
+            Assert.True(live.GravityFields.TryDeflect(7, new Vec3(1f, 0f, 0f), new Vec3(0f, 0f, 20f), Queries.ProjectileClass.Physical, 0, out _, out _));
+            live.Step(0, null);
+
+            var copy = new ReactionWorld(CellGrid.ForDiameter(Vec2.Zero, 24f));
+            copy.GravityFields.Register(field);
+            copy.RestoreSnapshot(live.CaptureSnapshot());
+            Assert.Equal(live.GravityFields.TotalDeflectionDeg(7), copy.GravityFields.TotalDeflectionDeg(7));
+            Assert.False(copy.GravityFields.TryDeflect(7, new Vec3(1f, 0f, 0f), new Vec3(0f, 0f, 20f), Queries.ProjectileClass.Physical, 1, out _, out _));
+            Assert.Equal(live.StateHash(), copy.StateHash());
+        }
+
         // ------------------------------------------------------------------ helpers
 
         private static readonly List<ReactionBody> Bodies = new List<ReactionBody>
