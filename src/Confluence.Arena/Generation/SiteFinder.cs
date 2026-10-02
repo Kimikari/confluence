@@ -40,7 +40,7 @@ namespace Confluence.Arena.Generation
         public const float RouteClearance = 2.75f;
 
         /// <summary>Margin between a site's footprint and the initial contour.</summary>
-        public const float SiteContourMargin = 1.0f;
+        public const float SiteContourMargin = 0.4f;
 
         public bool TryFind(Rng rng, float clearance, float radius, bool blocksMovement, out Vec3 site)
         {
