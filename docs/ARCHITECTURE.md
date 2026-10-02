@@ -25,7 +25,10 @@ src/Confluence.Sim          -> Core, Reactions, Casting. DuelWorld: collision, c
                             proc budgets, boundary, duel result, feat events, lag-compensation history
 src/Confluence.Match        -> Core, Economy, Arena. Conclave/Duel round flow, phase timers, pairing, byes, Resolve,
                             bracket, income, placements. Runs duels through IDuelRunner (Sim adapter wired by server)
-src/Confluence.Net          -> all libs + LiteNetLib. Protocol, serialization, server host, client session
+src/Confluence.Hosting      -> Core, Reactions, Casting, Arena, Economy, Sim, Match. Authoritative match host without
+                            transport: IDuelRunner over Sim, IMatchEconomy over Economy, IArenaProvider over Arena,
+                            loadout -> duel setup mapping, bots. Shared by the server and offline client modes
+src/Confluence.Net          -> all libs (incl. Hosting) + LiteNetLib. Protocol, serialization, server host, client session
                             (prediction, reconciliation, interpolation)
 src/Confluence.Server       net10.0 console: authoritative match server
 src/Confluence.HeadlessClient net10.0 console: scripted/bot client for automated network validation

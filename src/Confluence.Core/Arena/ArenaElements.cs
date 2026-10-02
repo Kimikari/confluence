@@ -149,6 +149,14 @@ namespace Confluence.Core.Arena
         public float YawDeg { get; set; }
         public int MirrorId { get; set; } = -1;
 
+        /// <summary>
+        /// Physical collision volume of the prop body in world space, written by the arena generator from the
+        /// prop's shape so the simulation and validators share one footprint. Ignore when HasCollision is false.
+        /// </summary>
+        public YawBox CollisionBox { get; set; }
+
+        public bool HasCollision { get; set; }
+
         public PropPlacement Clone() => (PropPlacement)MemberwiseClone();
     }
 

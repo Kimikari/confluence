@@ -11,6 +11,7 @@
     <ProjectReference Include="..\Confluence.Economy\Confluence.Economy.csproj" />
     <ProjectReference Include="..\Confluence.Sim\Confluence.Sim.csproj" />
     <ProjectReference Include="..\Confluence.Match\Confluence.Match.csproj" />
+    <ProjectReference Include="..\Confluence.Hosting\Confluence.Hosting.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="LiteNetLib" Version="2.1.4" />
