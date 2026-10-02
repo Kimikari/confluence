@@ -3,7 +3,7 @@ using Confluence.Core.Time;
 
 namespace Confluence.Hosting.Bots
 {
-    /// <summary>The four bot competence settings (spec L381; GlobalRules.Roster.BotCompetenceLevels).</summary>
+    /// <summary>The four bot competence settings (spec L381; GlobalRules.Match.BotCompetenceLevels).</summary>
     public enum BotCompetence
     {
         /// <summary>Telegraphs decisions and uses normal casts.</summary>

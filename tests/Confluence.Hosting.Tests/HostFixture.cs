@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Confluence.Arena.Generation;
 using Confluence.Core.Content;
+using Confluence.Core.Random;
 using Confluence.Core.Rules;
 using Confluence.Hosting.Arenas;
 using Confluence.Hosting.Bots;
@@ -24,13 +25,19 @@ namespace Confluence.Hosting.Tests
         public static readonly string[] EightWizards = { "WIZ-002", "WIZ-010", "WIZ-002", "WIZ-010", "WIZ-001", "WIZ-003", "WIZ-004", "WIZ-005" };
 
         /// <summary>
-        /// Laboratory overrides used by full-match tests: no catalogue equipment or augment carries a behavior class yet,
-        /// so the implemented pools are empty and the standard floors refuse to start (D-010). The tests draw from the
-        /// whole catalogue and bypass the floors, which the host fingerprint records.
+        /// Laboratory overrides used by match tests: no catalogue equipment or augment carries a behavior class yet, so
+        /// the implemented pools are empty and the standard floors refuse to start (D-010). These tests draw from the
+        /// whole catalogue and bypass the floors; the host fingerprint records both overrides.
         /// </summary>
         public static LaboratoryOverrides WholeCatalogue { get; } = new LaboratoryOverrides(bypassEconomyFloors: true, poolsUseWholeCatalogue: true);
 
-        public static MatchHostSettings ConclaveSettings(ulong seed, LaboratoryOverrides overrides = null, IReadOnlyList<string> wizards = null)
+        /// <summary>A Duel seed whose first round is fought on a 24 m arena (fast to generate in Debug builds).</summary>
+        public static readonly ulong SmallDuelSeed = SeedWithFirstDiameter(MatchMode.Duel, 24, 100);
+
+        /// <summary>A Conclave seed whose first round is fought on a 24 m arena.</summary>
+        public static readonly ulong SmallConclaveSeed = SeedWithFirstDiameter(MatchMode.Conclave, 24, 200);
+
+        public static MatchHostSettings ConclaveSettings(ulong seed, LaboratoryOverrides overrides = null, IReadOnlyList<string> wizards = null, int prefetchRounds = 16)
         {
             wizards = wizards ?? EightWizards;
             return new MatchHostSettings
@@ -41,11 +48,11 @@ namespace Confluence.Hosting.Tests
                 WizardIds = wizards,
                 Overrides = overrides ?? WholeCatalogue,
                 RulesetFingerprint = "test-ruleset",
-                ArenaPrefetchRounds = 16, // tests fast-forward rounds; generate every scheduled arena in the background
+                ArenaPrefetchRounds = prefetchRounds, // full-match tests fast-forward rounds: generate the schedule in the background
             };
         }
 
-        public static MatchHostSettings DuelSettings(ulong seed, LaboratoryOverrides overrides = null, string wizard0 = "WIZ-002", string wizard1 = "WIZ-010")
+        public static MatchHostSettings DuelSettings(ulong seed, LaboratoryOverrides overrides = null, string wizard0 = "WIZ-002", string wizard1 = "WIZ-010", int prefetchRounds = 1)
         {
             return new MatchHostSettings
             {
@@ -54,24 +61,43 @@ namespace Confluence.Hosting.Tests
                 WizardIds = new[] { wizard0, wizard1 },
                 Overrides = overrides ?? WholeCatalogue,
                 RulesetFingerprint = "test-ruleset",
-                ArenaPrefetchRounds = 16, // tests fast-forward rounds; generate every scheduled arena in the background
+                ArenaPrefetchRounds = prefetchRounds,
             };
         }
 
         public static MatchHost Host(MatchHostSettings settings, ImplementedContent implemented = null) =>
             new MatchHost(Generator, settings, implemented ?? ImplementedContent.FromShippedAssemblies(), Arenas);
 
-        /// <summary>A host with a bot in every seat.</summary>
-        public static MatchHost BotHost(MatchHostSettings settings, BotCompetence competence = BotCompetence.Adept)
+        /// <summary>A host with a bot in every seat, cycling through the four competence settings.</summary>
+        public static MatchHost BotHost(MatchHostSettings settings, BotCompetence first = BotCompetence.Novice)
         {
             MatchHost host = Host(settings);
-            BotCompetence[] levels = { BotCompetence.Novice, BotCompetence.Apprentice, BotCompetence.Adept, BotCompetence.Expert };
             for (int p = 0; p < host.PlayerCount; p++)
             {
-                host.AddBot(p, BotProfile.For(levels[(p + (int)competence) % levels.Length]));
+                host.AddBot(p, BotProfile.For((BotCompetence)(((int)first + p) % GlobalRules.Match.BotCompetenceLevels)));
             }
 
             return host;
+        }
+
+        /// <summary>Ticks until the match reaches <paramref name="phase"/> (or fails after a cap).</summary>
+        public static void RunUntilPhase(MatchHost host, MatchPhase phase, int maxTicks = 20000)
+        {
+            for (int i = 0; i < maxTicks && host.Flow.Phase != phase; i++) host.Tick();
+            Assert.Equal(phase, host.Flow.Phase);
+        }
+
+        /// <summary>The first seed at or after <paramref name="start"/> whose round-1 diameter (Match's sequence) is <paramref name="diameter"/>.</summary>
+        public static ulong SeedWithFirstDiameter(MatchMode mode, int diameter, ulong start)
+        {
+            int capacity = mode == MatchMode.Conclave ? MatchRules.ConclaveScheduledRoundCapacity : MatchRules.DuelScheduledRoundCapacity;
+            for (ulong seed = start; seed < start + 1000; seed++)
+            {
+                int[] sequence = Schedules.ArenaDiameterSequence(RngStreams.For(seed, RngStream.Arena, 0), capacity);
+                if (sequence[0] == diameter) return seed;
+            }
+
+            throw new InvalidOperationException("No seed found.");
         }
     }
 }

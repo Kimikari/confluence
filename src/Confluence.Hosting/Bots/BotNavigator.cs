@@ -58,7 +58,6 @@ namespace Confluence.Hosting.Bots
         public Vec2 Steer(Vec3 position, Vec3 goal, int tick, int replanTicks, Func<Vec2> sidestep, out bool jump)
         {
             jump = false;
-
             if (tick < _unstickUntil) return _unstickDir;
 
             Vec2 here = position.XZ();
