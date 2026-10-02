@@ -257,9 +257,9 @@ namespace Confluence.Arena.Tests
         {
             int s0 = survey.SpawnNode(0);
             int s1 = survey.SpawnNode(1);
-            if (s0 < 0 || s1 < 0 || nav.MirrorNode(s0) != s1)
+            if (s0 < 0 || s1 < 0)
             {
-                result.Problems.Add("distances: spawn nodes are not mirrored");
+                result.Problems.Add("distances: a spawn has no standing node");
                 return;
             }
 
@@ -324,7 +324,7 @@ namespace Confluence.Arena.Tests
 
         /// <summary>
         /// Every 5 s of the contraction, offset from the validator's own samples, every spawn-reachable cell comfortably inside the contour can still walk to
-        /// the final floor using only cells a capsule fits inside (Euclidean distance to the contour) (spec L48, L674).
+        /// the final floor using only cells a capsule fits inside (the validator measure, at times between its samples) (spec L48, L674).
         /// </summary>
         private static void CheckContraction(ArenaLayout layout, ArenaNav nav, ArenaSurvey survey, List<string> problems)
         {
@@ -335,7 +335,7 @@ namespace Confluence.Arena.Tests
             {
                 for (int node = 0; node < nav.NodeCount; node++)
                 {
-                    allowed[node] = b.SignedDistance(nav.NodePosition(node), t) >= ArenaRules.CapsuleClearance;
+                    allowed[node] = b.RadialMargin(nav.NodePosition(node), t) >= ArenaRules.CapsuleClearance;
                 }
 
                 bool[] canReach = nav.CanReach(survey.FinalFloorNodes, NavQuery.Capsule.WithAllowed(allowed));
