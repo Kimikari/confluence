@@ -4,6 +4,7 @@ using Confluence.Sim.Combat;
 using Confluence.Sim.Duel;
 using Confluence.Sim.Hashing;
 using Confluence.Sim.Input;
+using InputButtons = Confluence.Casting.InputButtons;
 using Confluence.Sim.Movement;
 using Confluence.Sim.Status;
 
