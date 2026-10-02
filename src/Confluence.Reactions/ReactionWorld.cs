@@ -146,6 +146,9 @@ namespace Confluence.Reactions
 
         public IReadOnlyList<ScheduledSource> ScheduledSources => _sources;
 
+        /// <summary>Announced gusts in start order (spec L138, L664: shown in preview and the environment panel).</summary>
+        public IReadOnlyList<ScheduledGust> ScheduledGusts => _gusts;
+
         public IReadOnlyList<LightShaft> LightShafts => _lightShafts;
 
         // ------------------------------------------------------------------ queueing (applied at the next Step)
@@ -406,7 +409,8 @@ namespace Confluence.Reactions
             if (c.Heat.Units > 0) flags |= SurfaceFlags.Hot;
             if (c.BurnSuppressedUntil > _tick) flags |= SurfaceFlags.Extinguished;
             if ((c.Flags & (MaterialFlags.Conductive | MaterialFlags.Metal)) != 0) flags |= SurfaceFlags.Conductive;
-            return new SurfaceInfo(SurfaceInfo.Classify(flags), flags, c.Units(), index);
+            float slow = (flags & SurfaceFlags.StickyGrowth) != 0 ? c.StickySlow : 0f;
+            return new SurfaceInfo(SurfaceInfo.Classify(flags), flags, c.Units(), index, slow, c.SurfaceY);
         }
 
         public ObscurationVolume FindVolume(int id) => _volumeById.TryGetValue(id, out ObscurationVolume v) ? v : null;
@@ -606,6 +610,7 @@ namespace Confluence.Reactions
             if (material == Material.Growth)
             {
                 c.State &= ~(CellState.GrowthCombustible | CellState.GrowthSticky);
+                c.StickySlow = 0f;
             }
             else if (material == Material.Venom && c.VenomHazard != 0)
             {

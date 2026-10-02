@@ -154,12 +154,25 @@ namespace Confluence.Reactions
         /// <summary>Cell index, or -1 outside the grid.</summary>
         public readonly int CellIndex;
 
+        /// <summary>Slow fraction declared by sticky growth here (0 otherwise); uncapped, the Sim applies the 30% cap (L175).</summary>
+        public readonly float SlowFraction;
+
+        /// <summary>Height of the cell's surface (0 for cells without a set surface).</summary>
+        public readonly float SurfaceY;
+
         public SurfaceInfo(SurfaceKind kind, SurfaceFlags flags, CellUnits units, int cellIndex)
+            : this(kind, flags, units, cellIndex, 0f, 0f)
+        {
+        }
+
+        public SurfaceInfo(SurfaceKind kind, SurfaceFlags flags, CellUnits units, int cellIndex, float slowFraction, float surfaceY)
         {
             Kind = kind;
             Flags = flags;
             Units = units;
             CellIndex = cellIndex;
+            SlowFraction = slowFraction;
+            SurfaceY = surfaceY;
         }
 
         public bool Has(SurfaceFlags flag) => (Flags & flag) == flag;

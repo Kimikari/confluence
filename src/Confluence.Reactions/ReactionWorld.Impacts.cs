@@ -177,6 +177,8 @@ namespace Confluence.Reactions
             if (c != 0) return c;
             c = a.Sticky.CompareTo(b.Sticky);
             if (c != 0) return c;
+            c = a.SlowFraction.CompareTo(b.SlowFraction);
+            if (c != 0) return c;
             c = a.Soluble.CompareTo(b.Soluble);
             return c != 0 ? c : a.Removable.CompareTo(b.Removable);
         }
@@ -239,6 +241,7 @@ namespace Confluence.Reactions
                 {
                     c.State = d.Combustible ? c.State | CellState.GrowthCombustible : c.State & ~CellState.GrowthCombustible;
                     c.State = d.Sticky ? c.State | CellState.GrowthSticky : c.State & ~CellState.GrowthSticky;
+                    c.StickySlow = d.Sticky ? MathF.Max(0f, d.SlowFraction) : 0f; // the latest deposit decides, like the flag
                 }
                 else if (d.Material == Material.Venom)
                 {
@@ -527,6 +530,22 @@ namespace Confluence.Reactions
 
         private void ApplyPropForce(PropForce force)
         {
+            PropImpulse impulse = ClampForce(force);
+            _result.ImpulseList.Add(impulse);
+            Emit(ReactionKind.PropImpulse, force.Owner, force.SourceEventId, Vec3.Zero, -1, (int)MathF.Round(impulse.Distance * 100f), force.PropId);
+        }
+
+        /// <summary>
+        /// The L155/L173 clamp of a force on a loose prop: push distance by mass class (light 4 m, medium 2 m, heavy
+        /// 0.5 m; anchored props only shake), speed at most 8 m/s, collision damage by class and at most 25.
+        /// </summary>
+        public static PropImpulse ClampForce(PropForce force)
+        {
+            if (force == null)
+            {
+                throw new ArgumentNullException(nameof(force));
+            }
+
             bool anchored = force.Mass == PropMass.Anchored;
             Vec2 dir = force.Direction.XZ().Normalized();
             if (dir.LengthSquared() < 0.5f)
@@ -536,7 +555,7 @@ namespace Confluence.Reactions
 
             float distance = anchored ? 0f : MathF.Max(0f, MathF.Min(force.RequestedDistance, GlobalRules.Terrain.PushDistance(force.Mass)));
             float speed = anchored ? 0f : MathF.Max(0f, MathF.Min(force.RequestedSpeed, GlobalRules.Terrain.DamagingPropVelocityCap));
-            var impulse = new PropImpulse
+            return new PropImpulse
             {
                 PropId = force.PropId,
                 Mass = force.Mass,
@@ -548,8 +567,6 @@ namespace Confluence.Reactions
                 Owner = force.Owner,
                 SourceEventId = force.SourceEventId,
             };
-            _result.ImpulseList.Add(impulse);
-            Emit(ReactionKind.PropImpulse, force.Owner, force.SourceEventId, Vec3.Zero, -1, (int)MathF.Round(distance * 100f), force.PropId);
         }
 
         // ------------------------------------------------------------------ dispel (L161)

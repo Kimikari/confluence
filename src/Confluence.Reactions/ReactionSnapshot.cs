@@ -15,7 +15,7 @@ namespace Confluence.Reactions
     public sealed class ReactionSnapshot
     {
         internal const uint Magic = 0x58524643; // "CFRX"
-        internal const ushort Version = 1;
+        internal const ushort Version = 2; // 2: optional sticky-growth slow group in cell records
 
         private readonly byte[] _data;
 
