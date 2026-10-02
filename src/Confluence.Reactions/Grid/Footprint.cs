@@ -89,6 +89,10 @@ namespace Confluence.Reactions.Grid
         public static Footprint Cone(Vec2 apex, Vec2 direction, float length, float halfAngleDeg) =>
             new Footprint(FootprintShape.Cone, apex, apex, MathF.Max(0f, length), Vec2.Zero, 0f, direction.Normalized(), CMath.Clamp(halfAngleDeg, 0f, 180f));
 
+        /// <summary>Rebuilds a footprint from its stored fields (snapshots).</summary>
+        internal static Footprint FromRaw(FootprintShape shape, Vec2 a, Vec2 b, float radius, Vec2 halfSize, float yawDeg, Vec2 direction, float halfAngleDeg) =>
+            new Footprint(shape, a, b, radius, halfSize, yawDeg, direction, halfAngleDeg);
+
         /// <summary>The anchor point whose cell is covered even by a tiny shape.</summary>
         public Vec2 Anchor => A;
 

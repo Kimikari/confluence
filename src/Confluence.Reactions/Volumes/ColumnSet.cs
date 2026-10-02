@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace Confluence.Reactions.Volumes
 {
@@ -104,6 +105,49 @@ namespace Confluence.Reactions.Volumes
             };
             copy._bits = (bool[])_bits.Clone();
             return copy;
+        }
+
+        /// <summary>Writes the bounding rectangle and the packed occupancy bits.</summary>
+        internal void WriteTo(BinaryWriter writer)
+        {
+            writer.Write(MinX);
+            writer.Write(MinZ);
+            writer.Write(SizeX);
+            writer.Write(SizeZ);
+            writer.Write(Count);
+            int bits = SizeX * SizeZ;
+            for (int start = 0; start < bits; start += 8)
+            {
+                byte packed = 0;
+                for (int b = 0; b < 8 && start + b < bits; b++)
+                {
+                    if (_bits[start + b])
+                    {
+                        packed |= (byte)(1 << b);
+                    }
+                }
+
+                writer.Write(packed);
+            }
+        }
+
+        internal void ReadFrom(BinaryReader reader)
+        {
+            MinX = reader.ReadInt32();
+            MinZ = reader.ReadInt32();
+            SizeX = reader.ReadInt32();
+            SizeZ = reader.ReadInt32();
+            Count = reader.ReadInt32();
+            int bits = SizeX * SizeZ;
+            _bits = new bool[bits];
+            for (int start = 0; start < bits; start += 8)
+            {
+                byte packed = reader.ReadByte();
+                for (int b = 0; b < 8 && start + b < bits; b++)
+                {
+                    _bits[start + b] = (packed & (1 << b)) != 0;
+                }
+            }
         }
 
         private void EnsureCovers(int x, int z)
