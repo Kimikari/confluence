@@ -128,8 +128,11 @@ namespace Confluence.Arena
 
         // ---- Parity (spec L308) ----------------------------------------------------------------
 
-        /// <summary>Mirrored distances may differ by grid quantization only.</summary>
-        public const float ParityDistanceTolerance = 0.75f;
+        /// <summary>
+        /// Mirrored distances may differ by float summation only: generated layouts are exact half turns and the
+        /// navigation graph is checked to be its own image (spec L308 "functional symmetry is mandatory").
+        /// </summary>
+        public const float ParityDistanceTolerance = 0.05f;
 
         /// <summary>Mirrored area counts (cover, elevation) may differ by this fraction.</summary>
         public const float ParityAreaTolerance = 0.03f;

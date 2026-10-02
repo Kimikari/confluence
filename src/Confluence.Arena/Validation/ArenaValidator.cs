@@ -242,6 +242,13 @@ namespace Confluence.Arena.Validation
                 {
                     Fail("parity", "spawns are not mirrored");
                 }
+
+                // Functional symmetry of the walkable graph itself: every cell, edge, and clearance of one side has its
+                // image on the other, so every distance and route measured from one spawn holds for the other.
+                if (!_nav.IsHalfTurnSymmetric)
+                {
+                    Fail("parity", "the walkable graph is not half-turn symmetric");
+                }
             }
 
             private static bool SolidsMirror(Solid a, Solid b)
