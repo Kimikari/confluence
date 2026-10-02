@@ -1,0 +1,11 @@
+# Synced by tools/sync-unity.ps1 from src/ builds and docs/confluence/ (see docs/notes/client.md).
+# The binaries and the catalogue copy are ignored; their .meta files are committed so GUIDs stay stable.
+/Assets/Plugins/Confluence/*.dll
+/Assets/Plugins/Confluence/*.pdb
+/Assets/StreamingAssets/confluence-catalogue.json
+
+# Unity-generated IDE files
+/*.csproj
+/*.sln
+/*.slnx
+/.vscode/
