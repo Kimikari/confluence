@@ -289,7 +289,9 @@ namespace Confluence.Net.Transport
 
         internal bool SendFramed(NetChannel channel, byte[] data, int length)
         {
-            if (State != ClientState.Connected || _peer == null) return false;
+            // Framed messages are never empty; LiteNetLib never delivers an empty reliable payload and the lane
+            // then stalls behind it, so refuse rather than send.
+            if (State != ClientState.Connected || _peer == null || length <= 0) return false;
             DeliveryMethod method = NetChannels.DeliveryOf(channel);
             if (!NetChannels.IsReliable(channel) && length > _peer.GetMaxSinglePacketSize(method))
             {

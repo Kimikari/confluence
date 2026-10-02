@@ -254,7 +254,8 @@ namespace Confluence.Net.Transport
 
         internal bool SendFramed(PlayerSession to, NetChannel channel, byte[] data, int length)
         {
-            if (!_peerOfPlayer.TryGetValue(to.PlayerId, out NetPeer peer))
+            // Framed messages are never empty; an empty reliable payload would stall its lane (see ClientTransport).
+            if (length <= 0 || !_peerOfPlayer.TryGetValue(to.PlayerId, out NetPeer peer))
             {
                 return false;
             }
