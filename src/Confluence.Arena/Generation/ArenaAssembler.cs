@@ -63,6 +63,9 @@ namespace Confluence.Arena.Generation
         private const int SkeletonPostPasses = 3;
         private const float SkeletonPostLength = 2.0f;
 
+        /// <summary>Free space a skeleton post keeps to other solids, so it never pinches a passage into a pocket.</summary>
+        private const float SkeletonPostGap = 2.0f;
+
         /// <summary>Skeleton posts close only lanes with at least this many meters inside the skeleton zones.</summary>
         private const float SkeletonPostMinZoneRun = 12f;
 
@@ -757,7 +760,7 @@ namespace Confluence.Arena.Generation
 
                     var box = new YawBox(new Vec3(p.X, ArenaRules.TallWallHeight * 0.5f, p.Y),
                         new Vec3(SkeletonPostLength * 0.5f, ArenaRules.TallWallHeight * 0.5f, BulwarkThickness * 0.5f), yaw + 90f);
-                    if (BulwarkFits(box))
+                    if (BulwarkFits(box, SkeletonPostGap, ArenaRules.ContourStripWidth + 1f))
                     {
                         Solid wall = _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, box, ArenaMaterials.Rock, 0f));
                         _bulwarks.Add(wall.Id);
@@ -814,7 +817,7 @@ namespace Confluence.Arena.Generation
             return last;
         }
 
-        private bool BulwarkFits(YawBox box)
+        private bool BulwarkFits(YawBox box, float solidGap = IslandGap, float contourMargin = ArenaRules.ContourKeepInMargin)
         {
             Rect2 bounds = Rect2.Around(box);
             _why = "half";
@@ -837,7 +840,7 @@ namespace Confluence.Arena.Generation
             foreach (Solid s in _layout.Solids)
             {
                 if (s.Kind != SolidKind.Floor && s.Box.Bottom < ArenaRules.Headroom && !_bulwarks.Contains(s.Id)
-                    && Footprint2D.Distance(box, s.Box) < IslandGap)
+                    && Footprint2D.Distance(box, s.Box) < solidGap)
                 {
                     _why = "solid " + s.Id + " " + s.Material;
                     return false;
@@ -848,7 +851,7 @@ namespace Confluence.Arena.Generation
 
             for (int i = 0; i < 4; i++)
             {
-                if (_layout.Boundary.RadialMargin(box.FootprintCorner(i).ToXZ(), 0f) < ArenaRules.ContourKeepInMargin)
+                if (_layout.Boundary.RadialMargin(box.FootprintCorner(i).ToXZ(), 0f) < contourMargin)
                 {
                     return false;
                 }
