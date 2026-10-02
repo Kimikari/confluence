@@ -67,18 +67,18 @@ namespace Confluence.Sim.Combat
 
         public void Hash(ref StateHasher h)
         {
-            // Order-independent summary: totals only (dictionary order never reaches the hash).
-            long triggers = 0;
-            long last = 0;
-            foreach (KeyValuePair<string, Budget> kv in _budgets)
+            // Keys in ordinal order, so dictionary enumeration order never reaches the hash.
+            var keys = new List<string>(_budgets.Keys);
+            keys.Sort(StringComparer.Ordinal);
+            h.Add(keys.Count);
+            for (int i = 0; i < keys.Count; i++)
             {
-                triggers += kv.Value.TriggerCount;
-                last += kv.Value.LastTick;
+                Budget b = _budgets[keys[i]];
+                h.Add(keys[i]);
+                h.Add(b.LastTick);
+                h.Add(b.TriggerCount);
+                h.Add(b.UsedHits.Count);
             }
-
-            h.Add(_budgets.Count);
-            h.Add(triggers);
-            h.Add(last);
         }
 
         private sealed class Budget

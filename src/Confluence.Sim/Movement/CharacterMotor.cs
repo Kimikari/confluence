@@ -238,6 +238,27 @@ namespace Confluence.Sim.Movement
             s.Sprinting = false;
         }
 
+        /// <summary>
+        /// Attaches a freshly placed character (spawn, recall) to walkable ground within the snap distance below its
+        /// feet, so its first step can already jump or dodge. Returns whether ground was found.
+        /// </summary>
+        public static bool SnapToGround(ref MotorState s, CollisionWorld world)
+        {
+            if (world == null)
+            {
+                throw new ArgumentNullException(nameof(world));
+            }
+
+            UpdateGround(world, ref s, true);
+            if (s.Grounded)
+            {
+                s.AirPeakY = s.SupportY;
+                s.LastGroundedPosition = s.Position;
+            }
+
+            return s.Grounded;
+        }
+
         /// <summary>Ends any displacement immediately (recall, teleport).</summary>
         public static void CancelDisplacement(ref MotorState s)
         {

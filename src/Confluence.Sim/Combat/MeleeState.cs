@@ -178,6 +178,7 @@ namespace Confluence.Sim.Combat
         {
             h.Add((int)Phase);
             h.Add(Profile.Name);
+            h.Add(SourceId);
             h.Add(StartTick);
             h.Add(AttackSerial);
             h.Add(CommittedYawDeg);

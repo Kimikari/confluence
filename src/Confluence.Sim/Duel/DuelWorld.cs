@@ -414,6 +414,7 @@ namespace Confluence.Sim.Duel
 
             float yaw = p.Motor.YawDeg;
             p.Motor = MotorState.At(target, yaw);
+            CharacterMotor.SnapToGround(ref p.Motor, Collision);
             RemoveStatusKind(p, StatusKind.Displaced, StatusChange.Removed);
             p.RecallEndTick = Tick + Ticks.FromSeconds(GlobalRules.Terrain.OutOfMapRecallSec);
             Emit(new MovementEvent { Change = MovementChange.RecallStarted, Position = target, Amount = GlobalRules.Terrain.OutOfMapRecallPenalty }, p.Index);
@@ -1523,6 +1524,7 @@ namespace Confluence.Sim.Duel
 
             _alcoves[p.Index] = alcove;
             p.Motor = MotorState.At(spawn.Position, spawn.YawDeg);
+            CharacterMotor.SnapToGround(ref p.Motor, Collision);
             p.Resources.RestoreForDuel(p.Stats.MaxHealth);
             if (p.Setup.ReserveShields != null)
             {
