@@ -118,6 +118,22 @@ namespace Confluence.Net.Tests.Transport
         }
 
         [Fact]
+        public void Handshake_Of_Another_Protocol_Layout_Is_Reported_As_Unsupported_Not_Malformed()
+        {
+            // A future client keeps only the frozen preamble (magic, protocol version); the rest of its handshake
+            // does not decode under this protocol, yet the server must still name the version mismatch (L427).
+            using (var rig = new LoopbackRig())
+            {
+                var writer = new NetWriter();
+                writer.WriteUInt(HandshakeRequest.Magic);
+                writer.WriteUShort((ushort)(NetRules.ProtocolVersion + 1));
+                writer.WriteBytes(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F });
+                Assert.Equal(RejectReason.UnsupportedProtocol, RawConnect(rig, writer.ToArray()));
+                Assert.Equal(0, rig.Server.Counters.Rejections(RejectReason.MalformedHandshake));
+            }
+        }
+
+        [Fact]
         public void Random_Datagrams_At_The_Server_Port_Do_No_Harm()
         {
             using (var rig = new LoopbackRig())

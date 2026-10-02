@@ -38,8 +38,9 @@ state (L427), snapshot rate (L421, DECISIONS D-005).
   session (`TransportCounters`); `MalformedKickThreshold` violations (default 64) close the connection without
   resume. Handler exceptions are contained (optionally rethrown from `Poll` for tests).
 - **Handshake.** The connect request carries `HandshakeRequest`: magic, protocol version, ruleset fingerprint,
-  rules version string, client build id, display name, reconnect token. The server checks in order: decode,
-  protocol version, ruleset fingerprint, required build, display name, then token (resume) or capacity (new).
+  rules version string, client build id, display name, reconnect token. The server checks in order: protocol
+  version (read from the frozen magic + version preamble, so other layouts still get UnsupportedProtocol), full
+  decode, ruleset fingerprint, required build, display name, then token (resume) or capacity (new).
   Rejections carry `ConnectionRejection` with the server's protocol, rules version, and fingerprint so the client
   can show the unsupported-version state (L427); `IsVersionMismatch` covers protocol and ruleset mismatches.
   On acceptance the server sends `Welcome` (player id, token, resumed flag, tick rate, snapshot rate, reconnect

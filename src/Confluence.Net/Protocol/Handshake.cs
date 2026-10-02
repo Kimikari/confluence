@@ -72,11 +72,30 @@ namespace Confluence.Net.Protocol
 
     /// <summary>
     /// Connection data the client sends with its connect request: protocol version, ruleset fingerprint,
-    /// build id, display name, and an optional reconnect token.
+    /// build id, display name, and an optional reconnect token. The magic and protocol version lead every
+    /// protocol version's layout (frozen), so a server can name a version mismatch even when the rest of a
+    /// newer or older handshake does not decode. <see cref="ConnectionRejection"/> is frozen the same way and
+    /// readers ignore fields appended after it.
     /// </summary>
     public sealed class HandshakeRequest : INetMessage
     {
         public const uint Magic = 0x4E464C43; // "CLFN" little-endian
+
+        /// <summary>
+        /// Reads only the frozen preamble (magic and protocol version). False when the bytes are not a Confluence
+        /// handshake at all.
+        /// </summary>
+        public static bool TryReadProtocolVersion(NetReader reader, out ushort protocolVersion)
+        {
+            protocolVersion = 0;
+            if (reader.Remaining < 6 || reader.ReadUInt() != Magic)
+            {
+                return false;
+            }
+
+            protocolVersion = reader.ReadUShort();
+            return true;
+        }
 
         public ushort ProtocolVersion { get; set; } = NetRules.ProtocolVersion;
 

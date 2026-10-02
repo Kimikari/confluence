@@ -288,23 +288,28 @@ namespace Confluence.Net.Transport
         private void OnConnectionRequest(ConnectionRequest request)
         {
             ArraySegment<byte> data = request.Data.GetRemainingBytesSegment();
+            byte[] bytes = data.Array ?? new byte[0];
+
+            // The protocol version is checked on the frozen preamble first, so a client of another protocol gets
+            // the unsupported-version reason (spec L427) even if the rest of its handshake has another layout.
+            _reader.Reset(bytes, data.Offset, data.Count);
+            if (HandshakeRequest.TryReadProtocolVersion(_reader, out ushort clientProtocol) && clientProtocol != _identity.ProtocolVersion)
+            {
+                Reject(request, RejectReason.UnsupportedProtocol,
+                    "server protocol " + _identity.ProtocolVersion + ", client protocol " + clientProtocol);
+                return;
+            }
+
             var handshake = new HandshakeRequest();
             try
             {
-                _reader.Reset(data.Array ?? new byte[0], data.Offset, data.Count);
+                _reader.Reset(bytes, data.Offset, data.Count);
                 handshake.Deserialize(_reader);
                 _reader.ExpectEnd();
             }
             catch (NetReadException e)
             {
                 Reject(request, RejectReason.MalformedHandshake, e.Error.ToString());
-                return;
-            }
-
-            if (handshake.ProtocolVersion != _identity.ProtocolVersion)
-            {
-                Reject(request, RejectReason.UnsupportedProtocol,
-                    "server protocol " + _identity.ProtocolVersion + ", client protocol " + handshake.ProtocolVersion);
                 return;
             }
 
