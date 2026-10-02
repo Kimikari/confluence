@@ -241,6 +241,7 @@ namespace Confluence.Sim.Spells
 
             bool moving = p.Motor.IsDisplaced || (_spec.Mode == DeliveryKind.Leap && !p.Motor.Grounded);
             if ((moving && _ticks < _maxTicks && p.Alive) || _ticks <= 1) return;
+            Halt(p);
             ctx.Emit(SpellEventKind.MovementEnded, Cast, p.Position, p.Position - _start, Id, Vec3.Distance(_start, p.Position));
             _spec.Finish(ctx, Cast, _start, p.Position);
             End(ctx);
@@ -259,8 +260,16 @@ namespace Confluence.Sim.Spells
                 _contacted[i] = true; // "first target contacted takes damage once"
                 Vec3 travel = self.Motor.IsDisplaced ? self.Motor.DisplaceVelocity : other.Center - mine.Center;
                 ctx.ApplyToPlayer(Cast, Cast.Form.Payload, i, PayloadHit.Direct(self.Position, new Vec3(travel.X, 0f, travel.Z)));
-                if (_spec.StopOnContact) CharacterMotor.CancelDisplacement(ref self.Motor);
+                if (_spec.StopOnContact) Halt(self);
             }
+        }
+
+        // The movement ends where it stopped: no momentum carries the body past the stated distance (spec L124 caps).
+        private static void Halt(DuelPlayer p)
+        {
+            if (p.Motor.DisplaceKind == DisplacementKind.Knockback) return; // a hostile displacement owns the body now
+            CharacterMotor.CancelDisplacement(ref p.Motor);
+            p.Motor.Velocity = new Vec3(0f, p.Motor.Velocity.Y, 0f);
         }
 
         protected override void HashState(ref StateHasher h)

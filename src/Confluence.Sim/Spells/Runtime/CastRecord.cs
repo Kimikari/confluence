@@ -27,7 +27,8 @@ namespace Confluence.Sim.Spells
         private readonly CastHitKinds[] _hitKinds = new CastHitKinds[DuelWorld.PlayerCount];
         private readonly float[] _requested = new float[DuelWorld.PlayerCount];
 
-        internal CastRecord(SpellForm form, int caster, int slot, CastEventId castId, MasteryResult mastery, float linkedAttribute,
+        /// <summary>Created by the runtime at commitment (public for tools and tests that resolve payloads directly).</summary>
+        public CastRecord(SpellForm form, int caster, int slot, CastEventId castId, MasteryResult mastery, float linkedAttribute,
             int commitTick, int originEventId, Vec3 aimOrigin, Vec3 aimDirection)
         {
             Form = form ?? throw new ArgumentNullException(nameof(form));
