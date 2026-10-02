@@ -11,3 +11,6 @@
 *.ogg binary
 *.fbx binary
 *.glb binary
+
+# Supplied specification: preserve byte-for-byte
+docs/confluence/** -text
