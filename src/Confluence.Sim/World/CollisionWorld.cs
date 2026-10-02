@@ -160,7 +160,7 @@ namespace Confluence.Sim.World
                 if (s.Raycast(ray, maxDistance, out RayHit h) && h.Distance < best)
                 {
                     best = h.Distance;
-                    hit = new WorldHit { Distance = h.Distance, Point = h.Point, Normal = h.Normal, SolidId = s.Id };
+                    hit = new WorldHit { Distance = h.Distance, Point = h.Point, Contact = h.Point, Normal = h.Normal, SolidId = s.Id };
                     found = true;
                 }
             }
@@ -182,7 +182,7 @@ namespace Confluence.Sim.World
                     return false;
                 }
 
-                hit = new WorldHit { Distance = 0f, Point = a, Normal = Vec3.Up, SolidId = id };
+                hit = new WorldHit { Distance = 0f, Point = a, Contact = a, Normal = Vec3.Up, SolidId = id };
                 return true;
             }
 
@@ -211,7 +211,8 @@ namespace Confluence.Sim.World
                 if (s.SphereSweep(start, end, radius, out float t01, out RayHit h) && t01 < bestT)
                 {
                     bestT = t01;
-                    hit = new WorldHit { Distance = t01 * len, Point = Vec3.LerpUnclamped(start, end, t01), Normal = h.Normal, SolidId = s.Id };
+                    Vec3 center = Vec3.LerpUnclamped(start, end, t01);
+                    hit = new WorldHit { Distance = t01 * len, Point = center, Contact = center - h.Normal * radius, Normal = h.Normal, SolidId = s.Id };
                     found = true;
                 }
             }
@@ -340,7 +341,7 @@ namespace Confluence.Sim.World
                 }
 
                 bestT = t01;
-                hit = new WorldHit { Distance = t01 * len, Point = center, Normal = normal, SolidId = s.Id };
+                hit = new WorldHit { Distance = t01 * len, Point = center, Contact = center - h.Normal * radius, Normal = normal, SolidId = s.Id };
                 ledge = isLedge;
                 found = true;
             }

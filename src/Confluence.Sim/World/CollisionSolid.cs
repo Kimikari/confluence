@@ -164,6 +164,9 @@ namespace Confluence.Sim.World
         /// <summary>Contact point (for sweeps, the swept sphere's center at contact).</summary>
         public Vec3 Point;
 
+        /// <summary>The touched point on the solid's surface (equal to <see cref="Point"/> for rays).</summary>
+        public Vec3 Contact;
+
         public Vec3 Normal;
         public int SolidId;
     }

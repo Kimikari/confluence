@@ -124,8 +124,10 @@ namespace Confluence.Sim.Tests.Movement
                 }
             }
 
-            // About 8 m/s^2 over 0.7 s: at most ~5.6 m/s of change against the run, so no meaningful reversal.
-            Assert.True(s.Velocity.Z > -0.6f, "reversed to " + s.Velocity.Z);
+            // One ground tick of braking on take-off plus 8 m/s^2 over the 0.7 s jump: at most ~6.4 m/s of change against
+            // a 5.5 m/s run, so the landing speed backward stays far below walk speed (a grounded reversal reaches
+            // -5.5 m/s within about 0.22 s).
+            Assert.True(s.Velocity.Z > -1.0f, "reversed to " + s.Velocity.Z);
         }
 
         [Fact]
@@ -235,7 +237,7 @@ namespace Confluence.Sim.Tests.Movement
                 TestWorlds.Ramp(2, new Vec3(0f, 0f, 3f), 1.5f, halfLength, rise30),
                 TestWorlds.Box(3, new Vec3(0f, 0f, 6f), new Vec3(3f, rise30, 2f), SolidKind.Platform));
             MotorState s = TestWorlds.Settled(gentle, Vec3.Zero);
-            TestWorlds.StepMotor(ref s, TestWorlds.Forward(), gentle, 150);
+            TestWorlds.StepMotor(ref s, TestWorlds.Forward(), gentle, 70); // up the ramp and onto the 5-7 m platform
             Assert.True(s.Grounded);
             Assert.Equal(rise30, s.Position.Y, 2);
             Assert.True(s.Position.Z > 5.5f);
@@ -252,7 +254,7 @@ namespace Confluence.Sim.Tests.Movement
         {
             CollisionWorld low = TestWorlds.Collision(TestWorlds.Box(2, new Vec3(0f, 0f, 3f), new Vec3(4f, 0.3f, 2f), SolidKind.Stair));
             MotorState s = TestWorlds.Settled(low, Vec3.Zero);
-            TestWorlds.StepMotor(ref s, TestWorlds.Forward(), low, 60);
+            TestWorlds.StepMotor(ref s, TestWorlds.Forward(), low, 40); // onto the 2-4 m stair block
             Assert.Equal(0.3f, s.Position.Y, 3);
             Assert.True(s.Position.Z > 2.5f);
 

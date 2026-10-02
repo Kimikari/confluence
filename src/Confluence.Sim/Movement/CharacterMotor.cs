@@ -47,6 +47,7 @@ namespace Confluence.Sim.Movement
             report = default;
             Vec3 start = s.Position;
             bool wasGrounded = s.Grounded;
+            float supportBefore = s.SupportY;
             float stamina = c.Stamina;
             float spent = 0f;
 
@@ -171,7 +172,7 @@ namespace Confluence.Sim.Movement
             {
                 if (wasGrounded && !jumped)
                 {
-                    s.AirPeakY = Math.Max(s.Position.Y, start.Y);
+                    s.AirPeakY = Math.Max(Math.Max(s.Position.Y, start.Y), supportBefore);
                 }
 
                 s.AirPeakY = Math.Max(s.AirPeakY, s.Position.Y);
@@ -179,7 +180,7 @@ namespace Confluence.Sim.Movement
             else if (!wasGrounded)
             {
                 report.Landed = true;
-                report.LandingDrop = Math.Max(0f, s.AirPeakY - s.Position.Y);
+                report.LandingDrop = Math.Max(0f, s.AirPeakY - s.SupportY);
             }
 
             AdvanceTimedMotion(ref s, maxSpeed, ref report);
@@ -397,8 +398,10 @@ namespace Confluence.Sim.Movement
                 return;
             }
 
+            // The step is measured at the touched surface: a sphere resting against a ledge corner sits lower than the
+            // ledge top, which must not let a 0.5 m block pass as a 0.35 m step.
             float groundY = hit.Point.Y - Radius;
-            if (groundY - before.Position.Y > stepHeight + 1e-3f)
+            if (hit.Contact.Y - before.Position.Y > stepHeight + 1e-3f)
             {
                 return;
             }
@@ -417,6 +420,7 @@ namespace Confluence.Sim.Movement
             }
 
             trial.Grounded = true;
+            trial.SupportY = hit.Contact.Y;
             trial.GroundNormal = hit.Normal;
             trial.GroundSolidId = hit.SolidId;
             s = trial;
@@ -437,6 +441,7 @@ namespace Confluence.Sim.Movement
             {
                 s.Position.Y = hit.Point.Y - Radius;
                 s.Grounded = true;
+                s.SupportY = hit.Contact.Y;
                 s.GroundNormal = hit.Normal;
                 s.GroundSolidId = hit.SolidId;
                 s.Velocity.Y = 0f;

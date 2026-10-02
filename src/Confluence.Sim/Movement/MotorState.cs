@@ -53,8 +53,14 @@ namespace Confluence.Sim.Movement
         public bool Crouched;
         public bool Sprinting;
 
-        /// <summary>Highest feet height since leaving the ground; landing compares against it (spec L175).</summary>
+        /// <summary>Highest support height since leaving the ground; landing compares against it (spec L175).</summary>
         public float AirPeakY;
+
+        /// <summary>
+        /// Height of the ground contact point while grounded. A capsule rolling off a ledge lowers its feet before it
+        /// leaves the corner, so fall height is measured between support points rather than feet heights.
+        /// </summary>
+        public float SupportY;
 
         public int DodgeTicks;
         public Vec3 DodgeVelocity;
@@ -76,6 +82,7 @@ namespace Confluence.Sim.Movement
                 GroundNormal = Vec3.Up,
                 GroundSolidId = -1,
                 AirPeakY = feet.Y,
+                SupportY = feet.Y,
                 LastGroundedPosition = feet,
             };
         }
@@ -109,6 +116,7 @@ namespace Confluence.Sim.Movement
             h.Add(Crouched);
             h.Add(Sprinting);
             h.Add(AirPeakY);
+            h.Add(SupportY);
             h.Add(DodgeTicks);
             h.Add(DodgeVelocity);
             h.Add(DodgeCooldownTicks);
