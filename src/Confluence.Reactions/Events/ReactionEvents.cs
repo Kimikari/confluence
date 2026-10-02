@@ -31,6 +31,7 @@ namespace Confluence.Reactions.Events
         SolidIgnited,      // L153, L163 (combustible solids only)
         DampFormed,        // L154
         DampExpired,       // L154
+        DampDried,         // L154 response column: bounded heat dries damp sand
         DustRaised,        // L154 dust production
         PropImpulse,       // L155
         VenomDilution,     // L159

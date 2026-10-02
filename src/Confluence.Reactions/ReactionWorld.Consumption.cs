@@ -27,7 +27,8 @@ namespace Confluence.Reactions
         /// 3. heat and ice: 2 heat melt the tile into 1 water (L146), which further heat may steam;
         /// 4. frost and water: 2 frost + 1 water form an ice tile, 5 s, 45 durability (L145);
         /// 5. heat and combustible growth: 2 heat ignite it for 2 s (L153);
-        /// 6. water and sand or dust: each water unit dampens one unit for 3 s (L154).
+        /// 6. water and sand or dust: each water unit dampens one unit for 3 s (L154);
+        /// 7. heat on damp sand without liquid water: one heat unit dries one damp unit (L154 response column).
         /// Soluble venom touching liquid water dilutes to 50 percent without spreading (L159).
         /// </summary>
         private void RunConsumption()
@@ -91,6 +92,12 @@ namespace Confluence.Reactions
                 if (c.IsWet && c.Sand.Units + c.Dust.Units > c.DampUnits)
                 {
                     Dampen(index, ref c);
+                    continue;
+                }
+
+                if (!c.IsWet && c.DampUnits > 0 && c.Heat.Units >= ReactionRules.DryHeatPerDampUnit)
+                {
+                    DryDamp(index, ref c);
                     continue;
                 }
 
@@ -251,6 +258,21 @@ namespace Confluence.Reactions
             c.DampUnits = (byte)(c.DampUnits + units);
             c.DampUntil = _tick + Ticks.FromSeconds(GlobalRules.World.DampSandSec);
             Emit(ReactionKind.DampFormed, owner, source, CellPoint(index), index, units, 0);
+        }
+
+        /// <summary>L154 response "Dry it with bounded heat": one heat unit removes one damp unit.</summary>
+        private void DryDamp(int index, ref Cell c)
+        {
+            int owner = c.Heat.Owner;
+            int source = c.Heat.Source;
+            Consume(index, Material.Heat, ReactionRules.DryHeatPerDampUnit);
+            c.DampUnits--;
+            if (c.DampUnits == 0)
+            {
+                c.DampUntil = 0;
+            }
+
+            Emit(ReactionKind.DampDried, owner, source, CellPoint(index), index, 1, 0);
         }
 
         /// <summary>A soluble venom cloud over liquid water dilutes to 50 percent (L159).</summary>

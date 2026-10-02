@@ -63,6 +63,14 @@ namespace Confluence.Reactions
         /// <summary>Water units that flood an insulation tile so it conducts (PROP-047 "Water strength 3 floods it").</summary>
         public const int InsulationFloodWater = 3;
 
+        // ---- Damp sand (L154) ----
+
+        /// <summary>
+        /// L154's response column "Dry it with bounded heat": one heat unit dries one damp unit once no liquid water
+        /// is left in the cell (decision; the heat is consumed, the bound water is already spent).
+        /// </summary>
+        public const int DryHeatPerDampUnit = 1;
+
         // ---- Contact with bodies ----
 
         /// <summary>

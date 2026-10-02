@@ -17,6 +17,7 @@ namespace Confluence.Reactions
         private readonly List<int> _patch = new List<int>();
         private readonly List<int> _neighbors = new List<int>(4);
         private readonly List<int> _seedOrder = new List<int>();
+        private readonly List<int> _touched = new List<int>();
         private bool[] _visited = new bool[0];
 
         /// <summary>A conductor's stored branch, released after the glow (spec L149 "object glows before release").</summary>
@@ -283,14 +284,14 @@ namespace Confluence.Reactions
             });
 
             _bfsQueue.Clear();
-            var touched = new List<int>();
+            _touched.Clear();
             for (int i = 0; i < _seedOrder.Count; i++)
             {
                 int seed = _seedOrder[i];
                 if (!_visited[seed] && Vec2.DistanceSquared(_grid.CellCenter(seed), origin) <= maxDistSq)
                 {
                     _visited[seed] = true;
-                    touched.Add(seed);
+                    _touched.Add(seed);
                     _bfsQueue.Enqueue(seed);
                 }
             }
@@ -310,14 +311,14 @@ namespace Confluence.Reactions
                     }
 
                     _visited[next] = true;
-                    touched.Add(next);
+                    _touched.Add(next);
                     _bfsQueue.Enqueue(next);
                 }
             }
 
-            for (int i = 0; i < touched.Count; i++)
+            for (int i = 0; i < _touched.Count; i++)
             {
-                _visited[touched[i]] = false;
+                _visited[_touched[i]] = false;
             }
 
             patch.Sort();

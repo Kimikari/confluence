@@ -166,6 +166,29 @@ namespace Confluence.Reactions.Tests
         }
 
         [Fact]
+        public void Bounded_Heat_Dries_Damp_Sand_One_Unit_Per_Heat_Unit()
+        {
+            ArenaLayout layout = TestArenas.Empty();
+            layout.Materials.Add(TestArenas.Bed(new Vec2(0f, 0f), 1f, 1f, sand: 2, flags: MaterialFlags.Sand));
+            var h = new Harness(new ReactionWorld(layout));
+            Vec3 p = new Vec3(0.25f, 0f, 0.25f);
+            h.Point(Material.Water, p, 2, 600, Harness.PlayerA, 1);
+            h.Step();
+            Assert.Equal(0, h.World.DustProductionAt(p));
+
+            h.Point(Material.Heat, p, 1, 0, Harness.PlayerB, 2);
+            StepResult r = h.Step();
+            Assert.Equal(1, r.Count(ReactionKind.DampDried));
+            Assert.Empty(h.World.Volumes); // the bound water is already spent: no steam
+            Assert.Equal(1, h.World.DustProductionAt(p));
+            h.Point(Material.Heat, p, 3, 0, Harness.PlayerB, 3);
+            h.Step();
+            Assert.False(h.World.IsDampAt(p));
+            Assert.Equal(2, h.World.DustProductionAt(p));
+            Assert.Equal(2, h.World.Ledger.Consumed(Material.Heat)); // one per damp unit; the rest decays
+        }
+
+        [Fact]
         [Verifies("BIO-007")]
         public void Silt_Basin_Beds_Start_Damp_For_Three_Seconds_Then_Decay_Without_Refill()
         {
