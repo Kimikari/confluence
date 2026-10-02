@@ -72,8 +72,8 @@ namespace Confluence.Arena.Modules.Blueprints
                 b.Block(cx - 0.4f, z0, cx + 0.4f, z1, head, 2.4f, SolidKind.Wall, ArenaMaterials.Metal, 0f, "window-head");
             }
 
-            b.Socket(ModuleEdge.West, 1.2f, 2.6f).Socket(ModuleEdge.East, 1.2f, 2.6f).Socket(ModuleEdge.North, 0f, 9.5f)
-             .Socket(ModuleEdge.South, 0f, 9.5f);
+            // The peek side south of the wall is open floor reached around the module, not a through-route.
+            b.Socket(ModuleEdge.West, 1.2f, 2.6f).Socket(ModuleEdge.East, 1.2f, 2.6f).Socket(ModuleEdge.North, 0f, 9.5f);
         }
     }
 

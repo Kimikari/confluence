@@ -65,7 +65,7 @@ namespace Confluence.Arena.Modules.Blueprints
             float slab = b.Durability.Get("stone slab");
             b.Cover(-1.75f, 1.25f, 1.75f, 1.75f, 2.0f, slab, ArenaMaterials.Stone, "corner-wall");
             b.Cover(1.25f, -1.75f, 1.75f, 1.25f, 2.0f, slab, ArenaMaterials.Stone, "corner-wall");
-            b.OpenAllEdges();
+            b.OpenEdges(ModuleEdge.South, ModuleEdge.West); // the open sides of the sheltered corner
         }
     }
 
@@ -151,7 +151,7 @@ namespace Confluence.Arena.Modules.Blueprints
             float hedge = b.Durability.Get("hedge");
             b.Cover(-1.75f, 1.2f, 1.75f, 1.75f, 1.8f, hedge, ArenaMaterials.Hedge, "hedge");
             b.Cover(1.2f, -1.75f, 1.75f, 1.2f, 1.8f, hedge, ArenaMaterials.Hedge, "hedge");
-            b.OpenAllEdges();
+            b.OpenEdges(ModuleEdge.South, ModuleEdge.West);
         }
     }
 

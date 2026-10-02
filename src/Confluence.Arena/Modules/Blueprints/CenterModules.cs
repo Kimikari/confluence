@@ -105,8 +105,9 @@ namespace Confluence.Arena.Modules.Blueprints
         {
             CenterKit.FinalFloor(b);
             float prism = b.Durability.Get("prisms");
-            b.RotatedBlock(0f, 4.65f, 0.8f, 0.8f, 225f, 0f, 1.8f, SolidKind.Pillar, ArenaMaterials.Prism, prism, "edge-prism");
-            b.RotatedBlock(0f, -4.65f, 0.8f, 0.8f, 45f, 0f, 1.8f, SolidKind.Pillar, ArenaMaterials.Prism, prism, "edge-prism");
+            // 0.6 m prisms turned 45 degrees span r 4.08-4.92: outside the 4 m floor, inside the 10 m footprint.
+            b.RotatedBlock(0f, 4.5f, 0.6f, 0.6f, 225f, 0f, 1.8f, SolidKind.Pillar, ArenaMaterials.Prism, prism, "edge-prism");
+            b.RotatedBlock(0f, -4.5f, 0.6f, 0.6f, 45f, 0f, 1.8f, SolidKind.Pillar, ArenaMaterials.Prism, prism, "edge-prism");
             b.OpenAllEdges();
         }
     }

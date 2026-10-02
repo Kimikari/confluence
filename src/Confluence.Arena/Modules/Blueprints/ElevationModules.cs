@@ -18,7 +18,7 @@ namespace Confluence.Arena.Modules.Blueprints
         {
             float top = (float)b.Def.HeightM;
             b.Ramp(-3f, -1.5f, 0f, 1.5f, ModuleEdge.East, 0f, top); // 1 m over 3 m: 18.4 degrees
-            b.Deck(0f, -1.5f, 2.75f, 1.5f, top);
+            b.Deck(0f, -1.5f, 2.25f, 1.5f, top); // the far edge is a safe 1 m drop (or common-jump ledge) onto open floor
             b.Socket(ModuleEdge.West, 0f, 3f).Socket(ModuleEdge.East, 0f, 3f);
         }
     }
@@ -53,8 +53,7 @@ namespace Confluence.Arena.Modules.Blueprints
             b.Ramp(-4f, -2.5f, 1.5f, 2.5f, ModuleEdge.East, 0f, top);
             b.Deck(1.5f, -2.5f, 4f, 2.5f, top);
             b.Block(1.5f, 2.1f, 4f, 2.5f, top, top + 1f, SolidKind.Cover, b.PrimaryMaterial, b.Durability.Get("edge cover"), "edge-cover");
-            b.Socket(ModuleEdge.West, 0f, 5f);
-            b.Socket(ModuleEdge.North, -1.25f, 5.5f).Socket(ModuleEdge.South, -1.25f, 5.5f);
+            b.Socket(ModuleEdge.West, 0f, 5f); // the ramp foot; the deck sides are safe 2 m drops, not entrances
         }
     }
 
@@ -90,7 +89,10 @@ namespace Confluence.Arena.Modules.Blueprints
         }
     }
 
-    /// <summary>MOD-030 Terraced Steps: three 1 m terraces with alternating edge cover and safe descents.</summary>
+    /// <summary>
+    /// MOD-030 Terraced Steps: three 1.25 m deep terraces rising 1 m each (common-jump ledges) with alternating edge
+    /// cover and safe descents, in front of a 2.25 m floor strip.
+    /// </summary>
     [ContentBehavior("MOD-030")]
     public sealed class TerracedSteps : ModuleBlueprint
     {
@@ -99,12 +101,12 @@ namespace Confluence.Arena.Modules.Blueprints
         protected internal override void Build(ModuleBuilder b)
         {
             float edge = b.Durability.Get("edge cover");
-            b.Deck(-4f, -1.5f, 4f, 0f, 1f);
-            b.Deck(-4f, 0f, 4f, 1.5f, 2f);
-            b.Deck(-4f, 1.5f, 4f, 3f, 3f);
-            b.Block(-4f, -1.5f, -1f, -1.1f, 1f, 2f, SolidKind.Cover, b.PrimaryMaterial, edge, "edge-cover");
-            b.Block(1f, 0f, 4f, 0.4f, 2f, 3f, SolidKind.Cover, b.PrimaryMaterial, edge, "edge-cover");
-            b.Block(-4f, 1.5f, -1f, 1.9f, 3f, 4f, SolidKind.Cover, b.PrimaryMaterial, edge, "edge-cover");
+            b.Deck(-4f, -0.75f, 4f, 0.5f, 1f);
+            b.Deck(-4f, 0.5f, 4f, 1.75f, 2f);
+            b.Deck(-4f, 1.75f, 4f, 3f, 3f);
+            b.Block(-4f, -0.75f, -1f, -0.4f, 1f, 2f, SolidKind.Cover, b.PrimaryMaterial, edge, "edge-cover");
+            b.Block(1f, 0.5f, 4f, 0.85f, 2f, 3f, SolidKind.Cover, b.PrimaryMaterial, edge, "edge-cover");
+            b.Block(-4f, 1.75f, -1f, 2.1f, 3f, 4f, SolidKind.Cover, b.PrimaryMaterial, edge, "edge-cover");
             b.Socket(ModuleEdge.South, 0f, 7.5f);
         }
     }

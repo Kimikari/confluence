@@ -137,7 +137,7 @@ namespace Confluence.Arena.Modules.Blueprints
             b.Block(-2.5f, -0.3f, 2.5f, 0.3f, 2.8f, 3.2f, SolidKind.Wall, ArenaMaterials.Stone, 0f, "arch");
             // The bell hangs above standing and jumping head height; it is a fixed, anchored public sound source.
             b.Block(-0.35f, -0.35f, 0.35f, 0.35f, 2.2f, 2.8f, SolidKind.Wall, ArenaMaterials.Bell, 0f, "bell");
-            b.OpenAllEdges(); // 5 m walkway under the arch
+            b.OpenEdges(ModuleEdge.North, ModuleEdge.South); // the 5 m walkway passes under the arch between the piers
         }
     }
 
@@ -187,7 +187,7 @@ namespace Confluence.Arena.Modules.Blueprints
                 b.Cover(cx - 0.6f, 1.2f, cx + 0.6f, 1.8f, 1.2f, ice, ArenaMaterials.Ice, "brittle-ice");
             }
 
-            b.OpenAllEdges();
+            b.OpenEdges(ModuleEdge.West, ModuleEdge.East, ModuleEdge.South); // the fringe lines the north edge
         }
     }
 
