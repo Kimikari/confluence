@@ -38,11 +38,21 @@ Owner paths: `src/Confluence.Match/**`, `tests/Confluence.Match.Tests/**`. Spec:
   decider (round 8) is played; a drawn decider replays once and a second draw records a match draw.
 - Void (L427): `VoidCurrentPass` (also triggered when a duel misses the combat cap plus 1 s grace) aborts duels and
   reruns the same seats with a new arena seed, no shop, and no counted replay.
+- Numbers with no global home live in `MatchRules`: reveal 0 s, 1 s outcome grace after the combat cap, custom shop
+  timer 5-300 s, custom starting Crowns 0-100000, spectator delay 15-600 s.
+- Pairing cost is lexicographic over sums: immediate-rematch pairs, recent-repeat pairs (previous two opponents; an
+  immediate rematch is also a repeat), total |Resolve difference|, total |combat-win difference|. Ties: uniform pick
+  among optimal matchings with the recorded round seed (Pairing stream, sub 0).
 - Arena: one `ArenaRequest` per pass; every pair of a pass shares that arena (L34). Diameters come from
   `Schedules.ArenaDiameterSequence` over 15 (Conclave) or 8 (Duel) scheduled rounds; replays keep the round's diameter.
 
 ## Status / next steps
-- Status: all components compile; tests cover pairing, byes, sides, bracket unit behavior, round transitions, full
-  Conclave simulations, bracket flow, Duel BO7, settings, reconnect/void, determinism.
-- Next: server adapters implementing the three seams over Confluence.Sim / Economy / Arena; rating from
-  `MatchResult` placements (L387) belongs to a later competitive-systems subsystem.
+- Status: complete for Stage 1. `dotnet test tests/Confluence.Match.Tests` passes (77 tests): pairing/bye/side units,
+  bracket units, round transitions (timers, early ready, income, drafts, reveal), full 8-player Conclave simulations
+  (Resolve schedule, eliminations, tied placements, early end, odd-count byes, pairing optimality, sides), bracket flow
+  (full 12-round entry, top-seed byes, draw replay, shared finish, walkover, no drafts/tier 4), Duel BO7, settings and
+  fingerprint, determinism and event stream, reconnect window and void reruns.
+- Reaching the bracket through all 12 regular rounds is rare by design (30 Resolve of scheduled losses); bracket tests use
+  the internal short-schedule constructor plus one searched script that survives the full schedule.
+- Next: server adapters implementing IDuelRunner (Sim), IMatchEconomy (Economy), IArenaProvider (Arena); Conclave/Duel
+  rating from MatchResult placements (L387); between-duel pause requests and observer slots (L395); bye practice range (L61).
