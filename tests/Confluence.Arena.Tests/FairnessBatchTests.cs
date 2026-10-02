@@ -44,6 +44,8 @@ namespace Confluence.Arena.Tests
 
             /// <summary>Why a fallback release does not match the prevalidated fallback for its size and biome (null when it does).</summary>
             public string FallbackMismatch;
+
+            public List<string> ModuleIds;
         }
 
         private List<Outcome> Run(List<Case> cases, bool contraction)
@@ -65,6 +67,7 @@ namespace Confluence.Arena.Tests
                     outcome.Fallback = arena.UsedFallback;
                     outcome.Attempts = arena.Attempts;
                     outcome.Probe = FairnessProbe.Check(arena.Layout, contraction);
+                    outcome.ModuleIds = arena.Layout.Modules.Select(m => m.ModuleId).Distinct().ToList();
                     if (arena.UsedFallback)
                     {
                         outcome.FallbackMismatch = CheckFallbackRelease(arena, c);
@@ -197,6 +200,11 @@ namespace Confluence.Arena.Tests
             List<Outcome> outcomes = Run(cases, contraction: false);
             Report("500-seed batch", outcomes, watch);
             AssertAllFair(outcomes);
+
+            // Every catalogue module is placed by the generator somewhere in the batch (the [ContentBehavior] claim).
+            var placed = new HashSet<string>(outcomes.Where(o => o.ModuleIds != null).SelectMany(o => o.ModuleIds), StringComparer.Ordinal);
+            List<string> missing = ArenaFixture.Catalogue.Modules.Select(m => m.Id).Where(id => !placed.Contains(id)).ToList();
+            Assert.True(missing.Count == 0, "never placed: " + string.Join(", ", missing));
         }
     }
 }

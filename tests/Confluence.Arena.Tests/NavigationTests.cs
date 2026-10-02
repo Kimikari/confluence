@@ -199,5 +199,55 @@ namespace Confluence.Arena.Tests
 
             Assert.True(float.IsPositiveInfinity(nav.Distances(new[] { a }, NavQuery.Capsule.WithBlocked(blockAll))[b]));
         }
+
+        private static Solid RotatedWall(Vec2 center, float length, float yawDeg)
+        {
+            return new Solid
+            {
+                Kind = SolidKind.Wall,
+                Box = new YawBox(new Vec3(center.X, 1.5f, center.Y), new Vec3(length * 0.5f, 1.5f, 0.3f), yawDeg),
+                Anchored = true,
+            };
+        }
+
+        /// <summary>
+        /// A half-turn symmetric layout (rotated walls and their images, yaw a and a + 180) gives an exactly symmetric
+        /// graph: mirrored clearance, mirrored nearest nodes for mirrored points on cell edges, and equal distances
+        /// (spec L308 functional symmetry; the validator requires it).
+        /// </summary>
+        [Fact]
+        public void SymmetricLayoutsGiveMirroredClearanceNodesAndDistances()
+        {
+            var a = new Vec2(-3.3f, -4.1f);
+            var b = new Vec2(4.6f, -1.7f);
+            ArenaLayout layout = Room(
+                RotatedWall(a, 4f, 23.7f), RotatedWall(MirrorMath.Point(a), 4f, MirrorMath.Yaw(23.7f)),
+                RotatedWall(b, 3f, 131.3f), RotatedWall(MirrorMath.Point(b), 3f, MirrorMath.Yaw(131.3f)));
+            ArenaNav nav = ArenaNav.Build(layout, new ArenaNavOptions { HalfExtent = 10f });
+            Assert.True(nav.IsHalfTurnSymmetric);
+            for (int node = 0; node < nav.NodeCount; node++)
+            {
+                int image = nav.MirrorNode(node);
+                Assert.True(image >= 0);
+                Assert.Equal(nav.Clearance(node), nav.Clearance(image));
+            }
+
+            int s0 = nav.FindNode(new Vec3(0f, 0f, -7f));
+            int s1 = nav.FindNode(new Vec3(0f, 0f, 7f)); // both on a cell edge: ties resolve to mirrored nodes
+            Assert.Equal(s1, nav.MirrorNode(s0));
+            float[] d0 = nav.Distances(new[] { s0 }, NavQuery.Capsule);
+            float[] d1 = nav.Distances(new[] { s1 }, NavQuery.Capsule);
+            for (int node = 0; node < nav.NodeCount; node++)
+            {
+                Assert.Equal(d0[node], d1[nav.MirrorNode(node)]);
+            }
+        }
+
+        [Fact]
+        public void OneSidedObstaclesAreNotHalfTurnSymmetric()
+        {
+            ArenaNav nav = ArenaNav.Build(Room(RotatedWall(new Vec2(-3f, -4f), 4f, 23.7f)), new ArenaNavOptions { HalfExtent = 10f });
+            Assert.False(nav.IsHalfTurnSymmetric);
+        }
     }
 }

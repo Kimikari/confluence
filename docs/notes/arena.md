@@ -43,11 +43,13 @@ Navigation is exactly symmetric on such a layout (`ArenaNav.IsHalfTurnSymmetric`
    close the strip between block and center module. Bulwarks: staggered wall rows just outside the zones, raised
    along every ray from the center that meets nothing tall within 14.5 m. Skeleton lane posts: posts outside the
    zones on any lane with 12 m or more inside the zones.
-6. Biome rule features (`BiomeFeatures`) are placed next, in mirrored pairs, then module islands by category
-   (Topology, Elevation, Approach, Material, Cover) with 1.5 m gaps, then contour outcrops.
-7. Terrain filler: lane breakers (spurs grown from one obstacle or free posts) for every lane over 26.5 m, rocks in
+6. Before the bulwarks: required elevation pairs in 24/32 m; one landmark pair in 48 m (a topology, elevation, or
+   approach module of at least 8 x 4 m, taking the topology budget; the big 8-10 m pieces find no room later).
+7. Biome rule features (`BiomeFeatures`) are placed next, in mirrored pairs, then module islands by category
+   (Elevation, Cover, Approach, Topology, Material) with 1.5 m gaps, then contour outcrops.
+8. Terrain filler: lane breakers (spurs grown from one obstacle or free posts) for every lane over 26.5 m, rocks in
    open floor, and attached rocks (at most one per obstacle; lane breakers two) until cover reaches about 20.5%.
-8. Props (3-8 definitions, one mirrored pair each), contraction repair, standardized light shafts, BIO-011 gusts.
+9. Props (3-8 definitions, one mirrored pair each), contraction repair, standardized light shafts, BIO-011 gusts.
 
 Contraction repair: for the first stranded cell, try (nearest first) removing a filler rock or prop pair, then
 trimming 0.75 m off a rock face toward the cell. A change is kept only if the cell regains its route at the failing
@@ -79,8 +81,10 @@ props gone).
 
 ## Status / next steps
 
-- Per-attempt validity (3 seeds x 24 biomes): 24 m ~53%, 32 m ~54%, 40 m ~75%, 48 m ~42%. Released through Generate
-  with 8 seeds then the fallback, the 576-arena batch measured fallback 0 / 0 / 0 / 1.4% by size.
+- Per-attempt validity (3 seeds x 24 biomes): 24 m ~53%, 32 m ~54%, 40 m ~75%, 48 m ~40%. Released through Generate
+  with 8 seeds then the fallback: 576-arena batch fallback 0 / 0 / 0 / 1.4% by size; an 1800-arena census 0.33%
+  overall. Every one of the 72 modules is placed in that census (rarest: MOD-008 and MOD-010, 8 times, 48 m only);
+  the 500-seed slow batch asserts that every module appears.
 - Main rejection causes: 24 m cover under 18% (open floor runs out) and composition; 32 m contraction and lanes just
   over 28 m; 40-48 m spawn path outside the band and contraction pockets behind lane breakers. Better filler
   placement (no sub-capsule gaps between rocks, contraction-aware lane breakers) would cut retries and test time.
