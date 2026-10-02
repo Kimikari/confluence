@@ -523,7 +523,7 @@ namespace Confluence.Arena.Navigation
                 Vec2 p = ColumnCenter(c);
                 for (int dir = 0; dir < 8; dir++)
                 {
-                    if (HasWalkEdgeInDirection(a, dir))
+                    if (IsPassable(a, dir))
                     {
                         continue;
                     }
@@ -574,13 +574,35 @@ namespace Confluence.Arena.Navigation
             }
         }
 
-        private bool HasWalkEdgeInDirection(int node, int dir)
+        /// <summary>
+        /// True when the node connects toward a neighbor column by any movement: walking, a common-jump ledge, or a safe
+        /// drop (diagonals need both of their orthogonal steps). Clearance measures distance to real boundaries only,
+        /// so a capsule beside a jumpable ledge or at the lip of a safe drop still counts as standing room.
+        /// </summary>
+        private bool IsPassable(int node, int dir)
+        {
+            if (HasEdgeInDirection(node, dir))
+            {
+                return true;
+            }
+
+            if (dir < 4)
+            {
+                return false;
+            }
+
+            int ox = DirX[dir] > 0 ? 0 : 2;  // +X is direction 0, -X is direction 2
+            int oz = DirZ[dir] > 0 ? 1 : 3;  // +Z is direction 1, -Z is direction 3
+            return HasEdgeInDirection(node, ox) && HasEdgeInDirection(node, oz);
+        }
+
+        private bool HasEdgeInDirection(int node, int dir)
         {
             int c = _nodeColumn[node];
             int target = (c / _n + DirZ[dir]) * _n + (c % _n + DirX[dir]);
             for (int e = _edgeStart[node]; e < _edgeStart[node + 1]; e++)
             {
-                if (_edgeKind[e] == NavEdgeKind.Walk && _nodeColumn[_edgeTo[e]] == target)
+                if (_nodeColumn[_edgeTo[e]] == target)
                 {
                     return true;
                 }

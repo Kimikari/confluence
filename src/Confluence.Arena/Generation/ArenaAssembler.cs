@@ -137,6 +137,9 @@ namespace Confluence.Arena.Generation
         private ModuleGeometry _center;
         private int _sourceBudget = GlobalRules.Arena.MaxNaturalSourcePatches;
         private readonly HashSet<int> _attached = new HashSet<int>();
+        private readonly List<Rect2> _cutouts = new List<Rect2>();
+        private Solid _floor;
+        private float _floorHalf;
         private readonly HashSet<int> _removable = new HashSet<int>();
         private readonly HashSet<int> _bulwarks = new HashSet<int>();
         private readonly Dictionary<int, int> _attachments = new Dictionary<int, int>();
@@ -183,6 +186,7 @@ namespace Confluence.Arena.Generation
             DressBiome(ArenaNav.Build(_layout, NoProps));
             ReserveBiomeSources();
             PlaceIslands();
+            CutFloor();
             PlaceOutcrops(_p.OutcropPairs);
 
             ArenaNav nav = ArenaNav.Build(_layout, NoProps);
@@ -200,8 +204,60 @@ namespace Confluence.Arena.Generation
         private void AddFloor()
         {
             float half = _layout.Boundary.MaxRadiusAt(0f) + ArenaRules.FloorMarginBeyondContour;
-            var box = new YawBox(new Vec3(0f, -ArenaRules.FloorSlabThickness * 0.5f, 0f), new Vec3(half, ArenaRules.FloorSlabThickness * 0.5f, half), 0f);
-            _w.AddSelfMirrored(_w.NewSolid(SolidKind.Floor, box, ArenaMaterials.Floor, 0f, walkable: true));
+            _floor = _w.AddSelfMirrored(_w.NewSolid(SolidKind.Floor, SlabBox(new Rect2(-half, -half, half, half)), ArenaMaterials.Floor, 0f, walkable: true));
+            _floorHalf = half;
+        }
+
+        private static YawBox SlabBox(Rect2 r)
+        {
+            return new YawBox(new Vec3(r.Center.X, -ArenaRules.FloorSlabThickness * 0.5f, r.Center.Y),
+                new Vec3(r.Width * 0.5f, ArenaRules.FloorSlabThickness * 0.5f, r.Depth * 0.5f), 0f);
+        }
+
+        /// <summary>Replaces the single floor slab with anchored pieces around sunken modules' cutouts (mirrored pairs).</summary>
+        private void CutFloor()
+        {
+            if (_cutouts.Count == 0)
+            {
+                return;
+            }
+
+            _w.RemoveSolidPair(_floor);
+            List<Rect2> pieces = FloorSlabs.Pieces(_floorHalf, _cutouts);
+            var done = new bool[pieces.Count];
+            for (int i = 0; i < pieces.Count; i++)
+            {
+                if (done[i])
+                {
+                    continue;
+                }
+
+                done[i] = true;
+                Rect2 image = pieces[i].Mirrored();
+                int match = -1;
+                for (int j = 0; j < pieces.Count && match < 0; j++)
+                {
+                    if (Math.Abs(pieces[j].MinX - image.MinX) < 1e-3f && Math.Abs(pieces[j].MinZ - image.MinZ) < 1e-3f
+                        && Math.Abs(pieces[j].MaxX - image.MaxX) < 1e-3f && Math.Abs(pieces[j].MaxZ - image.MaxZ) < 1e-3f)
+                    {
+                        match = j;
+                    }
+                }
+
+                Solid slab = _w.NewSolid(SolidKind.Floor, SlabBox(pieces[i]), ArenaMaterials.Floor, 0f, walkable: true);
+                if (match == i)
+                {
+                    _w.AddSelfMirrored(slab);
+                }
+                else
+                {
+                    _w.AddMirroredPair(slab);
+                    if (match >= 0)
+                    {
+                        done[match] = true;
+                    }
+                }
+            }
         }
 
         private void PlaceCenter()
@@ -406,6 +462,15 @@ namespace Confluence.Arena.Generation
                 if (TryPlaceIsland(g, category, out Vec2 position, out int turns))
                 {
                     _w.PlaceModulePair(g, position, turns);
+                    foreach (LocalRect cut in g.FloorCutouts)
+                    {
+                        Vec3 a = LayoutWriter.ToWorld(new Vec3(cut.MinX, 0f, cut.MinZ), position, turns);
+                        Vec3 b = LayoutWriter.ToWorld(new Vec3(cut.MaxX, 0f, cut.MaxZ), position, turns);
+                        var world = new Rect2(a.X, a.Z, b.X, b.Z);
+                        _cutouts.Add(world);
+                        _cutouts.Add(world.Mirrored());
+                    }
+
                     Rect2 r = LayoutWriter.Footprint(g, position, turns);
                     _occupied.Add(r);
                     _occupied.Add(r.Mirrored());
@@ -1032,7 +1097,7 @@ namespace Confluence.Arena.Generation
             {
                 Vec3 p = nav.NodePosition(candidates[i].Node);
                 float clearance = nav.Clearance(candidates[i].Node);
-                if (!FarFromChosen(p, clearance, chosen))
+                if (!FarFromChosen(p, clearance, chosen) || NearDeck(p.XZ(), candidates[i].Room + 0.5f))
                 {
                     continue;
                 }
@@ -1424,6 +1489,20 @@ namespace Confluence.Arena.Generation
             {
                 float extent = m.IsCircle ? m.Radius : m.HalfSize.Length();
                 if (Vec2.Distance(m.Center, center) < extent + radius && m.SurfaceY == 0f)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>True when a walkable deck, ramp, or bridge lies within the distance (rocks never block a climb).</summary>
+        private bool NearDeck(Vec2 p, float distance)
+        {
+            foreach (Solid s in _layout.Solids)
+            {
+                if (s.Walkable && s.Kind != SolidKind.Floor && ArenaSurvey.FootprintDistance(s.Box, p) < distance)
                 {
                     return true;
                 }

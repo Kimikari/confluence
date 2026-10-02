@@ -28,16 +28,26 @@ namespace Confluence.Arena.Tests
             var layout = new ArenaLayout { Diameter = 24, Center = Vec3.Zero };
             float half = Math.Max(g.Width, g.Depth) * 0.5f + 3f;
             layout.Boundary = BoundaryContour.Circle(Vec3.Zero, half + 2f);
-            layout.Solids.Add(new Solid
+            var cuts = new List<Rect2>();
+            foreach (LocalRect c in g.FloorCutouts)
             {
-                Id = 0,
-                Kind = SolidKind.Floor,
-                Box = new YawBox(new Vec3(0f, -2f, 0f), new Vec3(half, 2f, half), 0f),
-                Material = ArenaMaterials.Floor,
-                Anchored = true,
-                Walkable = true,
-                MirrorId = 0,
-            });
+                cuts.Add(new Rect2(c.MinX, c.MinZ, c.MaxX, c.MaxZ));
+            }
+
+            int id = 1000;
+            foreach (Rect2 r in FloorSlabs.Pieces(half, cuts))
+            {
+                layout.Solids.Add(new Solid
+                {
+                    Id = id++,
+                    Kind = SolidKind.Floor,
+                    Box = new YawBox(new Vec3(r.Center.X, -2f, r.Center.Y), new Vec3(r.Width * 0.5f, 2f, r.Depth * 0.5f), 0f),
+                    Material = ArenaMaterials.Floor,
+                    Anchored = true,
+                    Walkable = true,
+                });
+            }
+
             for (int i = 0; i < g.Pieces.Count; i++)
             {
                 ModulePiece p = g.Pieces[i];

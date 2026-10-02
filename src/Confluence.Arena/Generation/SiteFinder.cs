@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Confluence.Arena.Navigation;
+using Confluence.Arena.Validation;
 using Confluence.Core.Arena;
 using Confluence.Core.Geometry;
 using Confluence.Core.Random;
@@ -121,6 +122,14 @@ namespace Confluence.Arena.Generation
                 if (Vec2.DistanceSquared(new Vec2(s.X, s.Z), q) < gap * gap || Vec2.DistanceSquared(new Vec2(-s.X, -s.Z), q) < gap * gap)
                 {
                     return false;
+                }
+            }
+
+            foreach (Solid s in _layout.Solids)
+            {
+                if (s.Walkable && s.Kind != SolidKind.Floor && ArenaSurvey.FootprintDistance(s.Box, q) < radius + 0.5f)
+                {
+                    return false; // never on or against a deck, ramp, or bridge
                 }
             }
 
