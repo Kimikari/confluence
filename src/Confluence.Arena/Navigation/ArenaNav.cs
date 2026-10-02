@@ -44,6 +44,8 @@ namespace Confluence.Arena.Navigation
     /// Nodes connect by walking, common-jump ledges, or safe drops. Each node stores its clearance: the horizontal
     /// distance to the nearest wall or surface edge, so routes of a given width are queries on clearance
     /// (spec L312 "Minimum route width is 2.5 meters"). Built once per layout state; queries are allocation-light.
+    /// On a half-turn symmetric layout the graph, clearances, nearest-node lookups, and search results are exact
+    /// mirror images (<see cref="IsHalfTurnSymmetric"/>), so both spawns measure the same arena (spec L308).
     /// </summary>
     public sealed class ArenaNav
     {
