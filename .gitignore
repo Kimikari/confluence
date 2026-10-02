@@ -16,6 +16,7 @@ client/[Ll]ogs/
 client/[Uu]ser[Ss]ettings/
 client/*.csproj
 client/*.sln
+client/*.slnx
 client/.vs/
 client/MemoryCaptures/
 
