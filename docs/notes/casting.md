@@ -8,7 +8,8 @@ Tests: `tests/Confluence.Casting.Tests` (`dotnet test tests/Confluence.Casting.T
 - Done: input frame and `InputButtons`, `CastableSpell` (from `SpellDef`), mastery types and clamps, refund
   ledger, `CastMachine`, grammar interfaces, `GuidedNormalGrammar`, WIZ-002 `PressureReleaseGrammar`,
   WIZ-010 `PressureMeterGrammar`, 36-wizard `GrammarRegistry`, and one reusable primitive per family
-  (`Grammars/Families/`). All covered by tests (141 passing).
+  (`Grammars/Families/`). Last verified: `dotnet build Confluence.sln` 0 errors / 0 warnings;
+  `dotnet test tests/Confluence.Casting.Tests` 141 passed, 0 failed.
 - Next: implement the other 34 grammars on top of the family primitives (each is a `GrammarBase` subclass plus
   a `case` in `GrammarRegistry.Create` and `executable: true` on its descriptor). Sim must implement
   `ICastHost`, build `CastInputFrame`s (combat events are server-generated only), act on `CastEvent`s, end sprint
