@@ -57,7 +57,7 @@ namespace Confluence.Sim.Tests.Spells
             }
 
             Assert.True(withEntities > 50);
-            Assert.True(a.EventLog.OfType<DamageEvent>().Any(d => d.SourceId != null && d.SourceId.StartsWith("SPL-T8")));
+            Assert.Contains(a.EventLog.OfType<DamageEvent>(), d => d.SourceId != null && d.SourceId.StartsWith("SPL-T8"));
             Assert.Equal(a.EventLog.Count, b.EventLog.Count);
         }
 

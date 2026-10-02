@@ -69,7 +69,7 @@ namespace Confluence.Casting.Tests.Machine
             b.Step(InputButtons.Guard);
             a.Step(InputButtons.None);
             Assert.NotEqual(a.Machine.StateDigest(), b.Machine.StateDigest());
-            Assert.Equal(1, b.OfKind(CastEventKind.CommittedCastCancelled).Count());
+            Assert.Single(b.OfKind(CastEventKind.CommittedCastCancelled));
         }
     }
 }

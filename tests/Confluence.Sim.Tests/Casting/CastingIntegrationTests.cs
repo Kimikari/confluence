@@ -41,7 +41,7 @@ namespace Confluence.Sim.Tests.Casting
             Assert.Equal(Ticks.FromSeconds(2.0), w.Player(0).Caster.CooldownRemainingTicks("SPL-T01"));
             CastDuelEvent commit = SpellTestKit.CastEvents(w, CastEventKind.Committed).Single();
             Assert.Equal(20f, commit.Cast.Mana);
-            Assert.Single(w.EventLog.OfType<ResourceEvent>().Where(e => e.Change == ResourceChange.ManaSpent && e.SourceId == "SPL-T01"));
+            Assert.Single(w.EventLog.OfType<ResourceEvent>(), e => e.Change == ResourceChange.ManaSpent && e.SourceId == "SPL-T01");
         }
 
         [Fact]
@@ -291,6 +291,13 @@ namespace Confluence.Sim.Tests.Casting
             Assert.Equal(commit.CastId, hit.CastId);
             Assert.Equal(commit.Id, hit.OriginEventId); // one original event for proc budgets (spec L126)
             Assert.True(commit.Id < hit.Id);
+        }
+
+        [Fact]
+        public void Each_Player_Needs_Its_Own_Grammar_Instance()
+        {
+            var shared = new TapGrammar();
+            Assert.Throws<System.InvalidOperationException>(() => SpellTestKit.Duel(SpellTestKit.Loadout(shared, Bolt()), SpellTestKit.Loadout(shared)));
         }
 
         [Fact]

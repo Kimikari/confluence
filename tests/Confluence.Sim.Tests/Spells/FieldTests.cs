@@ -63,7 +63,7 @@ namespace Confluence.Sim.Tests.Spells
             TestWorlds.Place(w, 1, new Vec3(0f, 0f, 4f), 180f);
             SpellTestKit.Run(w, 60);
             Assert.Single(SpellTestKit.SpellEvents(w, SpellEventKind.FieldExited));
-            Assert.Equal(1, SpellTestKit.DamageTo(w, 1).Count);
+            Assert.Single(SpellTestKit.DamageTo(w, 1));
         }
 
         [Fact]

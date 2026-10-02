@@ -82,6 +82,11 @@ namespace Confluence.Sim.Spells
                 p.Caster = _casters[i];
             }
 
+            if (_casters[0] != null && _casters[1] != null && ReferenceEquals(_casters[0].Loadout.Grammar, _casters[1].Loadout.Grammar))
+            {
+                throw new InvalidOperationException("Each player needs its own grammar instance (grammars keep per-player state).");
+            }
+
             world.AddEventObserver(_feed);
         }
 
