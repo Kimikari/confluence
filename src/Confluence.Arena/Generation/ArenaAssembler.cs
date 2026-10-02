@@ -60,6 +60,12 @@ namespace Confluence.Arena.Generation
         private const float BulwarkThickness = 1f;
         private const float BulwarkPieceLength = 2.4f;
 
+        private const int SkeletonPostPasses = 3;
+        private const float SkeletonPostLength = 2.0f;
+
+        /// <summary>Skeleton posts close only lanes with at least this many meters inside the skeleton zones.</summary>
+        private const float SkeletonPostMinZoneRun = 12f;
+
         /// <summary>Opening between inner-row bulwark pieces (a capsule passage with margin).</summary>
         private const float BulwarkGate = 1.6f;
 
@@ -170,6 +176,7 @@ namespace Confluence.Arena.Generation
             AddSkeletonKeepOuts();
             PlaceLaneEnds();
             PlaceBulwarks();
+            PlaceSkeletonLanePosts();
             ReserveBiomeSources();
             PlaceIslands();
             PlaceOutcrops(_p.OutcropPairs);
@@ -655,6 +662,116 @@ namespace Confluence.Arena.Generation
                     return;
                 }
             }
+        }
+
+        /// <summary>
+        /// Skeleton lane posts (spec L310). Some lanes run most of their length through the skeleton zones, where no
+        /// terrain may stand, so the later filler cannot shorten them enough. On the bare skeleton each such lane gets a
+        /// short anchored post across it at the first point outside the zones nearest its middle.
+        /// </summary>
+        private void PlaceSkeletonLanePosts()
+        {
+            if (_p.Diameter <= GlobalRules.Arena.DiameterSmall)
+            {
+                return;
+            }
+
+            for (int pass = 0; pass < SkeletonPostPasses; pass++)
+            {
+                ArenaNav nav = ArenaNav.Build(_layout, NoProps);
+                List<FiringLane> lanes = new LaneMeter(nav, _layout).LongerThan(BulwarkLaneTarget);
+                var posts = new List<YawBox>();
+                for (int i = 0; i < lanes.Count; i++)
+                {
+                    FiringLane lane = lanes[i];
+                    if (InterruptedBy(lane, posts) || KeepOutShare(lane) < SkeletonPostMinZoneRun)
+                    {
+                        continue;
+                    }
+
+                    if (TrySkeletonPost(lane, out YawBox post))
+                    {
+                        posts.Add(post);
+                        posts.Add(MirrorMath.Box(post));
+                    }
+                }
+
+                if (posts.Count == 0)
+                {
+                    return;
+                }
+            }
+        }
+
+        /// <summary>Meters of a lane that lie inside the skeleton zones.</summary>
+        private float KeepOutShare(FiringLane lane)
+        {
+            float inside = 0f;
+            float length = lane.Length;
+            for (float s = 0f; s <= length; s += 0.25f)
+            {
+                if (InKeepOut(Vec2.Lerp(lane.A, lane.B, s / Math.Max(length, 1e-3f))))
+                {
+                    inside += 0.25f;
+                }
+            }
+
+            return inside;
+        }
+
+        private bool InKeepOut(Vec2 p)
+        {
+            for (int k = 0; k < _keepOut.Count; k++)
+            {
+                if (_keepOut[k].Contains(p))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool TrySkeletonPost(FiringLane lane, out YawBox placed)
+        {
+            placed = default(YawBox);
+            float length = lane.Length;
+            Vec2 dir = (lane.B - lane.A).Normalized();
+            for (float offset = 0f; offset <= length * 0.5f; offset += 0.25f)
+            {
+                for (int s = -1; s <= 1; s += 2)
+                {
+                    float at = length * 0.5f + s * offset;
+                    Vec2 p = lane.A + dir * at;
+                    if (InKeepOut(p))
+                    {
+                        continue;
+                    }
+
+                    float yaw = CMath.YawOf(dir);
+                    if (!InAuthoredHalf(p))
+                    {
+                        p = MirrorMath.Point(p);
+                        yaw = MirrorMath.Yaw(yaw);
+                    }
+
+                    var box = new YawBox(new Vec3(p.X, ArenaRules.TallWallHeight * 0.5f, p.Y),
+                        new Vec3(SkeletonPostLength * 0.5f, ArenaRules.TallWallHeight * 0.5f, BulwarkThickness * 0.5f), yaw + 90f);
+                    if (BulwarkFits(box))
+                    {
+                        Solid wall = _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, box, ArenaMaterials.Rock, 0f));
+                        _bulwarks.Add(wall.Id);
+                        _bulwarks.Add(wall.MirrorId);
+                        Rect2 bounds = Rect2.Around(box);
+                        _occupied.Add(bounds);
+                        _occupied.Add(bounds.Mirrored());
+                        placed = box;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         /// <summary>Distance along a ray to the first solid tall enough to block a standing lane.</summary>
