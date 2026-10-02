@@ -49,7 +49,7 @@ namespace Confluence.Client.UI
         {
             _content.Clear();
             _content.Add(Ui.Label(_model.WizardName, "cf-build-title"));
-            _content.Add(Ui.Muted("Signature: " + DuelHudModel.LeadName(_model.Signature) + "    Passive: " + DuelHudModel.LeadName(_model.Passive)));
+            _content.Add(Ui.Muted("Signature: " + DuelHudModel.LeadName(_model.Signature) + "  |  Passive: " + DuelHudModel.LeadName(_model.Passive)));
 
             Section("Equipment slots");
             foreach (EquipmentSlotView slot in _model.Slots)

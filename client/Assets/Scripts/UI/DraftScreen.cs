@@ -62,6 +62,7 @@ namespace Confluence.Client.UI
 
             _build = new BuildPanel(_model.Build);
             _build.Root.AddToClassList("cf-match-side");
+            _build.Root.AddToClassList("cf-match-side--narrow");
             body.Add(_build.Root);
             Root.Add(body);
 
@@ -252,9 +253,9 @@ namespace Confluence.Client.UI
                     Root.EnableInClassList("cf-card--" + rarity, string.Equals(card.Rarity, rarity, StringComparison.OrdinalIgnoreCase));
                 }
 
-                _rarity.text = (_position + 1) + "  " + card.Rarity.ToUpperInvariant() + "  -  rank " + card.Rank + (card.IsUpgrade ? " (upgrade)" : string.Empty)
-                    + (card.IsTransformation ? "  -  transformation" : string.Empty);
-                _name.text = card.Name + "  (" + card.AugmentId + ")";
+                _rarity.text = (_position + 1) + "  " + card.Rarity.ToUpperInvariant() + " - rank " + card.Rank + (card.IsUpgrade ? " (upgrade)" : string.Empty)
+                    + "\n" + card.AugmentId + (card.IsTransformation ? " - transformation" : string.Empty);
+                _name.text = card.Name;
                 _target.text = card.TargetSpell;
                 _transformation.text = card.Transformation;
                 _eligibility.text = "Eligibility: " + card.Eligibility;

@@ -225,8 +225,8 @@ namespace Confluence.Client.Presentation
         // First-person focus: lowered at rest, raised across the view while guarding, thrust forward on a strike.
         private void PresentViewFocus(DuelPlayer p)
         {
-            Vector3 position = new Vector3(0.28f, -0.3f, 0.55f);
-            Quaternion rotation = Quaternion.Euler(60f, -10f, 0f);
+            Vector3 position = new Vector3(0.3f, -0.32f, 0.62f);
+            Quaternion rotation = Quaternion.Euler(55f, -12f, 0f);
             if (p.Guard.Active)
             {
                 position = new Vector3(0.05f, -0.12f, 0.5f);
@@ -261,12 +261,12 @@ namespace Confluence.Client.Presentation
             focus.name = "View focus";
             ArenaMaterialLibrary.DestroyObject(focus.GetComponent<Collider>());
             focus.transform.SetParent(cameraGo.transform, false);
-            focus.transform.localScale = new Vector3(0.035f, 0.32f, 0.035f);
+            focus.transform.localScale = new Vector3(0.028f, 0.24f, 0.028f);
             focus.GetComponent<MeshRenderer>().sharedMaterial = materials.Flat(new Color(0.45f, 0.3f, 0.18f), SurfaceKind.Wood);
             focus.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             _viewFocus = focus.transform;
-            _viewFocus.localPosition = new Vector3(0.28f, -0.3f, 0.55f);
-            _viewFocus.localRotation = Quaternion.Euler(60f, -10f, 0f);
+            _viewFocus.localPosition = new Vector3(0.3f, -0.32f, 0.62f);
+            _viewFocus.localRotation = Quaternion.Euler(55f, -12f, 0f);
         }
 
         private void OnDestroy()

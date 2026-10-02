@@ -168,14 +168,24 @@ namespace Confluence.Client.ViewModels
                 sheet.Add(setup.Modifiers[i]);
             }
 
-            _stats.Add(new StatView { Name = "Health", Raw = Format(sheet.MaxHealth), Effective = Format(sheet.MaxHealth) });
-            _stats.Add(new StatView { Name = "Mana", Raw = Format(GlobalRules.Resources.BaseMana), Effective = Format(GlobalRules.Resources.BaseMana) });
-            _stats.Add(new StatView { Name = "Stamina", Raw = Format(GlobalRules.Resources.BaseStamina), Effective = Format(GlobalRules.Resources.BaseStamina) });
+            // The statistics every build has (spec L78, L114, L124), raw against effective after the global caps.
+            AddStat("Health", null, GlobalRules.Resources.BaseHealth + sheet.Raw(StatKind.MaxHealthBonus), sheet.MaxHealth);
+            AddStat("Mana", null, GlobalRules.Resources.BaseMana, GlobalRules.Resources.BaseMana);
+            AddStat("Stamina", null, GlobalRules.Resources.BaseStamina, GlobalRules.Resources.BaseStamina);
+            AddStat("Mana regeneration", StatKind.ManaRegenBonus, GlobalRules.Resources.ManaRegenPerSecond + sheet.Raw(StatKind.ManaRegenBonus), sheet.ManaRegenPerSecond);
+            AddStat("Movement bonus", StatKind.MovementBonus, sheet.Raw(StatKind.MovementBonus), sheet.MovementBonus);
+            AddStat("Cooldown reduction", StatKind.CooldownReduction, sheet.Raw(StatKind.CooldownReduction), sheet.CooldownReduction);
+            AddStat("Cost reduction", StatKind.CostReduction, sheet.Raw(StatKind.CostReduction), sheet.CostReduction);
+            AddStat("Refund", StatKind.RefundFraction, sheet.Raw(StatKind.RefundFraction), sheet.RefundFraction);
+            AddStat("Lifesteal", StatKind.Lifesteal, sheet.Raw(StatKind.Lifesteal), sheet.Lifesteal);
+            AddStat("Dash charges", StatKind.DashCharges, sheet.Raw(StatKind.DashCharges), sheet.DashCharges);
             foreach (StatLine line in sheet.Inspect())
             {
-                if (line.Stat == StatKind.MaxHealthBonus)
+                bool listed = line.Stat != StatKind.Resistance && line.Stat != StatKind.PassiveReduction && line.Stat != StatKind.DashDistance
+                    && line.Stat != StatKind.TeleportDistance && line.Stat != StatKind.Traction;
+                if (listed)
                 {
-                    continue; // shown as Health above
+                    continue; // already among the standard lines above
                 }
 
                 _stats.Add(new StatView
@@ -210,6 +220,18 @@ namespace Confluence.Client.ViewModels
                     Enableable = placement.IsSlot && SlotRules.SlotAllowsActivation(placement.Slot),
                 });
             }
+        }
+
+        // A null kind formats a plain number (health, mana, stamina).
+        private void AddStat(string name, StatKind? kind, float raw, float effective)
+        {
+            _stats.Add(new StatView
+            {
+                Name = name,
+                Raw = kind.HasValue ? ContentFormat.StatValue(kind.Value, raw) : Format(raw),
+                Effective = kind.HasValue ? ContentFormat.StatValue(kind.Value, effective) : Format(effective),
+                Capped = Math.Abs(raw - effective) > 1e-4f,
+            });
         }
 
         private static string Format(float value) => ContentFormat.Number(value);

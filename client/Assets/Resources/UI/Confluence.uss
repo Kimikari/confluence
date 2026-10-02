@@ -413,7 +413,31 @@
 }
 
 .cf-card-row--draft {
-    height: 600px;
+    height: auto;
+    flex-grow: 1;
+    min-height: 0;
+}
+
+.cf-match-side--narrow {
+    width: 470px;
+}
+
+.cf-card--augment {
+    margin-right: 10px;
+    padding: 12px 12px;
+}
+
+.cf-card--augment .cf-card-name {
+    font-size: 20px;
+}
+
+.cf-card--augment .cf-card-text {
+    font-size: 15px;
+}
+
+.cf-card--augment .cf-card-small,
+.cf-card--augment .cf-card-drawback {
+    font-size: 13px;
 }
 
 .cf-card {
@@ -674,6 +698,9 @@
 
 .cf-duel-phase {
     font-size: 16px;
+    background-color: rgba(10, 12, 18, 0.65);
+    padding: 1px 10px;
+    border-radius: 3px;
     color: rgb(200, 204, 214);
     -unity-text-outline-width: 1px;
     -unity-text-outline-color: rgb(0, 0, 0);
@@ -681,8 +708,11 @@
 
 .cf-duel-boundary {
     font-size: 17px;
-    color: rgb(200, 204, 214);
+    color: rgb(214, 218, 228);
     margin-top: 4px;
+    background-color: rgba(10, 12, 18, 0.65);
+    padding: 2px 10px;
+    border-radius: 3px;
     -unity-text-outline-width: 1px;
     -unity-text-outline-color: rgb(0, 0, 0);
 }
@@ -877,7 +907,7 @@
 
 .cf-slot {
     width: 118px;
-    height: 76px;
+    min-height: 86px;
     margin: 0 3px;
     padding: 4px 6px;
     background-color: rgba(20, 24, 34, 0.85);

@@ -197,7 +197,7 @@ namespace Confluence.Client.UI
                 _drawback.text = string.IsNullOrEmpty(card.Drawback) ? string.Empty : "Drawback: " + card.Drawback;
                 _notice.text = card.Notice ?? string.Empty;
                 _notice.style.display = string.IsNullOrEmpty(card.Notice) ? DisplayStyle.None : DisplayStyle.Flex;
-                _reroll.text = card.RerollAvailable ? "Free reroll available" : "Reroll used";
+                _reroll.text = card.Status == ShopCardStatus.Purchased ? string.Empty : card.RerollAvailable ? "Free reroll available" : "Reroll used";
                 _reroll.EnableInClassList("cf-card-reroll--used", !card.RerollAvailable);
                 _buy.SetEnabled(card.CanBuy);
                 _rerollButton.SetEnabled(card.CanReroll);
