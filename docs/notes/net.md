@@ -96,7 +96,8 @@ delay, input and snapshot buffers, clock sync.
 
 ## Status / next steps
 
-- Status: all components implemented and tested; `dotnet test tests/Confluence.Net.Tests` passes.
+- Status (2026-10-02): all Stage 1 components implemented; `dotnet test tests/Confluence.Net.Tests` passes 120 tests
+  in about 3 s.
 - Stage 3: define game messages (ids >= 64) for inputs (`InputPacketMessage` with a game input codec), snapshots
   (header + delta-coded entity state against the acked baseline), match flow, shop and draft requests with the
   `NetRules` rate limits; drive a `SnapshotRateSelector` per session from `GetLinkStats`; set
