@@ -9,8 +9,11 @@ namespace Confluence.Arena.Navigation
         /// <summary>Any node a player capsule fits through (clearance at least the 0.4 m capsule radius).</summary>
         public static readonly NavQuery Capsule = new NavQuery { MinClearance = ArenaRules.CapsuleClearance };
 
-        /// <summary>Routes at least 2.5 m wide (spec L312).</summary>
-        public static readonly NavQuery Route = new NavQuery { MinClearance = ArenaRules.RouteClearance };
+        /// <summary>
+        /// Routes at least 2.5 m wide (spec L312). On the 0.5 m lattice the best node of a corridor can sit up to half a
+        /// cell (0.25 m) off its center line, so the threshold is half the route width minus that half cell.
+        /// </summary>
+        public static readonly NavQuery Route = new NavQuery { MinClearance = ArenaRules.RouteClearance - ArenaRules.NavCellSize * 0.5f };
 
         public float MinClearance { get; set; } = ArenaRules.CapsuleClearance;
         public bool AllowJumps { get; set; } = true;

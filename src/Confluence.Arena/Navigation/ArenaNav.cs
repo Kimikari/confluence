@@ -71,6 +71,9 @@ namespace Confluence.Arena.Navigation
         private float[] _edgeCost;
         private NavEdgeKind[] _edgeKind;
         private float[] _clearance;
+        private int[] _inStart;
+        private int[] _inFrom;
+        private NavEdgeKind[] _inKind;
         private readonly float _tanSlope;
 
         private struct Collider
@@ -122,6 +125,7 @@ namespace Confluence.Arena.Navigation
             nav.BinColliders();
             nav.BuildNodes();
             nav.BuildEdges();
+            nav.BuildReverseEdges();
             nav.ComputeClearance();
             return nav;
         }
@@ -469,6 +473,36 @@ namespace Confluence.Arena.Navigation
             _edgeTo = to.ToArray();
             _edgeCost = cost.ToArray();
             _edgeKind = kind.ToArray();
+        }
+
+        private void BuildReverseEdges()
+        {
+            int nodeCount = _nodeHeight.Length;
+            var start = new int[nodeCount + 1];
+            for (int e = 0; e < _edgeTo.Length; e++)
+            {
+                start[_edgeTo[e] + 1]++;
+            }
+
+            for (int i = 0; i < nodeCount; i++)
+            {
+                start[i + 1] += start[i];
+            }
+
+            var fill = (int[])start.Clone();
+            _inFrom = new int[_edgeTo.Length];
+            _inKind = new NavEdgeKind[_edgeTo.Length];
+            for (int a = 0; a < nodeCount; a++)
+            {
+                for (int e = _edgeStart[a]; e < _edgeStart[a + 1]; e++)
+                {
+                    int slot = fill[_edgeTo[e]]++;
+                    _inFrom[slot] = a;
+                    _inKind[slot] = _edgeKind[e];
+                }
+            }
+
+            _inStart = start;
         }
 
         // ---- Clearance ---------------------------------------------------------------------------
@@ -863,6 +897,45 @@ namespace Confluence.Arena.Navigation
                     {
                         seen[b] = true;
                         queue[tail++] = b;
+                    }
+                }
+            }
+
+            return seen;
+        }
+
+        /// <summary>
+        /// Nodes from which some target can be reached (breadth-first over reversed edges). Drops are one-way, so this
+        /// is the set that keeps a route to the targets, for example to the central final floor (spec L676).
+        /// </summary>
+        public bool[] CanReach(IReadOnlyList<int> targets, NavQuery query)
+        {
+            query = query ?? NavQuery.Capsule;
+            int count = _nodeHeight.Length;
+            var seen = new bool[count];
+            var queue = new int[count];
+            int head = 0;
+            int tail = 0;
+            for (int s = 0; s < targets.Count; s++)
+            {
+                int node = targets[s];
+                if (node >= 0 && !seen[node] && query.Allows(this, node))
+                {
+                    seen[node] = true;
+                    queue[tail++] = node;
+                }
+            }
+
+            while (head < tail)
+            {
+                int b = queue[head++];
+                for (int k = _inStart[b]; k < _inStart[b + 1]; k++)
+                {
+                    int a = _inFrom[k];
+                    if (!seen[a] && query.AllowsEdge(_inKind[k]) && query.Allows(this, a))
+                    {
+                        seen[a] = true;
+                        queue[tail++] = a;
                     }
                 }
             }

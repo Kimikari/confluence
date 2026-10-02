@@ -91,6 +91,12 @@ namespace Confluence.Arena
         /// <summary>Two approaches are "disjoint" when no single representative placement can touch both.</summary>
         public const float ApproachSeparation = 2f * RepresentativeFieldRadius;
 
+        /// <summary>
+        /// Both approaches of a spawn leave through its alcove, so separation and field placements spare a disc of this
+        /// radius around the spawn point (the alcove interior; a wall formed under a player lifts them, spec L171).
+        /// </summary>
+        public const float AlcoveExemptRadius = 3.0f;
+
         /// <summary>Spacing of representative field placements along each approach.</summary>
         public const float FieldSampleSpacing = 2f;
 
