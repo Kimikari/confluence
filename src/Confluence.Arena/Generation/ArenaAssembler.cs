@@ -51,11 +51,14 @@ namespace Confluence.Arena.Generation
         private const float ContractionRepairReach = 4f;
 
         /// <summary>Center of the bulwark walls at most this far out: their inner faces keep lanes through the center under 28 m.</summary>
-        private const float BulwarkRadius = 14f;
+        private const float BulwarkRadius = 14.5f;
 
         private const float BulwarkMinRadius = 8f;
         private const float BulwarkThickness = 1f;
         private const float BulwarkPieceDeg = 10f;
+
+        /// <summary>Each bulwark arc extends this far past its open rays, so slightly off-center lanes meet it too.</summary>
+        private const float BulwarkPaddingDeg = 2f;
 
         /// <summary>Free space around a movement-blocking prop: a capsule passage the navigation grid always resolves.</summary>
         private const float PropPassage = 1.3f;
@@ -303,7 +306,10 @@ namespace Confluence.Arena.Generation
         private void AddSkeletonKeepOuts()
         {
             // Bastion, its exits, and the crossover strip in front of the screen.
-            AddKeepOut(_bastion.Zone(ExitWidth));
+            foreach (Rect2 zone in _bastion.Zones(ExitWidth))
+            {
+                AddKeepOut(zone);
+            }
             if (UseCorridors)
             {
                 AddKeepOut(Corridor(1));
@@ -571,8 +577,8 @@ namespace Confluence.Arena.Generation
         private void RaiseBulwark(int first, int last, float[] exit)
         {
             // Short pieces (at most BulwarkPieceDeg each) so each one sits just outside the zones along its own rays.
-            float a0 = 90f + first * 2f - 1f;
-            float a1 = 90f + (last + 1) * 2f + 1f;
+            float a0 = 90f + first * 2f - BulwarkPaddingDeg;
+            float a1 = 90f + (last + 1) * 2f + BulwarkPaddingDeg;
             int pieces = Math.Max(1, (int)Math.Ceiling((a1 - a0) / BulwarkPieceDeg));
             for (int k = 0; k < pieces; k++)
             {

@@ -138,6 +138,25 @@ namespace Confluence.Arena.Generation
             return new Rect2(OffsetX - half, SpawnZ - InteriorHalfDepth - BackThickness - 0.5f, OffsetX + half, TipZ + corridorWidth);
         }
 
+        /// <summary>
+        /// The bastion's keep-out zones: the bastion itself with the walk behind each wing, a turning space around
+        /// each wing tip, and the crossover strip in front of the screen. The floor beside the bastion behind the
+        /// tips is not part of any route and stays open to terrain that closes sightlines past the tips.
+        /// </summary>
+        public Rect2[] Zones(float exitWidth)
+        {
+            float e = LateralExtent;
+            float back = SpawnZ - InteriorHalfDepth - BackThickness - 0.5f;
+            float turnBack = TipZ - Thickness - exitWidth;
+            return new[]
+            {
+                new Rect2(OffsetX - e, back, OffsetX + e, TipZ),
+                new Rect2(OffsetX + e - 0.5f, turnBack, OffsetX + e + 0.25f + exitWidth, TipZ + exitWidth),
+                new Rect2(OffsetX - e - 0.25f - exitWidth, turnBack, OffsetX - e + 0.5f, TipZ + exitWidth),
+                new Rect2(OffsetX - e - 0.25f - exitWidth, TipZ, OffsetX + e + 0.25f + exitWidth, TipZ + exitWidth),
+            };
+        }
+
         /// <summary>The bastion between its back wall and screen (no filler rock may stand here).</summary>
         public Rect2 Core()
         {
