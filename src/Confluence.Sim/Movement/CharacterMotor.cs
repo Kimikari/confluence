@@ -135,17 +135,22 @@ namespace Confluence.Sim.Movement
                 s.AirPeakY = s.Position.Y;
             }
 
+            float verticalStep = 0f;
             if (s.Grounded)
             {
                 vy = 0f;
             }
             else
             {
-                vy = Math.Max(vy - GlobalRules.Movement.Gravity * dt, -SimRules.Motor.MaxFallSpeed);
+                // Average of the start and end velocity: exact under constant gravity, so the common jump reaches its
+                // 1.1 m apex and 0.70 s airtime (D-024) at any tick rate.
+                float vyEnd = Math.Max(vy - GlobalRules.Movement.Gravity * dt, -SimRules.Motor.MaxFallSpeed);
+                verticalStep = 0.5f * (vy + vyEnd) * dt;
+                vy = vyEnd;
             }
 
             s.Velocity = new Vec3(hv.X, vy, hv.Z);
-            Vec3 delta = s.Velocity * dt;
+            Vec3 delta = new Vec3(hv.X * dt, verticalStep, hv.Z * dt);
             if (s.Grounded && IsWalkable(s.GroundNormal))
             {
                 // Follow the ground plane while keeping horizontal speed (ramps up to 30 degrees, spec L312).
@@ -299,8 +304,9 @@ namespace Confluence.Sim.Movement
             return blocked;
         }
 
-        // Pushes the capsule out of solids. Walkable contacts lift vertically (no sliding down slopes); walls and
-        // ceilings push along their normal and clip the velocity and the remaining substep motion.
+        // Pushes the capsule out of solids. Walkable contacts lift vertically (no sliding down slopes); ceilings push
+        // down; walls and edges push horizontally (an edge never launches the character upward) and clip the velocity
+        // and the remaining substep motion.
         private static bool Resolve(CollisionWorld world, ref MotorState s, ref Vec3 step)
         {
             bool blocked = false;
@@ -328,15 +334,26 @@ namespace Confluence.Sim.Movement
                     continue;
                 }
 
-                s.Position += n * pen.Depth;
-                if (n.Y <= CeilingMaxNormalY && s.Velocity.Y > 0f)
+                if (n.Y <= CeilingMaxNormalY)
                 {
-                    s.Velocity.Y = 0f;
+                    s.Position += n * pen.Depth;
+                    if (s.Velocity.Y > 0f)
+                    {
+                        s.Velocity.Y = 0f;
+                    }
+
+                    if (step.Y > 0f)
+                    {
+                        step.Y = 0f;
+                    }
+
+                    continue;
                 }
-                else if (n.Y > CeilingMaxNormalY)
-                {
-                    blocked = true;
-                }
+
+                blocked = true;
+                float horizontal = MathF.Sqrt(n.X * n.X + n.Z * n.Z);
+                n = new Vec3(n.X / horizontal, 0f, n.Z / horizontal);
+                s.Position += n * (pen.Depth / horizontal);
 
                 float vn = Vec3.Dot(s.Velocity, n);
                 if (vn < 0f)
@@ -374,13 +391,13 @@ namespace Confluence.Sim.Movement
 
             trial.Position += up;
             Slide(world, ref trial, horizontal);
-            if (!world.ProbeGround(trial.Position, Radius - 0.02f, 0f, stepHeight + SimRules.Motor.GroundContactTolerance,
-                WalkableMinNormalY, out WorldHit hit))
+            if (!world.ProbeGround(trial.Position, Radius, 0f, stepHeight + SimRules.Motor.GroundContactTolerance,
+                WalkableMinNormalY, out WorldHit hit, out _))
             {
                 return;
             }
 
-            float groundY = hit.Point.Y - (Radius - 0.02f);
+            float groundY = hit.Point.Y - Radius;
             if (groundY - before.Position.Y > stepHeight + 1e-3f)
             {
                 return;
@@ -409,7 +426,6 @@ namespace Confluence.Sim.Movement
         // distance; an airborne one lands when its feet reach walkable ground.
         private static void UpdateGround(CollisionWorld world, ref MotorState s, bool snap)
         {
-            float probeRadius = Radius - 0.02f;
             float distance = snap ? SimRules.Motor.GroundSnapDistance : SimRules.Motor.GroundContactTolerance;
             if (s.Velocity.Y > 0f)
             {
@@ -417,9 +433,9 @@ namespace Confluence.Sim.Movement
                 return;
             }
 
-            if (world.ProbeGround(s.Position, probeRadius, SimRules.Motor.GroundProbeLift, distance, WalkableMinNormalY, out WorldHit hit))
+            if (world.ProbeGround(s.Position, Radius, SimRules.Motor.GroundProbeLift, distance, WalkableMinNormalY, out WorldHit hit, out _))
             {
-                s.Position.Y = hit.Point.Y - probeRadius;
+                s.Position.Y = hit.Point.Y - Radius;
                 s.Grounded = true;
                 s.GroundNormal = hit.Normal;
                 s.GroundSolidId = hit.SolidId;

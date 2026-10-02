@@ -297,12 +297,15 @@ namespace Confluence.Sim.World
 
         /// <summary>
         /// Downward sweep of a sphere resting at feet (center feet + radius), from lift above to distance below.
-        /// Contacts whose normal is steeper than minNormalY (walls touched at the side, ledge edges) are ignored,
-        /// so standing beside a wall still finds the floor. hit.Point is the sphere center at contact.
+        /// A contact counts as ground when its normal is at most as steep as minNormalY, or when the sphere rests on
+        /// the edge of a walkable top surface (a ledge or stair nosing; ledge is then true and the reported normal is
+        /// that surface's normal). Side contacts with walls are ignored, so standing beside a wall still finds the
+        /// floor. hit.Point is the sphere center at contact.
         /// </summary>
-        public bool ProbeGround(Vec3 feet, float radius, float lift, float distance, float minNormalY, out WorldHit hit)
+        public bool ProbeGround(Vec3 feet, float radius, float lift, float distance, float minNormalY, out WorldHit hit, out bool ledge)
         {
             hit = default;
+            ledge = false;
             Vec3 start = feet + new Vec3(0f, radius + lift, 0f);
             Vec3 end = feet + new Vec3(0f, radius - distance, 0f);
             Aabb sweep = new Aabb(start, end).Expanded(radius);
@@ -317,15 +320,53 @@ namespace Confluence.Sim.World
                     continue;
                 }
 
-                if (s.SphereSweep(start, end, radius, out float t01, out RayHit h) && h.Normal.Y >= minNormalY && t01 < bestT)
+                if (!s.SphereSweep(start, end, radius, out float t01, out RayHit h) || !(t01 < bestT))
                 {
-                    bestT = t01;
-                    hit = new WorldHit { Distance = t01 * len, Point = Vec3.LerpUnclamped(start, end, t01), Normal = h.Normal, SolidId = s.Id };
-                    found = true;
+                    continue;
                 }
+
+                Vec3 center = Vec3.LerpUnclamped(start, end, t01);
+                Vec3 normal = h.Normal;
+                bool isLedge = false;
+                if (normal.Y < minNormalY)
+                {
+                    if (!IsLedgeContact(s, center, normal, radius, minNormalY, out Vec3 surfaceNormal))
+                    {
+                        continue;
+                    }
+
+                    isLedge = true;
+                    normal = surfaceNormal;
+                }
+
+                bestT = t01;
+                hit = new WorldHit { Distance = t01 * len, Point = center, Normal = normal, SolidId = s.Id };
+                ledge = isLedge;
+                found = true;
             }
 
             return found;
+        }
+
+        // A sphere touching a solid's edge rests on a ledge when the contact lies on the solid's walkable top surface.
+        private static bool IsLedgeContact(CollisionSolid s, Vec3 center, Vec3 normal, float radius, float minNormalY, out Vec3 surfaceNormal)
+        {
+            surfaceNormal = Vec3.Up;
+            if (normal.Y <= 0f)
+            {
+                return false;
+            }
+
+            Vec3 contact = center - normal * radius;
+            Vec3 inward = new Vec3(-normal.X, 0f, -normal.Z).NormalizedOr(Vec3.Zero) * 0.01f;
+            float top = s.SurfaceHeightAt(contact.X + inward.X, contact.Z + inward.Z);
+            if (float.IsNaN(top) || Math.Abs(top - contact.Y) > 0.02f)
+            {
+                return false;
+            }
+
+            surfaceNormal = s.IsRamp ? s.Ramp.SurfaceNormal : Vec3.Up;
+            return surfaceNormal.Y >= minNormalY;
         }
 
         /// <summary>True when no sight-blocking solid crosses the segment (solids only; see DuelWorld for steam).</summary>
