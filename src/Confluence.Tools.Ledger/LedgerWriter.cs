@@ -172,7 +172,7 @@ namespace Confluence.Tools.Ledger
 
             var root = JsonValue.Object(
                 ("generated_by", "Confluence.Tools.Ledger"),
-                ("regenerate", "powershell -File tools/ledger.ps1"),
+                ("regenerate", "powershell -ExecutionPolicy Bypass -File tools/ledger.ps1"),
                 ("catalogue", JsonValue.Object(("title", cat.Title), ("design_version", cat.DesignVersion), ("date", cat.Date))),
                 ("statuses", JsonValue.StringArray(Ledger.AllStatuses.Select(Ledger.Slug))),
                 ("test_assemblies", JsonValue.StringArray(ledger.TestAssemblies)),

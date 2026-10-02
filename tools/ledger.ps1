@@ -1,5 +1,5 @@
 # Regenerates docs/CONTENT_LEDGER.md and docs/content-ledger.json from a fresh full test run.
-#   powershell -File tools/ledger.ps1 [-Configuration Debug|Release]
+#   powershell -ExecutionPolicy Bypass -File tools/ledger.ps1 [-Configuration Debug|Release]
 # The ledger is written even when tests fail (failing records show as implemented-tests-failing);
 # the script then exits with the test run's exit code.
 param(

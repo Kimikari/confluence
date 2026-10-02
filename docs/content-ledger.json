@@ -1,6 +1,6 @@
 {
   "generated_by": "Confluence.Tools.Ledger",
-  "regenerate": "powershell -File tools/ledger.ps1",
+  "regenerate": "powershell -ExecutionPolicy Bypass -File tools/ledger.ps1",
   "catalogue": {
     "title": "Confluence Complete Game Design",
     "design_version": "2.0",
