@@ -105,6 +105,8 @@ namespace Confluence.Reactions.Tests
             b.Bodies.AddRange(Bodies);
             var rng = new Rng(12345UL);
             var shuffle = new Rng(999UL);
+            int events = 0;
+            int damage = 0;
             for (int tick = 0; tick < 600; tick++)
             {
                 List<Action<ReactionWorld>> ops = RandomScenario.Ops(rng, a.Grid, tick);
@@ -128,10 +130,14 @@ namespace Confluence.Reactions.Tests
 
                 StepResult ra = a.Step();
                 string eventsA = RandomScenario.Describe(ra);
+                events += ra.Events.Count;
+                damage += ra.Damage.Count;
                 StepResult rb = b.Step();
                 Assert.Equal(eventsA, RandomScenario.Describe(rb));
                 Assert.Equal(a.World.StateHash(), b.World.StateHash());
             }
+
+            Assert.True(events > 200 && damage > 0, "the scenario should produce reactions and contact damage");
         }
 
         [Fact]
