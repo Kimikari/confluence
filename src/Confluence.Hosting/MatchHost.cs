@@ -66,6 +66,12 @@ namespace Confluence.Hosting
 
         /// <summary>Creates duel worlds; the casting and reactions seams plug in here (null = Sim defaults).</summary>
         public ISimWorldFactory WorldFactory { get; set; }
+
+        /// <summary>
+        /// Scheduled rounds whose arenas are generated in the background ahead of play (default 1: the next round while
+        /// the current one runs). Results never depend on it.
+        /// </summary>
+        public int ArenaPrefetchRounds { get; set; } = 1;
     }
 
     public enum HostStartCode
@@ -114,6 +120,7 @@ namespace Confluence.Hosting
         private readonly IReadOnlyList<string> _playerIds;
         private readonly SimDuelRunner _runner;
         private readonly CommandGateway _gateway;
+        private readonly ArenaPrefetcher _prefetcher;
         private bool _started;
 
         public MatchHost(ArenaGenerator generator, MatchHostSettings settings, ImplementedContent implemented = null,
@@ -170,6 +177,8 @@ namespace Confluence.Hosting
             }
 
             Flow.Events.Appended += OnMatchEvent;
+            _prefetcher = new ArenaPrefetcher(Arenas, settings.MatchSeed, Flow.ArenaDiameters,
+                Conclave != null ? Conclave.Settings.ArenaSeedRotation : null, settings.ArenaPrefetchRounds);
             _gateway = new CommandGateway(this, settings.RateLimiter ?? new TickRateLimiter());
             Fingerprint = ComputeFingerprint();
             Log.Info("Host settings fingerprint " + Fingerprint + " (match " + MatchFingerprint + ", " + Overrides.CanonicalText() + ").");
@@ -182,6 +191,9 @@ namespace Confluence.Hosting
         public HostContentPolicy Content { get; }
         public HostedEconomy Economy { get; }
         public ArenaProvider Arenas { get; }
+
+        /// <summary>Background generation of upcoming rounds' arenas (<see cref="MatchHostSettings.ArenaPrefetchRounds"/>).</summary>
+        public ArenaPrefetcher ArenaPrefetch => _prefetcher;
         public SimDuelRunner Duels => _runner;
         public CommandGateway Commands => _gateway;
         public HostOutbox Outbox { get; } = new HostOutbox();
@@ -302,6 +314,7 @@ namespace Confluence.Hosting
             }
 
             _started = true;
+            _prefetcher.PrefetchFrom(1);
             Flow.Start();
             return new HostStartResult(HostStartCode.Started, floors, gaps.AsReadOnly());
         }
@@ -373,6 +386,7 @@ namespace Confluence.Hosting
             {
                 case ArenaRevealedEvent reveal:
                     Outbox.Add(new ArenaPreviewMessage(e.Tick, Arenas.Get(reveal.Arena.ArenaId).PublicPreview));
+                    if (reveal.Attempt == 0) _prefetcher.PrefetchFrom(reveal.Round + 1);
                     break;
                 case ShopOpenedEvent opened:
                     QueueShopState(opened.Opening.Player);

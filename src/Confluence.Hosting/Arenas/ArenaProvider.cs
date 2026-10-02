@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Threading.Tasks;
 using Confluence.Arena.Generation;
 using Confluence.Core.Content;
 using Confluence.Hosting.Content;
@@ -65,6 +66,19 @@ namespace Confluence.Hosting.Arenas
             _byId.Add(arenaId, hosted);
             _ordered.Add(hosted);
             return preview;
+        }
+
+        /// <summary>
+        /// Starts generating a predicted future request on the thread pool, so a later <see cref="RequestArena"/> with the
+        /// same request finds it in the cache. Generation is deterministic and the cache key holds every input, so a
+        /// wrong prediction only wastes work and never changes a released arena.
+        /// </summary>
+        public Task Prefetch(MatchArenaRequest predicted)
+        {
+            if (predicted == null) throw new ArgumentNullException(nameof(predicted));
+            GeneratorRequest generatorRequest = ToGeneratorRequest(predicted);
+            string key = CacheKey(predicted);
+            return Task.Run(() => _cache.GetOrGenerate(key, () => _generator.Generate(generatorRequest)));
         }
 
         public HostedArena Get(string arenaId)

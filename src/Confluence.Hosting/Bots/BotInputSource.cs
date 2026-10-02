@@ -9,6 +9,7 @@ using Confluence.Hosting.Duels;
 using Confluence.Sim.Duel;
 using Confluence.Sim.Input;
 using Confluence.Sim.Players;
+using Confluence.Sim.World;
 
 namespace Confluence.Hosting.Bots
 {
@@ -45,7 +46,8 @@ namespace Confluence.Hosting.Bots
         private const int RushTicks = 2 * Ticks.PerSecond;
         private const float SprintMinDistance = 8f;
         private const float SprintStaminaMargin = 15f;
-        private const InputButtons Momentary = InputButtons.Melee | InputButtons.Jump | InputButtons.Dodge;
+        private const float WalkProbeHeight = 0.8f;          // sphere center above the feet: clears the 0.35 m step
+        private const InputButtons Momentary =InputButtons.Melee | InputButtons.Jump | InputButtons.Dodge;
 
         private readonly ulong _matchSeed;
         private readonly Observation[] _history = new Observation[HistorySize];
@@ -90,7 +92,8 @@ namespace Confluence.Hosting.Bots
         {
             if (seat == null) throw new ArgumentNullException(nameof(seat));
             _rng = BotStreams.ForDuel(_matchSeed, seat.DuelId, seat.Player);
-            _nav = new BotNavigator(seat.Arena?.Navigation);
+            DuelWorld world = seat.World;
+            _nav = new BotNavigator(seat.Arena?.Navigation, (a, b) => ClearWalk(world, a, b));
             _latencyTicks = _rng.NextInt(Profile.ReactionMinTicks, Profile.ReactionMaxTicks + 1);
             Array.Clear(_history, 0, _history.Length);
             _known = false;
@@ -234,10 +237,9 @@ namespace Confluence.Hosting.Bots
             // ---- Where to go ----
             bool jump = false;
             Vec2 move;
-            Vec3 safe = SafePoint(world, me.Position);
             if (!world.Layout.Boundary.ContainsSafely(me.Position, world.CombatSeconds + BoundaryLookaheadSec))
             {
-                move = _nav.Steer(me.Position, safe, tick, Profile.ThinkTicks, Sidestep, out jump); // retreat inside (L51)
+                move = _nav.Steer(me.Position, SafePoint(world, me.Position), tick, Profile.ThinkTicks, Sidestep, out jump); // retreat inside (L51)
             }
             else if (seen.Seen)
             {
@@ -430,17 +432,42 @@ namespace Confluence.Hosting.Bots
             return length > 1f ? local / length : local;
         }
 
+        /// <summary>The capsule can walk straight between the points: a body-height sphere sweep meets no movement solid.</summary>
+        private static bool ClearWalk(DuelWorld world, Vec3 from, Vec3 to)
+        {
+            var lift = new Vec3(0f, WalkProbeHeight, 0f);
+            return !world.Collision.SphereSweep(from + lift, to + lift, GlobalRules.Movement.CapsuleRadius, SolidMask.Movement, out _);
+        }
+
+        /// <summary>A point well inside the boundary as it will be shortly: the bot's retreat target (L51).</summary>
         private static Vec3 SafePoint(DuelWorld world, Vec3 position)
         {
             BoundaryContour b = world.Layout.Boundary;
-            return b == null ? world.Layout.Center : b.ClampInside(position, world.CombatSeconds + BoundaryLookaheadSec, 2f);
+            return b == null ? world.Layout.Center : RadialInside(b, position, world.CombatSeconds + BoundaryLookaheadSec, 2f);
         }
 
+        /// <summary>The goal itself, or the nearest point toward the center that the boundary will still hold.</summary>
         private static Vec3 ClampGoal(DuelWorld world, Vec3 goal)
         {
             BoundaryContour b = world.Layout.Boundary;
-            if (b == null || b.Contains(goal, world.CombatSeconds + BoundaryLookaheadSec)) return goal;
-            return b.ClampInside(goal, world.CombatSeconds + BoundaryLookaheadSec, 1.5f);
+            float t = world.CombatSeconds + BoundaryLookaheadSec;
+            if (b == null || b.Contains(goal, t)) return goal;
+            return RadialInside(b, goal, t, 1.5f);
+        }
+
+        /// <summary>
+        /// The point on the ray from the boundary center through <paramref name="p"/> at most <paramref name="margin"/>
+        /// inside the radius along that ray. A cheap stand-in for <c>BoundaryContour.ClampInside</c>, which verifies the
+        /// exact Euclidean margin and is too slow to call every tick; a bot only needs a target.
+        /// </summary>
+        private static Vec3 RadialInside(BoundaryContour b, Vec3 p, float timeSec, float margin)
+        {
+            float dx = p.X - b.Center.X;
+            float dz = p.Z - b.Center.Z;
+            float d = (float)Math.Sqrt(dx * dx + dz * dz);
+            if (d < 1e-3f) return new Vec3(b.Center.X, p.Y, b.Center.Z);
+            float r = Math.Max(0f, Math.Min(d, b.RadiusAt(CMath.YawOf(new Vec3(dx, 0f, dz)), timeSec) - margin));
+            return new Vec3(b.Center.X + dx / d * r, p.Y, b.Center.Z + dz / d * r);
         }
 
         private struct Observation
