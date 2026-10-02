@@ -51,6 +51,7 @@ namespace Confluence.Arena.Navigation
         private const float HeadroomFloor = 0.05f;
         private const float SupportTolerance = 0.45f;
         private const int CrossingBisections = 6;
+        private const float MirrorHeightTolerance = 1e-3f;
 
         private static readonly int[] DirX = { 1, 0, -1, 0, 1, -1, -1, 1 };
         private static readonly int[] DirZ = { 0, 1, 0, -1, 1, 1, -1, -1 };
@@ -74,6 +75,7 @@ namespace Confluence.Arena.Navigation
         private int[] _inStart;
         private int[] _inFrom;
         private NavEdgeKind[] _inKind;
+        private int[] _rank;
         private readonly float _tanSlope;
 
         private struct Collider
@@ -124,11 +126,25 @@ namespace Confluence.Arena.Navigation
             nav.AddColliders(layout, options);
             nav.BinColliders();
             nav.BuildNodes();
+            nav.BuildRank();
             nav.BuildEdges();
             nav.BuildReverseEdges();
             nav.ComputeClearance();
+            nav.IsHalfTurnSymmetric = nav.GraphIsHalfTurnSymmetric();
+            if (nav.IsHalfTurnSymmetric)
+            {
+                nav.SymmetrizeClearance();
+            }
+
             return nav;
         }
+
+        /// <summary>
+        /// True when the walkable graph is its own image under the half turn about the center: every column holds
+        /// as many nodes at the same heights as its mirror column, and every edge has a mirrored edge of the same kind.
+        /// Generated arenas are symmetric (spec L308); a simulated field placement or one-sided state is not.
+        /// </summary>
+        public bool IsHalfTurnSymmetric { get; private set; }
 
         private void AddColliders(ArenaLayout layout, ArenaNavOptions options)
         {
@@ -292,6 +308,36 @@ namespace Confluence.Arena.Navigation
             _nodeHeight = heights.ToArray();
             _nodeSupport = supports.ToArray();
             _nodeColumn = columnOf.ToArray();
+        }
+
+        /// <summary>
+        /// Search tie-break order that commutes with the half turn (spec L308 functional symmetry). Column c and its
+        /// mirror share the canonical column min(c, mirror c); nodes are ordered by (canonical column, layer, which
+        /// of the pair), so a node pair on one side expands in the same relative order as its image pair. Row-major
+        /// node indices reverse under the turn, which made clearance propagation and nearest-node ties lopsided.
+        /// </summary>
+        private void BuildRank()
+        {
+            int columns = _n * _n;
+            _rank = new int[_nodeHeight.Length];
+            int next = 0;
+            for (int c = 0; c < columns / 2; c++)
+            {
+                int m = MirrorColumn(c);
+                int layers = Math.Max(NodeCountInColumn(c), NodeCountInColumn(m));
+                for (int k = 0; k < layers; k++)
+                {
+                    if (k < NodeCountInColumn(c))
+                    {
+                        _rank[_columnFirst[c] + k] = next++;
+                    }
+
+                    if (k < NodeCountInColumn(m))
+                    {
+                        _rank[_columnFirst[m] + k] = next++;
+                    }
+                }
+            }
         }
 
         private static float SurfaceHeight(Collider col, Vec2 p)
@@ -529,7 +575,7 @@ namespace Confluence.Arena.Navigation
             _clearance = new float[nodeCount];
             var srcX = new float[nodeCount];
             var srcZ = new float[nodeCount];
-            var heap = new NodeHeap(nodeCount);
+            var heap = new NodeHeap(nodeCount, _rank);
             for (int a = 0; a < nodeCount; a++)
             {
                 _clearance[a] = float.PositiveInfinity;
@@ -586,6 +632,81 @@ namespace Confluence.Arena.Navigation
                         srcZ[b] = src.Y;
                         heap.Push(candidate, b);
                     }
+                }
+            }
+        }
+
+        /// <summary>Node at the same layer of the mirror column (meaningful when the graph is half-turn symmetric).</summary>
+        private int LayerMirror(int node)
+        {
+            int c = _nodeColumn[node];
+            return _columnFirst[MirrorColumn(c)] + (node - _columnFirst[c]);
+        }
+
+        private bool GraphIsHalfTurnSymmetric()
+        {
+            int columns = _n * _n;
+            for (int c = 0; c < columns / 2; c++)
+            {
+                int m = MirrorColumn(c);
+                int count = NodeCountInColumn(c);
+                if (count != NodeCountInColumn(m))
+                {
+                    return false;
+                }
+
+                for (int k = 0; k < count; k++)
+                {
+                    if (MathF.Abs(_nodeHeight[_columnFirst[c] + k] - _nodeHeight[_columnFirst[m] + k]) > MirrorHeightTolerance)
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            for (int a = 0; a < _nodeHeight.Length; a++)
+            {
+                int b = LayerMirror(a);
+                if (_edgeStart[a + 1] - _edgeStart[a] != _edgeStart[b + 1] - _edgeStart[b])
+                {
+                    return false;
+                }
+
+                for (int e = _edgeStart[a]; e < _edgeStart[a + 1]; e++)
+                {
+                    int target = LayerMirror(_edgeTo[e]);
+                    bool found = false;
+                    for (int f = _edgeStart[b]; f < _edgeStart[b + 1] && !found; f++)
+                    {
+                        found = _edgeTo[f] == target && _edgeKind[f] == _edgeKind[e];
+                    }
+
+                    if (!found)
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// The propagated clearance is the distance to a real surface edge, so it never underestimates; on a
+        /// symmetric graph each node and its image measure the same geometry, and the smaller of the two estimates
+        /// is the better one for both. Without this, float rounding in rotated boxes and propagation order left
+        /// mirrored cells up to half a meter apart in clearance (and so in capsule and route admissibility).
+        /// </summary>
+        private void SymmetrizeClearance()
+        {
+            for (int a = 0; a < _nodeHeight.Length; a++)
+            {
+                int b = LayerMirror(a);
+                if (b > a)
+                {
+                    float c = MathF.Min(_clearance[a], _clearance[b]);
+                    _clearance[a] = c;
+                    _clearance[b] = c;
                 }
             }
         }
@@ -770,7 +891,8 @@ namespace Confluence.Arena.Navigation
 
         /// <summary>
         /// Nearest node to a world point: searches outward ring by ring (up to maxRadius meters) for the column node
-        /// whose surface lies within maxHeightDelta of the point, preferring the smallest 3D offset.
+        /// whose surface lies within maxHeightDelta of the point, preferring the smallest 3D offset. The search is
+        /// exact within maxRadius: a ring is only skipped when no node beyond it can be closer.
         /// </summary>
         public int FindNode(Vec3 position, float maxHeightDelta = 1.0f, float maxRadius = 2f, float minClearance = 0f)
         {
@@ -805,8 +927,10 @@ namespace Confluence.Arena.Navigation
                                 continue;
                             }
 
+                            // Equidistant candidates (a point on a cell edge) resolve by the mirror-equivariant rank,
+                            // so mirrored points find mirrored nodes.
                             float d = Vec3.DistanceSquared(NodePosition(m), position);
-                            if (d < bestD)
+                            if (d < bestD || (d == bestD && _rank[m] < _rank[best]))
                             {
                                 bestD = d;
                                 best = m;
@@ -855,7 +979,7 @@ namespace Confluence.Arena.Navigation
                 }
             }
 
-            var heap = new NodeHeap(Math.Min(count, 4096));
+            var heap = new NodeHeap(Math.Min(count, 4096), _rank);
             for (int s = 0; s < sources.Count; s++)
             {
                 int node = sources[s];

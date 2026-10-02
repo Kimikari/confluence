@@ -418,6 +418,10 @@ namespace Confluence.Arena.Validation
         /// <see cref="ArenaRules.ContractionSampleStepSec"/> from the start to the end of the contraction, the route
         /// may use only cells a capsule fits inside the contour; cells within
         /// <see cref="ArenaRules.ContractionEdgeTolerance"/> of the moving edge are already leaving the legal space.
+        /// Being cut off is monotone in time (the contour only shrinks), so a cell first found cut at a sample was cut
+        /// somewhere in the preceding interval; when it was still outside the edge band at the interval start, the
+        /// interval is re-sampled <see cref="ArenaRules.ContractionRefineSteps"/> times to find whether the cut came
+        /// while the cell was still well inside the contour.
         /// </summary>
         public bool FindContractionFailure(out float timeSec, out int failedNode)
         {
@@ -436,27 +440,72 @@ namespace Confluence.Arena.Validation
             }
 
             var allowed = new bool[count];
-            for (float t = b.ContractStartSec; t <= b.ContractEndSec + 1e-3f; t += ArenaRules.ContractionSampleStepSec)
+            var suspects = new List<int>();
+            bool[] previous = null;
+            float previousT = b.ContractStartSec;
+            float step = ArenaRules.ContractionSampleStepSec;
+            for (float t = b.ContractStartSec; t <= b.ContractEndSec + 1e-3f; t += step)
             {
+                bool[] canReach = CanReachFinalFloorAt(b, t, angle, dist, allowed);
+                suspects.Clear();
                 for (int node = 0; node < count; node++)
                 {
-                    allowed[node] = b.RadiusAt(angle[node], t) - dist[node] >= ArenaRules.CapsuleClearance;
-                }
+                    if (!reached[node] || canReach[node] || Nav.Clearance(node) < ArenaRules.CapsuleClearance)
+                    {
+                        continue;
+                    }
 
-                bool[] canReach = Nav.CanReach(FinalFloorNodes, NavQuery.Capsule.WithAllowed(allowed));
-                for (int node = 0; node < count; node++)
-                {
-                    if (reached[node] && !canReach[node] && b.RadiusAt(angle[node], t) - dist[node] >= ArenaRules.ContractionEdgeTolerance
-                        && Nav.Clearance(node) >= ArenaRules.CapsuleClearance)
+                    if (b.RadiusAt(angle[node], t) - dist[node] >= ArenaRules.ContractionEdgeTolerance)
                     {
                         timeSec = t;
                         failedNode = node;
                         return true;
                     }
+
+                    if (previous != null && previous[node] && b.RadiusAt(angle[node], previousT) - dist[node] >= ArenaRules.ContractionEdgeTolerance)
+                    {
+                        suspects.Add(node);
+                    }
                 }
+
+                for (int k = 1; k < ArenaRules.ContractionRefineSteps && suspects.Count > 0; k++)
+                {
+                    float tau = previousT + step * k / ArenaRules.ContractionRefineSteps;
+                    bool[] fine = CanReachFinalFloorAt(b, tau, angle, dist, allowed);
+                    for (int i = suspects.Count - 1; i >= 0; i--)
+                    {
+                        int node = suspects[i];
+                        float margin = b.RadiusAt(angle[node], tau) - dist[node];
+                        if (!fine[node] && margin >= ArenaRules.ContractionEdgeTolerance)
+                        {
+                            timeSec = tau;
+                            failedNode = node;
+                            return true;
+                        }
+
+                        if (!fine[node] || margin < ArenaRules.ContractionEdgeTolerance)
+                        {
+                            suspects.RemoveAt(i); // cut only once inside the edge band, or already inside it
+                        }
+                    }
+                }
+
+                previous = canReach;
+                previousT = t;
             }
 
             return false;
+        }
+
+        /// <summary>Cells that can still walk to the final floor through cells a capsule fits inside the contour at time t.</summary>
+        private bool[] CanReachFinalFloorAt(BoundaryContour b, float t, float[] angle, float[] dist, bool[] allowed)
+        {
+            for (int node = 0; node < allowed.Length; node++)
+            {
+                allowed[node] = b.RadiusAt(angle[node], t) - dist[node] >= ArenaRules.CapsuleClearance;
+            }
+
+            return Nav.CanReach(FinalFloorNodes, NavQuery.Capsule.WithAllowed(allowed));
         }
 
         // ---- Helpers ----------------------------------------------------------------------------------

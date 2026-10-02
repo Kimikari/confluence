@@ -4,19 +4,23 @@ namespace Confluence.Arena.Navigation
 {
     /// <summary>
     /// Binary min-heap of (key, node) pairs for Dijkstra searches. Lazy deletion: callers skip entries whose key is
-    /// stale. Ties break on the node index, so expansion order never depends on insertion history.
+    /// stale. Ties break on a per-node rank (the node index when none is given), so expansion order never depends on
+    /// insertion history. <see cref="ArenaNav"/> passes its mirror-equivariant rank, so on a half-turn symmetric arena
+    /// mirrored nodes expand in mirrored order and every search gives mirrored results.
     /// </summary>
     internal sealed class NodeHeap
     {
+        private readonly int[] _rank;
         private float[] _keys;
         private int[] _nodes;
         private int _count;
 
-        public NodeHeap(int capacity)
+        public NodeHeap(int capacity, int[] rank = null)
         {
             capacity = Math.Max(16, capacity);
             _keys = new float[capacity];
             _nodes = new int[capacity];
+            _rank = rank;
         }
 
         public int Count => _count;
@@ -89,9 +93,14 @@ namespace Confluence.Arena.Navigation
             return result;
         }
 
-        private static bool Less(float keyA, int nodeA, float keyB, int nodeB)
+        private bool Less(float keyA, int nodeA, float keyB, int nodeB)
         {
-            return keyA < keyB || (keyA == keyB && nodeA < nodeB);
+            if (keyA != keyB)
+            {
+                return keyA < keyB;
+            }
+
+            return _rank == null ? nodeA < nodeB : _rank[nodeA] < _rank[nodeB];
         }
     }
 }

@@ -17,8 +17,11 @@ namespace Confluence.Arena.Tests
     /// </summary>
     public static class FairnessProbe
     {
-        /// <summary>Largest |d0(n) - d1(mirror n)| over every node reachable from spawn 0 (spec L310 "mirrored distances").</summary>
-        public const float MirroredDistanceTolerance = ArenaRules.ParityDistanceTolerance;
+        /// <summary>
+        /// Largest |d0(n) - d1(mirror n)| over every node reachable from spawn 0 (spec L310 "mirrored distances"). The
+        /// geometry and its navigation graph are exactly half-turn symmetric, so only float summation order remains.
+        /// </summary>
+        public const float MirroredDistanceTolerance = 0.01f;
 
         public sealed class Result
         {
@@ -257,10 +260,15 @@ namespace Confluence.Arena.Tests
         {
             int s0 = survey.SpawnNode(0);
             int s1 = survey.SpawnNode(1);
-            if (s0 < 0 || s1 < 0)
+            if (s0 < 0 || s1 < 0 || nav.MirrorNode(s0) != s1)
             {
-                result.Problems.Add("distances: a spawn has no standing node");
+                result.Problems.Add("distances: spawn nodes are missing or not mirrored");
                 return;
+            }
+
+            if (!nav.IsHalfTurnSymmetric)
+            {
+                result.Problems.Add("distances: the walkable graph is not half-turn symmetric");
             }
 
             float[] d0 = survey.DistancesFromSpawn(0);

@@ -115,6 +115,12 @@ namespace Confluence.Arena
         public const float ContractionSampleStepSec = 2.5f;
 
         /// <summary>
+        /// Sub-steps of a sample interval re-checked when a cell is first found cut off there while it was still outside
+        /// the edge band at the interval start (0.3125 s resolution).
+        /// </summary>
+        public const int ContractionRefineSteps = 8;
+
+        /// <summary>
         /// A floor cell must keep a route to the final floor once it is at least this far inside the contour. Routes
         /// may use any cell inside the contour. Cells closer to the moving edge are already leaving the legal space.
         /// </summary>
