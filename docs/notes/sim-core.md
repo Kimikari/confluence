@@ -36,4 +36,9 @@ through seams; this stage has no dependency on `Confluence.Reactions` or `Conflu
 See the bottom of this file (kept current by each session).
 
 ### Status
-- In progress (session 1).
+- Session 1: all components written and compiling (commits 1128728, 8749069).
+- Session 2: motor fixes (fall height measured between support contact points; step-up checks the touched
+  surface height so a 0.5 m block cannot pass as a step); motor tests pass. Writing tests for the remaining
+  components (world queries, resources, damage pipeline, healing, statuses, guard, melee, fields, procs, stats,
+  boundary, duel flow, determinism, lag compensation, feats).
+- Next: finish tests, fix what they reveal, final commit and report.

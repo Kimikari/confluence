@@ -3,6 +3,7 @@ using Confluence.Core.Arena;
 using Confluence.Core.Geometry;
 using Confluence.Core.Rules;
 using Confluence.Core.Time;
+using Confluence.Sim.Combat;
 using Confluence.Sim.Duel;
 using Confluence.Sim.Input;
 using Confluence.Sim.Movement;
@@ -96,6 +97,28 @@ namespace Confluence.Sim.Tests
         }
 
         public static PlayerInput Face(float yawDeg) => PlayerInput.Idle(yawDeg);
+
+        /// <summary>Idle input of player 0 facing its opponent on the default layout (+Z).</summary>
+        public static PlayerInput A => PlayerInput.Idle(0f);
+
+        /// <summary>Idle input of player 1 facing its opponent on the default layout (-Z).</summary>
+        public static PlayerInput B => PlayerInput.Idle(180f);
+
+        /// <summary>A hit from attacker to target, sourced at the attacker's position.</summary>
+        public static DamageRequest Hit(DuelWorld world, int attacker, int target, float amount,
+            DamageKind kind = DamageKind.Direct, DamageChannel channel = DamageChannel.Physical, string sourceId = "SPL-TEST")
+        {
+            return DamageRequest.Single(attacker, target, kind, sourceId, channel, amount).From(world.Player(attacker).Position);
+        }
+
+        /// <summary>Starts a player's guard with one step (the other player idle) and returns the guard start tick.</summary>
+        public static int StartGuard(DuelWorld world, int player = 1)
+        {
+            PlayerInput a = player == 0 ? A.With(InputButtons.Guard) : A;
+            PlayerInput b = player == 1 ? B.With(InputButtons.Guard) : B;
+            world.Step(a, b);
+            return world.Tick;
+        }
 
         // ----- direct motor stepping --------------------------------------------------------------------
 
