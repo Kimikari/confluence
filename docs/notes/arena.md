@@ -81,6 +81,15 @@ props gone).
 
 ## Status / next steps
 
+Stage 1b arena-fix (in progress; WIP commits on the branch):
+- Done: navigation sees thin solids (segment tests on every edge, exact obstacle clearance within 1.5 m, mirrored
+  footprints adopted bit-exactly); props carry `PropPlacement.CollisionBox`/`HasCollision` written from `PropShapes`
+  and the validator, navigation, and probe read the stored box; `ArenaSchedule` derives the round diameter exactly
+  as Match does (stream round 0, sub 0) with equivalence tests for both modes.
+- Measured after the navigation fix (576 batch): per-attempt validity dropped (24 m 51 -> 48%, 32 m 51 -> 42%,
+  40 m 75 -> 58%, 48 m 40 -> 31%), 48 m fallback 1.4 -> 4.9%, batch wall time 56 -> 102 s; navigation build about
+  20% slower (BuildEdges 2.4 -> 5.5 ms at 48 m). Next: tune generation for the true geometry, speed up the build.
+
 - Per-attempt validity (3 seeds x 24 biomes): 24 m ~53%, 32 m ~54%, 40 m ~75%, 48 m ~40%. Released through Generate
   with 8 seeds then the fallback: 576-arena batch fallback 0 / 0 / 0 / 1.4% by size; an 1800-arena census 0.33%
   overall. Every one of the 72 modules is placed in that census (rarest: MOD-008 and MOD-010, 8 times, 48 m only);

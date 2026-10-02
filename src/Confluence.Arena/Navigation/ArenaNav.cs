@@ -65,6 +65,9 @@ namespace Confluence.Arena.Navigation
         /// <summary>Colliders are binned into every column their footprint comes within this distance of.</summary>
         private const float BinPadding = 1e-3f;
 
+        /// <summary>Margin on the per-column reach filter, so float rounding never skips a collider the full test keeps.</summary>
+        private const float ReachSlack = 1e-4f;
+
         /// <summary>
         /// Obstacle distances are computed exactly for nodes within this radius of a footprint; farther nodes take
         /// them through propagation (an upper bound that stays close on open floor).
@@ -85,10 +88,23 @@ namespace Confluence.Arena.Navigation
         private int[] _cellStart;
         private int[] _cellItems;
 
+        /// <summary>
+        /// Per column, the highest feet height any binned collider can obstruct while walking (top minus its moving
+        /// allowance); edges whose feet stay at or above it in both columns skip the segment test.
+        /// </summary>
+        private float[] _columnReach;
+
         private int[] _columnFirst;
         private float[] _nodeHeight;
+        private float[] _nodeX;
+        private float[] _nodeZ;
         private int[] _nodeColumn;
         private int[] _nodeSupport;
+
+        /// <summary>Per node, bit d set when an edge leads into the neighbor column in direction d.</summary>
+        private byte[] _edgeDirs;
+
+        /// <summary>Per node, bit d set when the walk toward the neighbor column in direction d is cut by a solid.</summary>
         private byte[] _obstructedDirs;
         private int[] _edgeStart;
         private int[] _edgeTo;
@@ -106,39 +122,41 @@ namespace Confluence.Arena.Navigation
         /// footprint fields (center, half extents, rotation, ramp direction) are what every walking predicate reads.
         /// For a solid or prop whose layout image was already added, the footprint is the exact negation of its
         /// partner's, so containment, segment, and distance tests on mirrored inputs give bit-identical answers.
+        /// The fields every per-column scan reads come first, so a scan touches one cache line per collider.
         /// </summary>
         private struct Collider
         {
-            public YawBox Box;
-            public Aabb Bounds;
-            public float RampRise;
-            public bool Walkable;
-            public bool BlocksSight;
-            public int SolidId;
-
             public float Cx;
             public float Cz;
             public float Hx;
             public float Hz;
             public float Cos;
             public float Sin;
+            public float Bottom;
+            public float Top;
+            public float RampRise;
 
             /// <summary>+1 when the ramp rises toward the footprint frame's +Z, -1 when toward -Z.</summary>
             public float RampSign;
 
-            public float Bottom;
-            public float Top;
-
             /// <summary>Ramp surface height at the low edge.</summary>
             public float BaseY;
+
+            public bool Walkable;
+
+            /// <summary>Walkable collider that carries at least one node (its edges are ledges, not walls).</summary>
+            public bool SupportsNode;
+
+            public bool BlocksSight;
+            public int SolidId;
 
             public float MinX;
             public float MinZ;
             public float MaxX;
             public float MaxZ;
 
-            /// <summary>Walkable collider that carries at least one node (its edges are ledges, not walls).</summary>
-            public bool SupportsNode;
+            public YawBox Box;
+            public Aabb Bounds;
 
             public bool IsRamp => RampRise > 0f;
         }
@@ -348,6 +366,12 @@ namespace Confluence.Arena.Navigation
         {
             int columns = _n * _n;
             var counts = new int[columns + 1];
+            _columnReach = new float[columns];
+            for (int c = 0; c < columns; c++)
+            {
+                _columnReach[c] = float.NegativeInfinity;
+            }
+
             for (int pass = 0; pass < 2; pass++)
             {
                 if (pass == 1)
@@ -368,6 +392,7 @@ namespace Confluence.Arena.Navigation
                 for (int ci = 0; ci < _colliders.Length; ci++)
                 {
                     ref Collider col = ref _colliders[ci];
+                    float reach = col.Top - MovingAllowance(ref col);
                     ColumnRange(col.MinX, col.MinZ, col.MaxX, col.MaxZ, out int i0, out int j0, out int i1, out int j1);
                     for (int j = j0; j <= j1; j++)
                     {
@@ -377,6 +402,7 @@ namespace Confluence.Arena.Navigation
                             if (pass == 0)
                             {
                                 counts[c]++;
+                                _columnReach[c] = MathF.Max(_columnReach[c], reach);
                             }
                             else
                             {
@@ -518,6 +544,14 @@ namespace Confluence.Arena.Navigation
             _nodeHeight = heights.ToArray();
             _nodeSupport = supports.ToArray();
             _nodeColumn = columnOf.ToArray();
+            _nodeX = new float[_nodeHeight.Length];
+            _nodeZ = new float[_nodeHeight.Length];
+            for (int a = 0; a < _nodeHeight.Length; a++)
+            {
+                Vec2 p = ColumnCenter(_nodeColumn[a]);
+                _nodeX[a] = p.X;
+                _nodeZ[a] = p.Y;
+            }
         }
 
         /// <summary>
@@ -611,6 +645,7 @@ namespace Confluence.Arena.Navigation
             var cost = new List<float>(nodeCount * 8);
             var kind = new List<NavEdgeKind>(nodeCount * 8);
             _obstructedDirs = new byte[nodeCount];
+            _edgeDirs = new byte[nodeCount];
             float diag = _cs * MathF.Sqrt(2f);
             for (int a = 0; a < nodeCount; a++)
             {
@@ -656,6 +691,7 @@ namespace Confluence.Arena.Navigation
                         to.Add(walk);
                         cost.Add(d);
                         kind.Add(NavEdgeKind.Walk);
+                        _edgeDirs[a] |= (byte)(1 << dir);
                         continue;
                     }
 
@@ -698,6 +734,7 @@ namespace Confluence.Arena.Navigation
                         to.Add(jump);
                         cost.Add(d + ArenaRules.JumpEdgePenalty);
                         kind.Add(NavEdgeKind.Jump);
+                        _edgeDirs[a] |= (byte)(1 << dir);
                     }
 
                     if (drop >= 0)
@@ -705,6 +742,7 @@ namespace Confluence.Arena.Navigation
                         to.Add(drop);
                         cost.Add(d + ArenaRules.DropEdgePenalty);
                         kind.Add(NavEdgeKind.Drop);
+                        _edgeDirs[a] |= (byte)(1 << dir);
 
                         // A falling capsule carries forward: also land one column farther out, clear of the wall the
                         // ledge makes for the floor right below it.
@@ -751,6 +789,11 @@ namespace Confluence.Arena.Navigation
         private bool ObstructedIn(int column, Vec2 p, Vec2 q, float f0, float f1)
         {
             float low = MathF.Min(f0, f1);
+            if (_columnReach[column] + ReachSlack <= low)
+            {
+                return false; // nothing binned here rises past its allowance above these feet (open floor)
+            }
+
             float high = MathF.Max(f0, f1);
             for (int k = _cellStart[column]; k < _cellStart[column + 1]; k++)
             {
@@ -891,27 +934,34 @@ namespace Confluence.Arena.Navigation
                 _clearance[a] = float.PositiveInfinity;
             }
 
+            // Squared distances until the end: the order is the same and the propagation takes no square roots.
             SeedObstacleDistances(srcX, srcZ);
             for (int a = 0; a < nodeCount; a++)
             {
+                // Directions cut by an obstacle are measured exactly above; the rest end at a surface edge.
+                int open = _obstructedDirs[a] | PassableDirs(a);
+                if (open == 0xFF)
+                {
+                    continue;
+                }
+
                 int c = _nodeColumn[a];
                 int ci = c % _n;
                 int cj = c / _n;
-                Vec2 p = ColumnCenter(c);
+                Vec2 p = new Vec2(_nodeX[a], _nodeZ[a]);
                 for (int dir = 0; dir < 8; dir++)
                 {
-                    // Directions cut by an obstacle are measured exactly above; the rest end at a surface edge.
-                    if ((_obstructedDirs[a] & (1 << dir)) != 0 || IsPassable(a, dir))
+                    if ((open & (1 << dir)) != 0)
                     {
                         continue;
                     }
 
                     Vec2 target = new Vec2(p.X + DirX[dir] * _cs, p.Y + DirZ[dir] * _cs);
                     Vec2 crossing = EdgeCrossing(a, p, target, ci + DirX[dir], cj + DirZ[dir]);
-                    float dist = Vec2.Distance(p, crossing);
-                    if (dist < _clearance[a])
+                    float d2 = Vec2.DistanceSquared(p, crossing);
+                    if (d2 < _clearance[a])
                     {
-                        _clearance[a] = dist;
+                        _clearance[a] = d2;
                         srcX[a] = crossing.X;
                         srcZ[a] = crossing.Y;
                     }
@@ -935,7 +985,8 @@ namespace Confluence.Arena.Navigation
                     continue;
                 }
 
-                Vec2 src = new Vec2(srcX[a], srcZ[a]);
+                float sx = srcX[a];
+                float sz = srcZ[a];
                 for (int e = _edgeStart[a]; e < _edgeStart[a + 1]; e++)
                 {
                     if (_edgeKind[e] != NavEdgeKind.Walk)
@@ -944,15 +995,22 @@ namespace Confluence.Arena.Navigation
                     }
 
                     int b = _edgeTo[e];
-                    float candidate = Vec2.Distance(ColumnCenter(_nodeColumn[b]), src);
+                    float dx = _nodeX[b] - sx;
+                    float dz = _nodeZ[b] - sz;
+                    float candidate = dx * dx + dz * dz;
                     if (candidate < _clearance[b])
                     {
                         _clearance[b] = candidate;
-                        srcX[b] = src.X;
-                        srcZ[b] = src.Y;
+                        srcX[b] = sx;
+                        srcZ[b] = sz;
                         heap.Push(candidate, b);
                     }
                 }
+            }
+
+            for (int a = 0; a < nodeCount; a++)
+            {
+                _clearance[a] = MathF.Sqrt(_clearance[a]);
             }
         }
 
@@ -1021,13 +1079,13 @@ namespace Confluence.Arena.Navigation
 
                             ObstructedSpan(ref col, h + allowance, out float zLo, out float zHi);
                             float dz = MathF.Max(MathF.Max(zLo - lz, lz - zHi), 0f);
-                            float dist = MathF.Sqrt(dx * dx + dz * dz);
-                            if (dist < r && dist < _clearance[m])
+                            float d2 = dx * dx + dz * dz;
+                            if (d2 < r * r && d2 < _clearance[m])
                             {
                                 // Nearest obstructing point, back in world space (the source for propagation).
                                 float qx = CMath.Clamp(lx, -col.Hx, col.Hx);
                                 float qz = CMath.Clamp(lz, zLo, zHi);
-                                _clearance[m] = dist;
+                                _clearance[m] = d2;
                                 srcX[m] = col.Cx + qx * col.Cos + qz * col.Sin;
                                 srcZ[m] = col.Cz - qx * col.Sin + qz * col.Cos;
                             }
@@ -1142,40 +1200,20 @@ namespace Confluence.Arena.Navigation
         }
 
         /// <summary>
-        /// True when the node connects toward a neighbor column by any movement: walking, a common-jump ledge, or a safe
-        /// drop (diagonals need both of their orthogonal steps). Clearance measures distance to real boundaries only,
-        /// so a capsule beside a jumpable ledge or at the lip of a safe drop still counts as standing room.
+        /// Directions (bit d) in which the node connects toward the neighbor column by any movement: walking, a
+        /// common-jump ledge, or a safe drop; a diagonal also counts when both of its orthogonal steps do. Clearance
+        /// measures distance to real boundaries only, so a capsule beside a jumpable ledge or at the lip of a safe
+        /// drop still counts as standing room.
         /// </summary>
-        private bool IsPassable(int node, int dir)
+        private int PassableDirs(int node)
         {
-            if (HasEdgeInDirection(node, dir))
-            {
-                return true;
-            }
-
-            if (dir < 4)
-            {
-                return false;
-            }
-
-            int ox = DirX[dir] > 0 ? 0 : 2;  // +X is direction 0, -X is direction 2
-            int oz = DirZ[dir] > 0 ? 1 : 3;  // +Z is direction 1, -Z is direction 3
-            return HasEdgeInDirection(node, ox) && HasEdgeInDirection(node, oz);
-        }
-
-        private bool HasEdgeInDirection(int node, int dir)
-        {
-            int c = _nodeColumn[node];
-            int target = (c / _n + DirZ[dir]) * _n + (c % _n + DirX[dir]);
-            for (int e = _edgeStart[node]; e < _edgeStart[node + 1]; e++)
-            {
-                if (_nodeColumn[_edgeTo[e]] == target)
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            int bits = _edgeDirs[node];
+            int px = bits & 1;          // +X is direction 0
+            int pz = (bits >> 1) & 1;   // +Z is direction 1
+            int nx = (bits >> 2) & 1;   // -X is direction 2
+            int nz = (bits >> 3) & 1;   // -Z is direction 3
+            int diagonals = ((px & pz) << 4) | ((nx & pz) << 5) | ((nx & nz) << 6) | ((px & nz) << 7);
+            return bits | diagonals;
         }
 
         // Where the standable surface of node a ends on the way from p to q (bisection on standability).
@@ -1290,11 +1328,7 @@ namespace Confluence.Arena.Navigation
         /// <summary>Horizontal distance from the node to the nearest wall or surface edge.</summary>
         public float Clearance(int node) => _clearance[node];
 
-        public Vec3 NodePosition(int node)
-        {
-            Vec2 p = ColumnCenter(_nodeColumn[node]);
-            return new Vec3(p.X, _nodeHeight[node], p.Y);
-        }
+        public Vec3 NodePosition(int node) => new Vec3(_nodeX[node], _nodeHeight[node], _nodeZ[node]);
 
         /// <summary>Node at the mirrored position with the closest height, or -1.</summary>
         public int MirrorNode(int node)
