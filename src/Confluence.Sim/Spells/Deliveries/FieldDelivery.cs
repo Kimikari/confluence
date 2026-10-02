@@ -15,6 +15,9 @@ namespace Confluence.Sim.Spells
 
         /// <summary>A lane from the placement point along the aim ("A 10 m-by-2 m lane").</summary>
         Lane,
+
+        /// <summary>A rectangle centered on the placement point, its length along the aim ("A 4 m-by-2 m field").</summary>
+        Rectangle,
     }
 
     /// <summary>Where a placed delivery appears.</summary>
@@ -28,7 +31,8 @@ namespace Confluence.Sim.Spells
     }
 
     /// <summary>
-    /// A gameplay field (spec L128): a circle or lane footprint on the ground that lives at most 8 s and applies enter,
+    /// A gameplay field (spec L128): a circle (optionally with a safe center), lane, or rectangle footprint on the ground
+    /// that lives at most 8 s and applies enter,
     /// per-interval, and exit payloads to every player inside, the owner included unless the record binds it
     /// (spec L128 "ownership ... does not grant immunity"; L529 target filters). It is a player-owned entity, so the
     /// three-field limit retires the owner's oldest field with a dissolution event. Its material deposits cover the
@@ -39,6 +43,7 @@ namespace Confluence.Sim.Spells
     {
         private FieldShape _shape;
         private float _radius;
+        private float _innerRadius;
         private float _length;
         private float _width;
         private PlacementMode _placement = PlacementMode.AtAimPoint;
@@ -55,6 +60,10 @@ namespace Confluence.Sim.Spells
 
         public FieldShape Shape { get => _shape; set => _shape = Set(value); }
         public float Radius { get => _radius; set => _radius = Set(value); }
+
+        /// <summary>A safe center for circles: ring fields ("center remains clear") and storm eyes; 0 = none.</summary>
+        public float InnerRadius { get => _innerRadius; set => _innerRadius = Set(value); }
+
         public float Length { get => _length; set => _length = Set(value); }
         public float Width { get => _width; set => _width = Set(value); }
         public PlacementMode Placement { get => _placement; set => _placement = Set(value); }
@@ -114,7 +123,13 @@ namespace Confluence.Sim.Spells
             Footprint footprint;
             Vec3 center;
             float bound;
-            if (Shape == FieldShape.Lane)
+            if (Shape == FieldShape.Rectangle)
+            {
+                footprint = Footprint.Rectangle(ground.XZ(), new Vec2(Width * 0.5f, Length * 0.5f), CMath.YawOf(dir));
+                center = ground;
+                bound = (float)Math.Sqrt(Length * Length * 0.25f + Width * Width * 0.25f);
+            }
+            else if (Shape == FieldShape.Lane)
             {
                 Vec2 from = ground.XZ();
                 Vec2 to = from + dir * Length;
@@ -190,7 +205,11 @@ namespace Confluence.Sim.Spells
             _ctx.EmitDeposits(Cast, Cast.Form.Payload, DepositPlacement.Footprint, Center, default, Footprint, Owned.Id, Owned.ExpireTick - _ctx.Tick);
         }
 
-        public bool Contains(Vec3 feet) => feet.Y >= Center.Y - 0.5f && feet.Y <= Center.Y + _spec.Height && Footprint.Contains(feet.XZ());
+        public bool Contains(Vec3 feet)
+        {
+            if (feet.Y < Center.Y - 0.5f || feet.Y > Center.Y + _spec.Height || !Footprint.Contains(feet.XZ())) return false;
+            return !(_spec.InnerRadius > 0f) || Vec3.DistanceXZ(feet, Center) >= _spec.InnerRadius;
+        }
 
         protected internal override void Step(SpellContext ctx)
         {

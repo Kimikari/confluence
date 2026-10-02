@@ -116,6 +116,8 @@ namespace Confluence.Sim.Spells
         private readonly List<StatusSpec> _statuses = new List<StatusSpec>();
         private readonly List<DepositSpec> _deposits = new List<DepositSpec>();
         private DamageChannel _channel;
+        private DamageChannel _splitChannel;
+        private float _splitFraction;
         private float _direct;
         private float _splash;
         private float _splashRadius;
@@ -130,6 +132,12 @@ namespace Confluence.Sim.Spells
         private float _solidDamage = -1f;
 
         public DamageChannel Channel { get => _channel; set => _channel = Set(value); }
+
+        /// <summary>A second channel for a split attack (spec L110, L112: each channel resolves separately and rejoins as one hit).</summary>
+        public DamageChannel SplitChannel { get => _splitChannel; set => _splitChannel = Set(value); }
+
+        /// <summary>Fraction of every damage amount dealt in <see cref="SplitChannel"/> (0 = a single channel).</summary>
+        public float SplitFraction { get => _splitFraction; set => _splitFraction = Set(value); }
 
         /// <summary>The primary payload's direct damage; mastery direct-damage rewards apply to it only (spec L480).</summary>
         public float Direct { get => _direct; set => _direct = Set(value); }
@@ -216,6 +224,7 @@ namespace Confluence.Sim.Spells
         {
             _push = Math.Max(0f, Math.Min(_push, GlobalRules.Terrain.PlayerKnockbackCap)); // spec L173
             _precisionMultiplier = Math.Max(1f, Math.Min(_precisionMultiplier, GlobalRules.Damage.PrecisionMultiplierMax)); // spec L110
+            _splitFraction = Math.Max(0f, Math.Min(_splitFraction, 1f));
             for (int i = 0; i < _statuses.Count; i++) _statuses[i].ApplyGlobalCaps();
             for (int i = 0; i < _deposits.Count; i++) _deposits[i].ApplyGlobalCaps();
         }

@@ -80,6 +80,25 @@ namespace Confluence.Sim.Tests.Spells
         }
 
         [Fact]
+        public void A_Rectangle_Is_Centered_On_Its_Placement_And_A_Ring_Keeps_Its_Center_Safe()
+        {
+            DuelWorld rect = SpellTestKit.Duel(SpellTestKit.Loadout(Field(shape: FieldShape.Rectangle, affectsOwner: false)));
+            TestWorlds.Place(rect, 1, new Vec3(0.5f, 0f, -2f), 180f); // 4 m ahead of the center, inside the 10 m length
+            SpellTestKit.Cast(rect);
+            Assert.True(SpellTestKit.Runtime(rect).Entities.OfType<FieldEntity>().Single().IsInside(1));
+            Assert.False(SpellTestKit.Runtime(rect).Entities.OfType<FieldEntity>().Single().Contains(new Vec3(0f, 0f, 0f)));
+
+            SpellFormBuilder b = SpellTestKit.Form("SPL-T35", 5f, 0.1f, 0f, 12f, DamageChannel.Thermal, "field");
+            b.Delivery = new FieldDelivery { Radius = 3f, InnerRadius = 1.5f, Placement = PlacementMode.AtCaster, LifetimeSec = 4f };
+            DuelWorld ring = SpellTestKit.Duel(SpellTestKit.Loadout(b.Build()));
+            TestWorlds.Place(ring, 1, new Vec3(0f, 0f, -4f), 180f);
+            SpellTestKit.Cast(ring);
+            FieldEntity field = SpellTestKit.Runtime(ring).Entities.OfType<FieldEntity>().Single();
+            Assert.False(field.IsInside(0)); // the caster stands in the safe center
+            Assert.True(field.IsInside(1));
+        }
+
+        [Fact]
         public void A_Fourth_Field_Retires_The_Owners_Oldest()
         {
             DuelWorld w = SpellTestKit.Duel(SpellTestKit.Loadout(Field("SPL-T31"), Field("SPL-T32"), Field("SPL-T33"), Field("SPL-T34")));

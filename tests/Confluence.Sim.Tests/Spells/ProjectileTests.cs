@@ -1,6 +1,7 @@
 using System.Linq;
 using Confluence.Core.Arena;
 using Confluence.Core.Geometry;
+using Confluence.Core.Rules;
 using Confluence.Sim.Combat;
 using Confluence.Sim.Duel;
 using Confluence.Sim.Input;
@@ -175,6 +176,21 @@ namespace Confluence.Sim.Tests.Spells
             Assert.Equal(SpellTestKit.CastEvents(w, Confluence.Casting.CastEventKind.Committed).Single().Id, d.OriginEventId);
             Assert.True(d.HasFootprint);
             Assert.InRange(d.Position.Z, 5f, 6f);
+        }
+
+        [Fact]
+        public void A_Split_Payload_Resolves_Each_Channel_And_Rejoins_As_One_Hit()
+        {
+            SpellFormBuilder b = Orb(direct: 20f);
+            b.Payload.SplitChannel = DamageChannel.Electrical;
+            b.Payload.SplitFraction = 0.5f;
+            DuelWorld w = SpellTestKit.Duel(SpellTestKit.Loadout(b.Build()));
+            w.Player(1).Stats.Add(Confluence.Sim.Players.StatKind.Resistance, 0.2f, "TEST-RES", DamageChannel.Thermal);
+            SpellTestKit.Cast(w);
+            SpellTestKit.Run(w, 40);
+            DamageEvent hit = SpellTestKit.DamageTo(w, 1).Single(); // spec L112: one hit event, no doubled triggers
+            Assert.Equal(2, hit.Resolution.Channels.Length);
+            Assert.Equal(10f * 0.8f + 10f, hit.Dealt, 3);
         }
 
         [Fact]

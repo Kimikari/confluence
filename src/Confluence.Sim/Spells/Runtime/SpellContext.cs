@@ -215,7 +215,11 @@ namespace Confluence.Sim.Spells
             if (amount > 0f)
             {
                 DamageKind kind = hit.Kind == CastHitKinds.Direct ? DamageKind.Direct : DamageKind.Splash;
-                DamageRequest request = DamageRequest.Single(cast.Caster, target, kind, cast.SpellId, payload.Channel, amount).From(hit.Source);
+                DamageRequest request = payload.SplitFraction > 0f
+                    ? DamageRequest.Split(cast.Caster, target, kind, cast.SpellId,
+                        new DamagePart(payload.Channel, amount * (1f - payload.SplitFraction)), new DamagePart(payload.SplitChannel, amount * payload.SplitFraction))
+                    : DamageRequest.Single(cast.Caster, target, kind, cast.SpellId, payload.Channel, amount);
+                request.From(hit.Source);
                 request.GuardEligible = hit.Kind == CastHitKinds.Direct && payload.GuardEligible;
                 request.CastId = cast.CastId;
                 request.OriginEventId = cast.OriginEventId;
