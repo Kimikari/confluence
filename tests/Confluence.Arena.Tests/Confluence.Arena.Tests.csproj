@@ -3,6 +3,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <RootNamespace>Confluence.Arena.Tests</RootNamespace>
+    <!-- The fairness batches generate arenas on every core; server GC keeps the allocation-heavy navigation builds
+         from serializing on collections. -->
+    <ServerGarbageCollector>true</ServerGarbageCollector>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />

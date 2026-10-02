@@ -2,6 +2,9 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <RootNamespace>Confluence.Arena</RootNamespace>
+    <!-- Generation runs hundreds of navigation builds per arena; the fairness batches need optimized code in every
+         configuration (debug symbols are still emitted). -->
+    <Optimize>true</Optimize>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Confluence.Core\Confluence.Core.csproj" />
