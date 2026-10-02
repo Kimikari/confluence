@@ -93,6 +93,10 @@ namespace Confluence.Client.App
         {
             AppState next = _context.Options.ArenaPreview ? AppState.ArenaPreview : AppState.MainMenu;
             _context.States.TransitionTo(next);
+            if (next == AppState.MainMenu && _context.Options.MenuPanel == MenuPanel.Settings)
+            {
+                _context.OpenSettings();
+            }
         }
 
         private void OnStateChanged(AppState from, AppState to)

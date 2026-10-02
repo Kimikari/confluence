@@ -16,6 +16,14 @@ namespace Confluence.Client.App
         Overview,
     }
 
+    /// <summary>Main-menu panel opened at start (for screenshots of the menu's sub-panels).</summary>
+    public enum MenuPanel
+    {
+        None,
+        Play,
+        Settings,
+    }
+
     /// <summary>
     /// Player command-line switches for previews and automated smoke tests (Unity's own switches such as
     /// -screen-width are ignored here):
@@ -23,6 +31,7 @@ namespace Confluence.Client.App
     /// <item>-arenaPreview: skip the menu and open the sample arena preview.</item>
     /// <item>-previewView fly|walk|overview: starting preview camera (default fly).</item>
     /// <item>-previewTime &lt;seconds&gt;: initial combat time for the boundary contour (default 0).</item>
+    /// <item>-menuPanel play|settings: open that main-menu panel at start.</item>
     /// <item>-screenshot &lt;path&gt;: write a PNG of the screen shortly before quitting (or after 3 s).</item>
     /// <item>-quitAfter &lt;seconds&gt;: quit after this much real time; the exit code is 1 if errors were logged.</item>
     /// </list>
@@ -31,6 +40,7 @@ namespace Confluence.Client.App
     {
         public bool ArenaPreview { get; private set; }
         public PreviewView PreviewView { get; private set; } = PreviewView.Fly;
+        public MenuPanel MenuPanel { get; private set; } = MenuPanel.None;
         public float PreviewTimeSec { get; private set; }
         public string ScreenshotPath { get; private set; }
 
@@ -69,6 +79,18 @@ namespace Confluence.Client.App
                     else
                     {
                         options.Warnings += "Unknown -previewView '" + value + "'. ";
+                    }
+                }
+                else if (Is(arg, "-menuPanel") && i + 1 < args.Length)
+                {
+                    string value = args[++i];
+                    if (Enum.TryParse(value, true, out MenuPanel panel))
+                    {
+                        options.MenuPanel = panel;
+                    }
+                    else
+                    {
+                        options.Warnings += "Unknown -menuPanel '" + value + "'. ";
                     }
                 }
                 else if (Is(arg, "-previewTime") && i + 1 < args.Length)

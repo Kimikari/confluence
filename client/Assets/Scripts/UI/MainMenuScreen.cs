@@ -21,7 +21,7 @@ namespace Confluence.Client.UI
             nav.Add(Ui.Label("First-person wizard duels", "cf-subtitle"));
 
             VisualElement playCard = BuildPlayCard(context);
-            playCard.style.display = DisplayStyle.None;
+            playCard.style.display = context.Options.MenuPanel == MenuPanel.Play ? DisplayStyle.Flex : DisplayStyle.None;
 
             nav.Add(Ui.Button("Play", () =>
             {
