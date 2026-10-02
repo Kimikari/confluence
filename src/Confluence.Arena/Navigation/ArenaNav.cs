@@ -464,6 +464,22 @@ namespace Confluence.Arena.Navigation
                         to.Add(drop);
                         cost.Add(d + ArenaRules.DropEdgePenalty);
                         kind.Add(NavEdgeKind.Drop);
+
+                        // A falling capsule carries forward: also land one column farther out, clear of the wall the
+                        // ledge makes for the floor right below it.
+                        int fi = ni + DirX[dir];
+                        int fj = nj + DirZ[dir];
+                        if (fi >= 0 && fj >= 0 && fi < _n && fj < _n)
+                        {
+                            int nc2 = fj * _n + fi;
+                            int far = WalkNodeIn(nc2, _nodeHeight[drop], _cs);
+                            if (far >= 0 && IntervalClear(nc2, ColumnCenter(nc2), _nodeHeight[far] + ArenaRules.Headroom, h1 + ArenaRules.Headroom))
+                            {
+                                to.Add(far);
+                                cost.Add(2f * d + ArenaRules.DropEdgePenalty);
+                                kind.Add(NavEdgeKind.Drop);
+                            }
+                        }
                     }
                 }
             }

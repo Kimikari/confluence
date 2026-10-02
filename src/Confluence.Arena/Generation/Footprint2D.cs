@@ -4,7 +4,7 @@ using Confluence.Core.Geometry;
 namespace Confluence.Arena.Generation
 {
     /// <summary>Ground-plane distance and overlap between yaw-box footprints (convex quadrilaterals).</summary>
-    internal static class Footprint2D
+    public static class Footprint2D
     {
         /// <summary>
         /// Horizontal gap between two footprints, 0 when they touch or overlap. For disjoint convex polygons the
