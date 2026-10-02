@@ -35,10 +35,20 @@ namespace Confluence.Arena.Validation
         private readonly float _reach;
 
         public LaneMeter(ArenaNav nav, ArenaLayout layout)
+            : this(nav, layout, -1, -1)
+        {
+        }
+
+        /// <summary>
+        /// Meter that ignores up to two solids as blockers while keeping the navigation's standable floor: a lower
+        /// bound on the lanes after removing them (their footprints only add standable floor), so a removal it
+        /// already finds too open can be refused without rebuilding the navigation.
+        /// </summary>
+        public LaneMeter(ArenaNav nav, ArenaLayout layout, int ignoredSolidA, int ignoredSolidB)
         {
             _nav = nav;
             _contour = layout.Boundary;
-            _blockers = nav.BandBlockers(ArenaRules.LaneBandLow, ArenaRules.LaneBandHigh);
+            _blockers = nav.BandBlockers(ArenaRules.LaneBandLow, ArenaRules.LaneBandHigh, ignoredSolidA, ignoredSolidB);
             _reach = _contour.MaxRadiusAt(0f) + 0.5f;
             _centers = new Vec2[_blockers.Count];
             _radii = new float[_blockers.Count];

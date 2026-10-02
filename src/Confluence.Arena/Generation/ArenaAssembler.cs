@@ -228,69 +228,46 @@ namespace Confluence.Arena.Generation
 
         /// <summary>Names of the skeleton stages that failed to place everything they wanted (diagnostics only).</summary>
         public List<string> Notes { get; } = new List<string>();
-        private readonly System.Diagnostics.Stopwatch _diagWatch = new System.Diagnostics.Stopwatch();
-        private readonly List<string> _diagSw = new List<string>();
-        private void DiagT(string n) { _diagSw.Add(n + "=" + _diagWatch.Elapsed.TotalMilliseconds.ToString("0")); _diagWatch.Restart(); }
 
         public ArenaLayout Build()
         {
-            _diagWatch.Restart();
             _layout.Boundary = BoundaryBuilder.Build(_rng, _p);
 
             AddFloor();
-            DiagT("AddFloor");
             PlaceCenter();
-            DiagT("PlaceCenter");
             PlaceBastions();
-            DiagT("PlaceBastions");
 
             // Reach and spawn path run through the bastions, crossover strips, and center, which stay keep-out zones
             // from here on, so tuning on the bare skeleton fixes them for the finished arena.
             TuneBastions();
-            DiagT("TuneBastions");
             AddSkeletonKeepOuts();
-            DiagT("AddSkeletonKeepOuts");
             PlaceLaneEnds();
-            DiagT("PlaceLaneEnds");
 
             // On the small arenas the required elevation modules take the open floor first, where they leave every
             // bulwark its room: their decks and ramps are the hardest pieces to fit (spec L660), and the bulwark rings
             // would leave none. Larger arenas keep open floor beyond the rings, so there they come with the others.
             ReserveBiomeSources();
-            DiagT("ReserveBiomeSources");
             if (_p.Diameter <= GlobalRules.Arena.DiameterMedium)
             {
                 PlaceRequiredElevation();
             }
 
             PlaceBulwarks();
-            DiagT("PlaceBulwarks");
             PlaceSkeletonLanePosts();
-            DiagT("PlaceSkeletonLanePosts");
 
             // The biome rule's sources and objects come next, then the remaining catalogue modules.
             DressBiome(ArenaNav.Build(_layout, NoProps));
-            DiagT("DressBiome");
             PlaceIslands();
-            DiagT("PlaceIslands");
             CutFloor();
-            DiagT("CutFloor");
             PlaceOutcrops(_p.OutcropPairs);
-            DiagT("PlaceOutcrops");
 
             ArenaNav nav = ArenaNav.Build(_layout, NoProps);
             nav = FillTerrain(nav);
-            DiagT("FillTerrain");
 
             PlaceProps(nav);
-            DiagT("PlaceProps");
             RepairContraction();
-            DiagT("RepairContraction");
             AddLighting();
-            DiagT("AddLighting");
             AddGusts();
-            DiagT("AddGusts");
-            Notes.Add("diagtime " + string.Join(" ", _diagSw));
             return _layout;
         }
 
@@ -2613,7 +2590,7 @@ namespace Confluence.Arena.Generation
                     }
                     else
                     {
-                        repaired = TryRemoveRock(_layout.Solids[index]);
+                        repaired = TryRemoveRock(_layout.Solids[index], nav);
                     }
                 }
 
@@ -2625,9 +2602,19 @@ namespace Confluence.Arena.Generation
             }
         }
 
-        /// <summary>Removes a rock pair unless that reopens a firing lane over the limit (then it is put back).</summary>
-        private bool TryRemoveRock(Solid rock)
+        /// <summary>
+        /// Removes a rock pair unless that reopens a firing lane over the limit (then it is put back). The current
+        /// navigation, with the pair ignored as blockers, gives a lower bound on the reopened lanes, so most refusals
+        /// need no rebuild.
+        /// </summary>
+        private bool TryRemoveRock(Solid rock, ArenaNav current)
         {
+            var bound = new LaneMeter(current, _layout, rock.Id, rock.MirrorId);
+            if (Math.Max(bound.LongestThrough(rock.Box).Length, bound.LongestThrough(MirrorMath.Box(rock.Box)).Length) > GlobalRules.Arena.FiringLaneMax)
+            {
+                return false;
+            }
+
             Solid image = _layout.FindSolid(rock.MirrorId);
             int a = _layout.Solids.IndexOf(rock);
             int b = image == null || image == rock ? -1 : _layout.Solids.IndexOf(image);

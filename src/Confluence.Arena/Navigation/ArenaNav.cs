@@ -1203,14 +1203,16 @@ namespace Confluence.Arena.Navigation
         /// <summary>
         /// Sight-blocking footprints in a vertical band (absolute heights): each solid whose material spans the whole
         /// band at some point. Ramps contribute the part of their footprint where the surface reaches the band top.
+        /// Up to two solids (a removal candidate and its image) can be left out.
         /// </summary>
-        public List<YawBox> BandBlockers(float bandLow, float bandHigh)
+        public List<YawBox> BandBlockers(float bandLow, float bandHigh, int excludeSolidA = -1, int excludeSolidB = -1)
         {
             var result = new List<YawBox>();
             for (int i = 0; i < _colliders.Count; i++)
             {
                 Collider col = _colliders[i];
-                if (!col.BlocksSight || col.Box.Bottom > bandLow || col.Box.Top < bandHigh)
+                bool excluded = col.SolidId >= 0 && (col.SolidId == excludeSolidA || col.SolidId == excludeSolidB);
+                if (excluded || !col.BlocksSight || col.Box.Bottom > bandLow || col.Box.Top < bandHigh)
                 {
                     continue;
                 }

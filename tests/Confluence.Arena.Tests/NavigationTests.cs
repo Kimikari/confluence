@@ -47,7 +47,13 @@ namespace Confluence.Arena.Tests
             int a = nav.FindNode(new Vec3(-5f, 0f, 0f));
             int b = nav.FindNode(new Vec3(5f, 0f, 0f));
             nav.FindPath(a, b, NavQuery.Capsule, out float length);
-            Assert.InRange(length, 10f, 10.6f);
+
+            // Both points sit on cell corners; the equidistant candidates resolve to mirrored nodes, and the 8-way
+            // lattice path is at most 8.3% longer than the straight line between them.
+            Assert.Equal(b, nav.MirrorNode(a));
+            float straight = Vec3.Distance(nav.NodePosition(a), nav.NodePosition(b));
+            Assert.InRange(straight, 10f, 10.75f);
+            Assert.InRange(length, straight - 1e-3f, straight * 1.083f);
         }
 
         [Fact]
