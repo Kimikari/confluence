@@ -30,8 +30,16 @@ namespace Confluence.Sim.Casting
             frame.Velocity = player.Motor.Velocity;
             frame.Grounded = player.Motor.Grounded;
             frame.InputEvents = input.GrammarEvents;
-            frame.CombatEvents = combatEvents != null && combatEvents.Count > 0 ? combatEvents : null;
+            frame.CombatEvents = combatEvents != null && combatEvents.Count > 0 ? Copy(combatEvents) : null;
             return frame;
+        }
+
+        // A frame owns its events: grammars may keep frames, and the runtime reuses its scratch list.
+        private static CombatEvent[] Copy(IReadOnlyList<CombatEvent> events)
+        {
+            var copy = new CombatEvent[events.Count];
+            for (int i = 0; i < copy.Length; i++) copy[i] = events[i];
+            return copy;
         }
     }
 }

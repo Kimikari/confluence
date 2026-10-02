@@ -28,6 +28,7 @@ namespace Confluence.Sim.Casting
 
         // Previous-tick facts for server-generated combat events.
         private int _previousDodgeTicks;
+        private bool _previousGrounded = true;
         private MeleePhase _previousMeleePhase;
 
         internal PlayerCaster(DuelWorld world, DuelPlayer player, SpellLoadout loadout)
@@ -122,7 +123,7 @@ namespace Confluence.Sim.Casting
 
         /// <summary>
         /// Appends this tick's combat events that come from state transitions rather than world events: dodge travel
-        /// completed (spec L82), melee windup completed and recovery ended (WIZ-015, WIZ-035), cooldowns ready (WIZ-035).
+        /// completed (spec L82), landing, melee windup completed and recovery ended (WIZ-015, WIZ-035), cooldowns ready (WIZ-035).
         /// </summary>
         internal void PollStateEvents(List<CombatEvent> into)
         {
@@ -130,6 +131,11 @@ namespace Confluence.Sim.Casting
             int dodge = _player.Motor.DodgeTicks;
             if (_previousDodgeTicks > 0 && dodge == 0) into.Add(new CombatEvent(CombatEventKind.DodgeCompleted, tick));
             _previousDodgeTicks = dodge;
+
+            // Landing on supporting ground after being airborne, whatever the drop (WIZ-035 "landed from jump").
+            bool grounded = _player.Motor.Grounded;
+            if (!_previousGrounded && grounded) into.Add(new CombatEvent(CombatEventKind.Landed, tick));
+            _previousGrounded = grounded;
 
             MeleePhase melee = _player.Melee.Phase;
             if (_previousMeleePhase == MeleePhase.Windup && (melee == MeleePhase.Strike || melee == MeleePhase.Recovery))
@@ -160,6 +166,7 @@ namespace Confluence.Sim.Casting
             h.Add(Machine.StateDigest());
             h.Add((uint)PreviousHeld);
             h.Add(_previousDodgeTicks);
+            h.Add(_previousGrounded);
             h.Add((int)_previousMeleePhase);
             h.Add(_readyTick.Count);
             foreach (KeyValuePair<string, int> entry in _readyTick)

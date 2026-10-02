@@ -46,9 +46,6 @@ namespace Confluence.Sim.Casting
                 case MovementEvent mv:
                     switch (mv.Change)
                     {
-                        case MovementChange.Landed:
-                            Add(mv.Player, CombatEventKind.Landed, e.Tick, null, mv.Amount);
-                            break;
                         case MovementChange.Teleported:
                             Add(mv.Player, CombatEventKind.Teleported, e.Tick, mv.SourceId, mv.Amount);
                             break;
