@@ -95,6 +95,14 @@ namespace Confluence.Reactions.Tests
             VolumeEvents.AddRange(result.VolumeEvents);
         }
 
+        public void Add(StepLog other)
+        {
+            Events.AddRange(other.Events);
+            Damage.AddRange(other.Damage);
+            Impulses.AddRange(other.Impulses);
+            VolumeEvents.AddRange(other.VolumeEvents);
+        }
+
         public int Count(ReactionKind kind)
         {
             int n = 0;

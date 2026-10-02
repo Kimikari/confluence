@@ -132,7 +132,7 @@ namespace Confluence.Reactions.Tests
             ObscurationVolume steam = h.OnlyVolume();
             Assert.Equal(Harness.PlayerA, steam.Owner);
             Assert.Equal(20, steam.SourceEventId);
-            Assert.Equal(1, r.VolumeEvents.Count);
+            Assert.Single(r.VolumeEvents);
 
             int expectedColumns = 0;
             for (int i = 0; i < h.Grid.CellCount; i++)
