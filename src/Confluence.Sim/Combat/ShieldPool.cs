@@ -1,21 +1,67 @@
 using System;
 using System.Collections.Generic;
+using Confluence.Core.Geometry;
 using Confluence.Core.Rules;
 using Confluence.Core.Time;
 using Confluence.Sim.Hashing;
 
 namespace Confluence.Sim.Combat
 {
+    /// <summary>Where a hit comes from, for directional shields (spec L549: a directional panel exposes its back).</summary>
+    public struct ShieldContact
+    {
+        /// <summary>Every capacity applies (rule code that has no direction).</summary>
+        public bool AnyDirection;
+
+        public bool HasSource;
+        public Vec3 Source;
+        public Vec3 Defender;
+        public float DefenderYawDeg;
+
+        public static ShieldContact Omnidirectional => new ShieldContact { AnyDirection = true };
+    }
+
     /// <summary>One shield capacity entry.</summary>
     public sealed class ShieldEntry
     {
-        internal ShieldEntry(int id, string sourceId, float amount, int expireTick, bool reserve)
+        internal ShieldEntry(int id, string sourceId, float amount, int expireTick, bool reserve, float arcHalfDeg = 0f)
         {
             Id = id;
             SourceId = sourceId;
             Amount = amount;
             ExpireTick = expireTick;
             Reserve = reserve;
+            ArcHalfDeg = Math.Max(0f, Math.Min(arcHalfDeg, 180f));
+        }
+
+        /// <summary>
+        /// Half angle of a directional shield's protected arc around the holder's facing (SPL-075 "protects a
+        /// 100-degree arc" is 50); 0 protects from every direction.
+        /// </summary>
+        public float ArcHalfDeg { get; }
+
+        public bool IsDirectional => ArcHalfDeg > 0f && ArcHalfDeg < 180f;
+
+        /// <summary>Whether this capacity protects against a hit with the given origin.</summary>
+        public bool Covers(in ShieldContact contact)
+        {
+            if (!IsDirectional || contact.AnyDirection)
+            {
+                return true;
+            }
+
+            if (!contact.HasSource)
+            {
+                return false;
+            }
+
+            Vec3 toSource = contact.Source - contact.Defender;
+            if (toSource.LengthXZ() < 1e-4f)
+            {
+                return true;
+            }
+
+            return Math.Abs(CMath.DeltaAngle(contact.DefenderYawDeg, CMath.YawOf(toSource))) <= ArcHalfDeg + 1e-3f;
         }
 
         public int Id { get; }
@@ -66,7 +112,14 @@ namespace Confluence.Sim.Combat
         /// Grants shield capacity and returns the capacity actually added after the shared cap. A timed shield
         /// lasts min(duration, 8 s); a reserve shield persists until broken.
         /// </summary>
-        public float Add(string sourceId, float amount, int durationTicks, bool reserve, int now)
+        public float Add(string sourceId, float amount, int durationTicks, bool reserve, int now) =>
+            Add(sourceId, amount, durationTicks, reserve, now, 0f);
+
+        /// <summary>
+        /// As <see cref="Add(string, float, int, bool, int)"/>, for a directional shield protecting the arc of
+        /// <paramref name="arcHalfDeg"/> either side of its holder's facing (0 = every direction).
+        /// </summary>
+        public float Add(string sourceId, float amount, int durationTicks, bool reserve, int now, float arcHalfDeg)
         {
             if (!(amount > 0f))
             {
@@ -76,7 +129,7 @@ namespace Confluence.Sim.Combat
             int expire = reserve ? int.MaxValue : now + Math.Max(1, Math.Min(durationTicks, MaxTimedTicks));
             ShieldEntry entry = FindCompatible(sourceId, reserve);
             float before = Total;
-            if (entry != null)
+            if (entry != null && entry.ArcHalfDeg == Math.Max(0f, Math.Min(arcHalfDeg, 180f)))
             {
                 // Top up compatible capacity rather than stacking another layer (spec L114).
                 _entries.Remove(entry);
@@ -85,7 +138,12 @@ namespace Confluence.Sim.Combat
             }
             else
             {
-                entry = new ShieldEntry(_nextId++, sourceId, amount, expire, reserve);
+                if (entry != null)
+                {
+                    _entries.Remove(entry); // same source with a different arc replaces the old capacity
+                }
+
+                entry = new ShieldEntry(_nextId++, sourceId, amount, expire, reserve, arcHalfDeg);
             }
 
             float room = Math.Max(0f, GlobalRules.Shields.Cap - TotalExcluding(entry));
@@ -99,12 +157,23 @@ namespace Confluence.Sim.Combat
         }
 
         /// <summary>Absorbs damage, earliest-expiring capacity first. Returns the amount absorbed.</summary>
-        public float Absorb(float amount)
+        public float Absorb(float amount) => Absorb(amount, ShieldContact.Omnidirectional);
+
+        /// <summary>
+        /// Absorbs damage from a hit with the given origin, earliest-expiring capacity first; directional capacity only
+        /// absorbs hits from inside its arc. Returns the amount absorbed.
+        /// </summary>
+        public float Absorb(float amount, in ShieldContact contact)
         {
             float absorbed = 0f;
             for (int i = 0; i < _entries.Count && amount > 0f; i++)
             {
                 ShieldEntry e = _entries[i];
+                if (!e.Covers(contact))
+                {
+                    continue;
+                }
+
                 float take = Math.Min(e.Amount, amount);
                 e.Amount -= take;
                 amount -= take;
@@ -144,6 +213,7 @@ namespace Confluence.Sim.Combat
                 h.Add(e.Amount);
                 h.Add(e.ExpireTick);
                 h.Add(e.Reserve);
+                h.Add(e.ArcHalfDeg);
             }
         }
 

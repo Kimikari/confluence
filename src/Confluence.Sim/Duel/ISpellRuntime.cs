@@ -49,6 +49,12 @@ namespace Confluence.Sim.Duel
         /// <summary>In cast recovery: equip swaps cannot cancel it (spec L106).</summary>
         public bool InRecovery;
 
+        /// <summary>
+        /// A non-quick or channeled cast is being prepared, winding up, or channeling: the motor ends or refuses sprint
+        /// (spec L80; the cast is never refused for sprinting, DECISIONS D-048).
+        /// </summary>
+        public bool SuppressesSprint;
+
         public static CastingStatus Idle => new CastingStatus { MovementFactor = 1f };
     }
 

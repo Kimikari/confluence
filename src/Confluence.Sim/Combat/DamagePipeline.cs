@@ -86,7 +86,7 @@ namespace Confluence.Sim.Combat
                 float afterPrecision = raw * precision;
                 float afterGuard = afterPrecision * (1f - result.GuardReduction);
                 float afterResistance = bypass ? afterGuard : afterGuard * (1f - target.Stats.Resistance(channel));
-                float mitigated = bypass ? afterGuard : afterGuard * target.Stats.PassiveMultiplier(channel);
+                float mitigated = bypass ? afterGuard : afterGuard * PassiveMultiplier(target, channel, request.ExtraPassiveReduction);
 
                 result.Raw += raw;
                 result.AfterPrecision += afterPrecision;
@@ -102,7 +102,14 @@ namespace Confluence.Sim.Combat
             float remaining = result.Mitigated;
             if (!bypass && remaining > 0f)
             {
-                result.ShieldAbsorbed = target.Shields.Absorb(remaining);
+                var contact = new ShieldContact
+                {
+                    HasSource = request.HasSourcePosition,
+                    Source = request.SourcePosition,
+                    Defender = target.Motor.Position,
+                    DefenderYawDeg = target.Motor.YawDeg,
+                };
+                result.ShieldAbsorbed = target.Shields.Absorb(remaining, contact);
                 remaining -= result.ShieldAbsorbed;
             }
 
@@ -111,6 +118,21 @@ namespace Confluence.Sim.Combat
             target.Resources.LoseHealth(result.HealthLost);
             result.Lethal = wasAlive && !target.Resources.Alive;
             return result;
+        }
+
+        /// <summary>
+        /// Resistance and passive reductions with the hit's conditional reduction (for example a buff against
+        /// projectiles): multiplicative, total reduction at most 45% (spec L112).
+        /// </summary>
+        private static float PassiveMultiplier(DuelPlayer target, DamageChannel channel, float extraReduction)
+        {
+            float m = target.Stats.PassiveMultiplier(channel);
+            if (!(extraReduction > 0f))
+            {
+                return m;
+            }
+
+            return Math.Max(m * (1f - Math.Min(extraReduction, 1f)), 1f - GlobalRules.Damage.PassiveReductionCap);
         }
 
         /// <summary>
