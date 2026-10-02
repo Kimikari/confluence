@@ -139,7 +139,8 @@ namespace Confluence.Sim.World.Materials
         /// A force on one prop (spec L155, L173): the reaction world clamps it by the prop's mass class and the 8 m/s cap
         /// and the resulting impulse moves the prop. Returns false for an unknown or destroyed prop.
         /// </summary>
-        public bool PushProp(int propId, Vec3 direction, int owner, int sourceEventId, float requestedDistance = float.PositiveInfinity)
+        public bool PushProp(int propId, Vec3 direction, int owner, int sourceEventId, float requestedDistance = float.PositiveInfinity,
+            float requestedSpeed = GlobalRules.Terrain.DamagingPropVelocityCap)
         {
             PropBody prop = Duel?.Props.Find(propId);
             if (prop == null || prop.Destroyed)
@@ -153,6 +154,7 @@ namespace Confluence.Sim.World.Materials
                 Mass = prop.Mass,
                 Direction = direction,
                 RequestedDistance = requestedDistance,
+                RequestedSpeed = requestedSpeed,
                 Owner = owner,
                 SourceEventId = sourceEventId,
             });
