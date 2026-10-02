@@ -109,7 +109,7 @@ namespace Confluence.Match.Tests
                 if (e is PairingsAnnouncedEvent p && p.Attempt == 0) contendersAtRound[p.Round] = h.Conclave.RemainingContenders.ToList();
             };
             h.RunToEnd();
-            Assert.True(h.Match.Players.Any(p => p.IsEliminated && p.Placement.Round < h.Match.Round));
+            Assert.Contains(h.Match.Players, p => p.IsEliminated && p.Placement.Round < h.Match.Round);
             foreach (var kv in contendersAtRound)
             {
                 Assert.Equal(kv.Value, h.ShopsIn(kv.Key).Select(s => s.Player).OrderBy(p => p));

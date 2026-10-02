@@ -146,6 +146,7 @@ namespace Confluence.Match
             var first = PlanNextRound();
             if (first == null) Finish();
             else BeginRound(first);
+            SettlePhases(); // a zero-length reveal opens the shop on the start tick
         }
 
         /// <summary>Advances one authoritative tick: polls running duels, then completes any phases whose time or condition is met.</summary>
@@ -155,6 +156,12 @@ namespace Confluence.Match
             if (IsFinished) return;
             CurrentTick++;
             PollDuels();
+            SettlePhases();
+        }
+
+        /// <summary>Completes every phase whose time or condition is met at the current tick.</summary>
+        private void SettlePhases()
+        {
             for (int i = 0; TryCompletePhase(); i++)
             {
                 if (i >= MaxTransitionsPerTick) throw new InvalidOperationException("Phase transitions did not settle within one tick.");
