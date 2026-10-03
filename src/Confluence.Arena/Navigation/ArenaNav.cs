@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Confluence.Arena.Props;
 using Confluence.Core.Arena;
 using Confluence.Core.Geometry;
 using Confluence.Core.Rules;
@@ -28,7 +27,7 @@ namespace Confluence.Arena.Navigation
         /// <summary>Half the grid side in meters; 0 sizes the grid from the layout's boundary and floor.</summary>
         public float HalfExtent { get; set; }
 
-        /// <summary>Treat placed props as obstacles (their initial positions).</summary>
+        /// <summary>Treat placed props as obstacles (their initial <see cref="PropPlacement.CollisionBox"/>).</summary>
         public bool PropsAsObstacles { get; set; } = true;
 
         /// <summary>Solids to include; null includes all. Use it to simulate destruction or retired cover.</summary>
@@ -44,6 +43,11 @@ namespace Confluence.Arena.Navigation
     /// Nodes connect by walking, common-jump ledges, or safe drops. Each node stores its clearance: the horizontal
     /// distance to the nearest wall or surface edge, so routes of a given width are queries on clearance
     /// (spec L312 "Minimum route width is 2.5 meters"). Built once per layout state; queries are allocation-light.
+    /// <para>
+    /// Solids are seen at their true size, however thin: every edge is tested as a segment against the solids it
+    /// passes (a 0.15 m wall between two column centers cuts the edge), and clearance to obstacles is the exact
+    /// distance to their footprints, so routes, widths, and reach measured here are routes the Sim motor can walk.
+    /// </para>
     /// On a half-turn symmetric layout the graph, clearances, nearest-node lookups, and search results are exact
     /// mirror images (<see cref="IsHalfTurnSymmetric"/>), so both spawns measure the same arena (spec L308).
     /// </summary>
@@ -53,7 +57,29 @@ namespace Confluence.Arena.Navigation
         private const float HeadroomFloor = 0.05f;
         private const float SupportTolerance = 0.45f;
         private const int CrossingBisections = 6;
+
+        /// <summary>Relative margin on the bisection cut-off in <see cref="EdgeCrossing"/> (far above float rounding).</summary>
+        private const float CrossingCutoffMargin = 1e-3f;
+
         private const float MirrorHeightTolerance = 1e-3f;
+
+        /// <summary>A collider and its layout image are treated as exact images when they agree this closely.</summary>
+        private const float MirrorGeometryTolerance = 1e-4f;
+
+        /// <summary>Colliders are binned into every column their footprint comes within this distance of.</summary>
+        private const float BinPadding = 1e-3f;
+
+        /// <summary>Margin on the per-column reach filter, so float rounding never skips a collider the full test keeps.</summary>
+        private const float ReachSlack = 1e-4f;
+
+        /// <summary>
+        /// Obstacle distances are computed exactly for nodes within this radius of a footprint; farther nodes take
+        /// them through propagation (an upper bound that stays close on open floor).
+        /// </summary>
+        private const float ExactClearanceRadius = 1.5f;
+
+        /// <summary>A walkable surface this far above a layer that carries nodes of its own is a ledge, not a wall (D-024).</summary>
+        private const float LedgeClimb = GlobalRules.Movement.MaxCommonJumpLedge + 0.01f;
 
         private static readonly int[] DirX = { 1, 0, -1, 0, 1, -1, -1, 1 };
         private static readonly int[] DirZ = { 0, 1, 0, -1, 1, 1, -1, -1 };
@@ -61,14 +87,33 @@ namespace Confluence.Arena.Navigation
         private readonly float _cs;
         private readonly int _n;
         private readonly Vec2 _origin;
-        private readonly List<Collider> _colliders = new List<Collider>();
+        private readonly List<Collider> _colliderList = new List<Collider>();
+        private Collider[] _colliders;
         private int[] _cellStart;
         private int[] _cellItems;
 
+        /// <summary>
+        /// Per column, the highest feet height any binned collider can obstruct while walking (top minus its moving
+        /// allowance); edges whose feet stay at or above it in both columns skip the segment test.
+        /// </summary>
+        private float[] _columnReach;
+
+        /// <summary>Per collider, the last segment test that examined it (see <see cref="SegmentObstructed"/>).</summary>
+        private int[] _colliderStamp;
+        private int _segmentStamp;
+
         private int[] _columnFirst;
         private float[] _nodeHeight;
+        private float[] _nodeX;
+        private float[] _nodeZ;
         private int[] _nodeColumn;
         private int[] _nodeSupport;
+
+        /// <summary>Per node, bit d set when an edge leads into the neighbor column in direction d.</summary>
+        private byte[] _edgeDirs;
+
+        /// <summary>Per node, bit d set when the walk toward the neighbor column in direction d is cut by a solid.</summary>
+        private byte[] _obstructedDirs;
         private int[] _edgeStart;
         private int[] _edgeTo;
         private float[] _edgeCost;
@@ -80,14 +125,48 @@ namespace Confluence.Arena.Navigation
         private int[] _rank;
         private readonly float _tanSlope;
 
+        /// <summary>
+        /// One collision volume. Box and Bounds are the layout's geometry (sight queries use them as given); the
+        /// footprint fields (center, half extents, rotation, ramp direction) are what every walking predicate reads.
+        /// For a solid or prop whose layout image was already added, the footprint is the exact negation of its
+        /// partner's, so containment, segment, and distance tests on mirrored inputs give bit-identical answers.
+        /// The fields every per-column scan reads come first, so a scan touches one cache line per collider.
+        /// </summary>
         private struct Collider
         {
-            public YawBox Box;
+            public float Cx;
+            public float Cz;
+            public float Hx;
+            public float Hz;
+            public float Cos;
+            public float Sin;
+            public float Bottom;
+            public float Top;
             public float RampRise;
+
+            /// <summary>+1 when the ramp rises toward the footprint frame's +Z, -1 when toward -Z.</summary>
+            public float RampSign;
+
+            /// <summary>Ramp surface height at the low edge.</summary>
+            public float BaseY;
+
             public bool Walkable;
+
+            /// <summary>Walkable collider that carries at least one node (its edges are ledges, not walls).</summary>
+            public bool SupportsNode;
+
             public bool BlocksSight;
             public int SolidId;
+
+            public float MinX;
+            public float MinZ;
+            public float MaxX;
+            public float MaxZ;
+
+            public YawBox Box;
             public Aabb Bounds;
+
+            public bool IsRamp => RampRise > 0f;
         }
 
         private ArenaNav(Vec3 center, float halfExtent, float cellSize)
@@ -150,6 +229,7 @@ namespace Confluence.Arena.Navigation
 
         private void AddColliders(ArenaLayout layout, ArenaNavOptions options)
         {
+            var solidCollider = new Dictionary<int, int>();
             for (int i = 0; i < layout.Solids.Count; i++)
             {
                 Solid s = layout.Solids[i];
@@ -158,17 +238,34 @@ namespace Confluence.Arena.Navigation
                     continue;
                 }
 
-                AddCollider(s.Box, s.RampRise, s.Walkable, s.BlocksSight, s.Id);
+                int index = AddCollider(s.Box, s.RampRise, s.Walkable, s.BlocksSight, s.Id);
+                if (s.MirrorId >= 0 && s.MirrorId != s.Id && solidCollider.TryGetValue(s.MirrorId, out int partner))
+                {
+                    AdoptMirrorFootprint(index, partner);
+                }
+
+                solidCollider[s.Id] = index;
             }
 
             if (options.PropsAsObstacles)
             {
+                var propCollider = new Dictionary<int, int>();
                 for (int i = 0; i < layout.Props.Count; i++)
                 {
-                    if (PropShapes.TryGetCollisionBox(layout.Props[i], out YawBox box))
+                    PropPlacement p = layout.Props[i];
+                    if (p == null || !p.HasCollision)
                     {
-                        AddCollider(box, 0f, false, false, -1);
+                        continue;
                     }
+
+                    // Props are obstacles and never supports or sight blockers here (D-068).
+                    int index = AddCollider(p.CollisionBox, 0f, false, false, -1);
+                    if (p.MirrorId >= 0 && p.MirrorId != p.Id && propCollider.TryGetValue(p.MirrorId, out int partner))
+                    {
+                        AdoptMirrorFootprint(index, partner);
+                    }
+
+                    propCollider[p.Id] = index;
                 }
             }
 
@@ -179,25 +276,111 @@ namespace Confluence.Arena.Navigation
                     AddCollider(options.ExtraObstacles[i], 0f, false, true, -1);
                 }
             }
+
+            _colliders = _colliderList.ToArray();
         }
 
-        private void AddCollider(YawBox box, float rampRise, bool walkable, bool blocksSight, int solidId)
+        private int AddCollider(YawBox box, float rampRise, bool walkable, bool blocksSight, int solidId)
         {
-            _colliders.Add(new Collider
+            float rise = rampRise > 0f ? new RampShape(box, rampRise).Rise : 0f;
+            CMath.SinCosDeg(box.YawDeg, out float sin, out float cos);
+            var col = new Collider
             {
                 Box = box,
-                RampRise = rampRise > 0f ? new RampShape(box, rampRise).Rise : 0f,
+                Bounds = box.Bounds(),
+                RampRise = rise,
                 Walkable = walkable,
                 BlocksSight = blocksSight,
                 SolidId = solidId,
-                Bounds = box.Bounds(),
-            });
+                Cx = box.Center.X,
+                Cz = box.Center.Z,
+                Hx = box.HalfExtents.X,
+                Hz = box.HalfExtents.Z,
+                Cos = cos,
+                Sin = sin,
+                RampSign = 1f,
+                Bottom = box.Bottom,
+                Top = box.Top,
+                BaseY = box.Top - rise,
+            };
+            SetFootprintBounds(ref col);
+            _colliderList.Add(col);
+            return _colliderList.Count - 1;
+        }
+
+        private static void SetFootprintBounds(ref Collider col)
+        {
+            float ex = MathF.Abs(col.Cos) * col.Hx + MathF.Abs(col.Sin) * col.Hz + BinPadding;
+            float ez = MathF.Abs(col.Sin) * col.Hx + MathF.Abs(col.Cos) * col.Hz + BinPadding;
+            col.MinX = col.Cx - ex;
+            col.MaxX = col.Cx + ex;
+            col.MinZ = col.Cz - ez;
+            col.MaxZ = col.Cz + ez;
+        }
+
+        /// <summary>
+        /// Rewrites an image collider's footprint as the exact half-turn image of its partner's (center negated, the
+        /// same rotation, ramp direction reversed). A yaw a + 180 recomputes sine and cosine with rounding of its
+        /// own, and a column center or edge lying on a face could then fall inside one solid and outside its image.
+        /// Pairs that are not images within <see cref="MirrorGeometryTolerance"/> keep their own geometry.
+        /// </summary>
+        private void AdoptMirrorFootprint(int image, int source)
+        {
+            Collider a = _colliderList[source];
+            Collider b = _colliderList[image];
+            const float tol = MirrorGeometryTolerance;
+            if (MathF.Abs(a.Cx + b.Cx) > tol || MathF.Abs(a.Cz + b.Cz) > tol || MathF.Abs(a.Hx - b.Hx) > tol || MathF.Abs(a.Hz - b.Hz) > tol
+                || MathF.Abs(a.Bottom - b.Bottom) > tol || MathF.Abs(a.Top - b.Top) > tol || MathF.Abs(a.RampRise - b.RampRise) > tol
+                || a.Walkable != b.Walkable)
+            {
+                return;
+            }
+
+            float frame;
+            if (MathF.Abs(a.Cos - b.Cos) <= tol && MathF.Abs(a.Sin - b.Sin) <= tol)
+            {
+                frame = 1f;
+            }
+            else if (MathF.Abs(a.Cos + b.Cos) <= tol && MathF.Abs(a.Sin + b.Sin) <= tol)
+            {
+                frame = -1f;
+            }
+            else
+            {
+                return;
+            }
+
+            if (b.IsRamp && frame * a.RampSign > 0f)
+            {
+                return; // a ramp image rises toward the mirrored direction; this pair does not
+            }
+
+            b.Cx = -a.Cx;
+            b.Cz = -a.Cz;
+            b.Hx = a.Hx;
+            b.Hz = a.Hz;
+            b.Cos = a.Cos;
+            b.Sin = a.Sin;
+            b.RampSign = -a.RampSign;
+            b.Bottom = a.Bottom;
+            b.Top = a.Top;
+            b.RampRise = a.RampRise;
+            b.BaseY = a.BaseY;
+            SetFootprintBounds(ref b);
+            _colliderList[image] = b;
         }
 
         private void BinColliders()
         {
             int columns = _n * _n;
             var counts = new int[columns + 1];
+            _colliderStamp = new int[_colliders.Length];
+            _columnReach = new float[columns];
+            for (int c = 0; c < columns; c++)
+            {
+                _columnReach[c] = float.NegativeInfinity;
+            }
+
             for (int pass = 0; pass < 2; pass++)
             {
                 if (pass == 1)
@@ -215,10 +398,11 @@ namespace Confluence.Arena.Navigation
                     _cellItems = new int[running];
                 }
 
-                for (int ci = 0; ci < _colliders.Count; ci++)
+                for (int ci = 0; ci < _colliders.Length; ci++)
                 {
-                    Aabb b = _colliders[ci].Bounds;
-                    ColumnRange(b.Min.X, b.Min.Z, b.Max.X, b.Max.Z, out int i0, out int j0, out int i1, out int j1);
+                    ref Collider col = ref _colliders[ci];
+                    float reach = col.Top - MovingAllowance(ref col);
+                    ColumnRange(col.MinX, col.MinZ, col.MaxX, col.MaxZ, out int i0, out int j0, out int i1, out int j1);
                     for (int j = j0; j <= j1; j++)
                     {
                         for (int i = i0; i <= i1; i++)
@@ -227,6 +411,7 @@ namespace Confluence.Arena.Navigation
                             if (pass == 0)
                             {
                                 counts[c]++;
+                                _columnReach[c] = MathF.Max(_columnReach[c], reach);
                             }
                             else
                             {
@@ -246,6 +431,52 @@ namespace Confluence.Arena.Navigation
             j1 = CMath.Clamp((int)MathF.Floor((maxZ - _origin.Y) / _cs), 0, _n - 1);
         }
 
+        // ---- Footprint geometry ------------------------------------------------------------------
+        // Every expression below is odd under negating both the point and the footprint center, so a footprint and
+        // its adopted image answer mirrored questions identically (IEEE rounding is symmetric about zero).
+
+        private static void ToLocal(ref Collider col, float x, float z, out float lx, out float lz)
+        {
+            float dx = x - col.Cx;
+            float dz = z - col.Cz;
+            lx = dx * col.Cos - dz * col.Sin;
+            lz = dx * col.Sin + dz * col.Cos;
+        }
+
+        private static bool ContainsLocal(ref Collider col, float lx, float lz) => MathF.Abs(lx) <= col.Hx && MathF.Abs(lz) <= col.Hz;
+
+        /// <summary>Top of the collider's solid at a local footprint point (the walkable surface for ramps).</summary>
+        private static float TopAtLocal(ref Collider col, float lz)
+        {
+            if (col.RampRise <= 0f || col.Hz <= 0f)
+            {
+                return col.Top;
+            }
+
+            float t = CMath.Clamp01((col.RampSign * lz + col.Hz) / (2f * col.Hz));
+            return col.BaseY + col.RampRise * t;
+        }
+
+        /// <summary>
+        /// Height above a layer at which a collider starts to obstruct a capsule standing on that layer: anything
+        /// rising past the 0.05 m floor tolerance for plain obstacles, past the 0.35 m step for walkable surfaces the
+        /// motor steps onto, and past the 1 m common jump for walkable surfaces that carry nodes (ledges, D-024).
+        /// </summary>
+        private static float StandingAllowance(ref Collider col)
+        {
+            if (!col.Walkable)
+            {
+                return HeadroomFloor;
+            }
+
+            return col.SupportsNode ? LedgeClimb : GlobalRules.Movement.StepHeight;
+        }
+
+        /// <summary>Allowance for a moving capsule: plain obstacles block above the floor tolerance, surfaces above a step.</summary>
+        private static float MovingAllowance(ref Collider col) => col.Walkable ? GlobalRules.Movement.StepHeight : HeadroomFloor;
+
+        // ---- Nodes ---------------------------------------------------------------------------------
+
         private void BuildNodes()
         {
             int columns = _n * _n;
@@ -262,13 +493,17 @@ namespace Confluence.Arena.Navigation
                 for (int k = _cellStart[c]; k < _cellStart[c + 1]; k++)
                 {
                     int ci = _cellItems[k];
-                    Collider col = _colliders[ci];
-                    if (!col.Walkable || !col.Box.ContainsXZ(p))
+                    ref Collider col = ref _colliders[ci];
+                    if (!col.Walkable)
                     {
                         continue;
                     }
 
-                    candidates.Add(new KeyValuePair<float, int>(SurfaceHeight(col, p), ci));
+                    ToLocal(ref col, p.X, p.Y, out float lx, out float lz);
+                    if (ContainsLocal(ref col, lx, lz))
+                    {
+                        candidates.Add(new KeyValuePair<float, int>(TopAtLocal(ref col, lz), ci));
+                    }
                 }
 
                 if (candidates.Count == 0)
@@ -278,21 +513,29 @@ namespace Confluence.Arena.Navigation
 
                 candidates.Sort((a, b) => a.Key != b.Key ? a.Key.CompareTo(b.Key) : a.Value.CompareTo(b.Value));
                 float last = float.NegativeInfinity;
+                bool lastIsNode = false;
                 for (int k = candidates.Count - 1; k >= 0; k--)
                 {
                     // Keep the highest of nearly coincident surfaces; walk downward so dedupe keeps the top one.
                     float h = candidates[k].Key;
                     if (MathF.Abs(h - last) < SurfaceMergeEpsilon)
                     {
+                        if (lastIsNode)
+                        {
+                            _colliders[candidates[k].Value].SupportsNode = true;
+                        }
+
                         continue;
                     }
 
                     last = h;
-                    if (HasHeadroom(c, p, h, ArenaRules.Headroom))
+                    lastIsNode = HasHeadroom(c, p, h, ArenaRules.Headroom);
+                    if (lastIsNode)
                     {
                         heights.Add(h);
                         supports.Add(candidates[k].Value);
                         columnOf.Add(c);
+                        _colliders[candidates[k].Value].SupportsNode = true;
                     }
                 }
 
@@ -310,6 +553,14 @@ namespace Confluence.Arena.Navigation
             _nodeHeight = heights.ToArray();
             _nodeSupport = supports.ToArray();
             _nodeColumn = columnOf.ToArray();
+            _nodeX = new float[_nodeHeight.Length];
+            _nodeZ = new float[_nodeHeight.Length];
+            for (int a = 0; a < _nodeHeight.Length; a++)
+            {
+                Vec2 p = ColumnCenter(_nodeColumn[a]);
+                _nodeX[a] = p.X;
+                _nodeZ[a] = p.Y;
+            }
         }
 
         /// <summary>
@@ -342,41 +593,9 @@ namespace Confluence.Arena.Navigation
             }
         }
 
-        private static float SurfaceHeight(Collider col, Vec2 p)
-        {
-            if (col.RampRise > 0f)
-            {
-                float h = new RampShape(col.Box, col.RampRise).SurfaceHeightAt(p.X, p.Y);
-                return float.IsNaN(h) ? col.Box.Top : h;
-            }
+        private bool HasHeadroom(int column, Vec2 p, float h, float headroom) => IntervalClear(column, p, h + HeadroomFloor, h + headroom);
 
-            return col.Box.Top;
-        }
-
-        /// <summary>Top of the collider's solid at a ground point (the ramp surface for ramps).</summary>
-        private static float OccupiedTop(Collider col, Vec2 p) => SurfaceHeight(col, p);
-
-        private bool HasHeadroom(int column, Vec2 p, float h, float headroom)
-        {
-            float lo = h + HeadroomFloor;
-            float hi = h + headroom;
-            for (int k = _cellStart[column]; k < _cellStart[column + 1]; k++)
-            {
-                Collider col = _colliders[_cellItems[k]];
-                if (col.Bounds.Max.Y <= lo || col.Bounds.Min.Y >= hi || !col.Box.ContainsXZ(p))
-                {
-                    continue;
-                }
-
-                if (OccupiedTop(col, p) > lo && col.Box.Bottom < hi)
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
+        /// <summary>True when no collider occupies the vertical interval (lo, hi) above a ground point of a column.</summary>
         private bool IntervalClear(int column, Vec2 p, float lo, float hi)
         {
             if (hi <= lo)
@@ -386,13 +605,14 @@ namespace Confluence.Arena.Navigation
 
             for (int k = _cellStart[column]; k < _cellStart[column + 1]; k++)
             {
-                Collider col = _colliders[_cellItems[k]];
-                if (col.Bounds.Max.Y <= lo || col.Bounds.Min.Y >= hi || !col.Box.ContainsXZ(p))
+                ref Collider col = ref _colliders[_cellItems[k]];
+                if (col.Top <= lo || col.Bottom >= hi)
                 {
                     continue;
                 }
 
-                if (OccupiedTop(col, p) > lo && col.Box.Bottom < hi)
+                ToLocal(ref col, p.X, p.Y, out float lx, out float lz);
+                if (ContainsLocal(ref col, lx, lz) && TopAtLocal(ref col, lz) > lo)
                 {
                     return false;
                 }
@@ -424,6 +644,8 @@ namespace Confluence.Arena.Navigation
             return best;
         }
 
+        // ---- Edges ---------------------------------------------------------------------------------
+
         private void BuildEdges()
         {
             int nodeCount = _nodeHeight.Length;
@@ -431,6 +653,8 @@ namespace Confluence.Arena.Navigation
             var to = new List<int>(nodeCount * 8);
             var cost = new List<float>(nodeCount * 8);
             var kind = new List<NavEdgeKind>(nodeCount * 8);
+            _obstructedDirs = new byte[nodeCount];
+            _edgeDirs = new byte[nodeCount];
             float diag = _cs * MathF.Sqrt(2f);
             for (int a = 0; a < nodeCount; a++)
             {
@@ -439,6 +663,7 @@ namespace Confluence.Arena.Navigation
                 int ci = c % _n;
                 int cj = c / _n;
                 float h1 = _nodeHeight[a];
+                Vec2 pa = ColumnCenter(c);
                 for (int dir = 0; dir < 8; dir++)
                 {
                     int ni = ci + DirX[dir];
@@ -451,6 +676,7 @@ namespace Confluence.Arena.Navigation
                     int nc = nj * _n + ni;
                     bool diagonal = dir >= 4;
                     float d = diagonal ? diag : _cs;
+                    Vec2 pb = ColumnCenter(nc);
                     int walk = WalkNodeIn(nc, h1, d);
                     if (walk >= 0)
                     {
@@ -465,9 +691,16 @@ namespace Confluence.Arena.Navigation
                             }
                         }
 
+                        if (SegmentObstructed(c, nc, -1, pa, pb, h1, _nodeHeight[walk]))
+                        {
+                            _obstructedDirs[a] |= (byte)(1 << dir);
+                            continue;
+                        }
+
                         to.Add(walk);
                         cost.Add(d);
                         kind.Add(NavEdgeKind.Walk);
+                        _edgeDirs[a] |= (byte)(1 << dir);
                         continue;
                     }
 
@@ -476,9 +709,8 @@ namespace Confluence.Arena.Navigation
                         continue;
                     }
 
-                    // No walkable continuation: consider a ledge climb or a safe drop into the neighbor column.
-                    Vec2 pa = ColumnCenter(c);
-                    Vec2 pb = ColumnCenter(nc);
+                    // No walkable continuation: consider a ledge climb or a safe drop into the neighbor column. The
+                    // capsule crosses at the upper height: rising before a climb, stepping off before a drop.
                     int jump = -1;
                     int drop = -1;
                     for (int m = _columnFirst[nc]; m < _columnFirst[nc + 1]; m++)
@@ -486,7 +718,8 @@ namespace Confluence.Arena.Navigation
                         float dh = _nodeHeight[m] - h1;
                         if (dh > 0f && dh <= GlobalRules.Movement.MaxCommonJumpLedge + 0.01f)
                         {
-                            if (jump < 0 && IntervalClear(c, pa, h1 + ArenaRules.Headroom, _nodeHeight[m] + ArenaRules.Headroom))
+                            if (jump < 0 && IntervalClear(c, pa, h1 + ArenaRules.Headroom, _nodeHeight[m] + ArenaRules.Headroom)
+                                && !SegmentObstructed(c, nc, -1, pa, pb, _nodeHeight[m], _nodeHeight[m]))
                             {
                                 jump = m;
                             }
@@ -500,11 +733,17 @@ namespace Confluence.Arena.Navigation
                         }
                     }
 
+                    if (drop >= 0 && SegmentObstructed(c, nc, -1, pa, pb, h1, h1))
+                    {
+                        drop = -1;
+                    }
+
                     if (jump >= 0)
                     {
                         to.Add(jump);
                         cost.Add(d + ArenaRules.JumpEdgePenalty);
                         kind.Add(NavEdgeKind.Jump);
+                        _edgeDirs[a] |= (byte)(1 << dir);
                     }
 
                     if (drop >= 0)
@@ -512,6 +751,7 @@ namespace Confluence.Arena.Navigation
                         to.Add(drop);
                         cost.Add(d + ArenaRules.DropEdgePenalty);
                         kind.Add(NavEdgeKind.Drop);
+                        _edgeDirs[a] |= (byte)(1 << dir);
 
                         // A falling capsule carries forward: also land one column farther out, clear of the wall the
                         // ledge makes for the floor right below it.
@@ -520,8 +760,11 @@ namespace Confluence.Arena.Navigation
                         if (fi >= 0 && fj >= 0 && fi < _n && fj < _n)
                         {
                             int nc2 = fj * _n + fi;
+                            Vec2 pc = ColumnCenter(nc2);
                             int far = WalkNodeIn(nc2, _nodeHeight[drop], _cs);
-                            if (far >= 0 && IntervalClear(nc2, ColumnCenter(nc2), _nodeHeight[far] + ArenaRules.Headroom, h1 + ArenaRules.Headroom))
+                            if (far >= 0 && IntervalClear(nc2, pc, _nodeHeight[far] + ArenaRules.Headroom, h1 + ArenaRules.Headroom)
+                                && !SegmentObstructed(c, nc, nc2, pa, pc, h1, h1)
+                                && !SegmentObstructed(nc, nc2, -1, pb, pc, _nodeHeight[far], _nodeHeight[far]))
                             {
                                 to.Add(far);
                                 cost.Add(2f * d + ArenaRules.DropEdgePenalty);
@@ -537,6 +780,158 @@ namespace Confluence.Arena.Navigation
             _edgeTo = to.ToArray();
             _edgeCost = cost.ToArray();
             _edgeKind = kind.ToArray();
+        }
+
+        /// <summary>
+        /// True when a capsule moving along the ground segment p to q, its feet rising linearly from f0 to f1, runs into
+        /// a collider: some point of the segment lies in a footprint whose solid reaches above the feet by more than
+        /// the collider's allowance while its underside is below head height. Colliders are taken from the listed
+        /// columns, whose cells contain the segment (binning is conservative). Each collider is tested once per segment,
+        /// and only when its padded footprint bounds overlap the segment's: both filters skip only colliders the exact
+        /// test would clear, so the answer (and the graph's half-turn symmetry) is unchanged.
+        /// </summary>
+        private bool SegmentObstructed(int c0, int c1, int c2, Vec2 p, Vec2 q, float f0, float f1)
+        {
+            _segmentStamp++;
+            var s = new SegmentProbe
+            {
+                P = p,
+                Q = q,
+                F0 = f0,
+                F1 = f1,
+                Low = MathF.Min(f0, f1),
+                High = MathF.Max(f0, f1),
+                MinX = MathF.Min(p.X, q.X),
+                MaxX = MathF.Max(p.X, q.X),
+                MinZ = MathF.Min(p.Y, q.Y),
+                MaxZ = MathF.Max(p.Y, q.Y),
+            };
+            return ObstructedIn(c0, ref s)
+                || (c1 >= 0 && c1 != c0 && ObstructedIn(c1, ref s))
+                || (c2 >= 0 && c2 != c0 && c2 != c1 && ObstructedIn(c2, ref s));
+        }
+
+        /// <summary>A walking segment under test: ground end points, feet heights, and its bounds.</summary>
+        private struct SegmentProbe
+        {
+            public Vec2 P;
+            public Vec2 Q;
+            public float F0;
+            public float F1;
+            public float Low;
+            public float High;
+            public float MinX;
+            public float MaxX;
+            public float MinZ;
+            public float MaxZ;
+        }
+
+        private bool ObstructedIn(int column, ref SegmentProbe s)
+        {
+            if (_columnReach[column] + ReachSlack <= s.Low)
+            {
+                return false; // nothing binned here rises past its allowance above these feet (open floor)
+            }
+
+            for (int k = _cellStart[column]; k < _cellStart[column + 1]; k++)
+            {
+                int ci = _cellItems[k];
+                if (_colliderStamp[ci] == _segmentStamp)
+                {
+                    continue; // already tested from another column this segment crosses
+                }
+
+                _colliderStamp[ci] = _segmentStamp;
+                ref Collider col = ref _colliders[ci];
+                if (col.MaxX < s.MinX || col.MinX > s.MaxX || col.MaxZ < s.MinZ || col.MinZ > s.MaxZ)
+                {
+                    continue;
+                }
+
+                float allowance = MovingAllowance(ref col);
+                if (col.Top <= s.Low + allowance || col.Bottom >= s.High + ArenaRules.Headroom)
+                {
+                    continue;
+                }
+
+                if (SegmentHits(ref col, s.P, s.Q, s.F0, s.F1, allowance))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool SegmentHits(ref Collider col, Vec2 p, Vec2 q, float f0, float f1, float allowance)
+        {
+            ToLocal(ref col, p.X, p.Y, out float ox, out float oz);
+            ToLocal(ref col, q.X, q.Y, out float qx, out float qz);
+            float dx = qx - ox;
+            float dz = qz - oz;
+            float t0 = 0f;
+            float t1 = 1f;
+            if (!ClipSlab(ox, dx, col.Hx, ref t0, ref t1) || !ClipSlab(oz, dz, col.Hz, ref t0, ref t1))
+            {
+                return false;
+            }
+
+            // Along the overlap, the solid's top above the feet and the head's height above its underside are both
+            // linear in t, so the overlap is obstructed iff both are positive somewhere on it.
+            float fa = f0 + (f1 - f0) * t0;
+            float fb = f0 + (f1 - f0) * t1;
+            float ga = TopAtLocal(ref col, oz + dz * t0) - fa - allowance;
+            float gb = TopAtLocal(ref col, oz + dz * t1) - fb - allowance;
+            float ceiling = col.Bottom - ArenaRules.Headroom;
+            return BothPositiveSomewhere(ga, gb, fa - ceiling, fb - ceiling);
+        }
+
+        /// <summary>Clips [t0, t1] to the parameters where o + d t lies within [-h, h]; false when nothing remains.</summary>
+        private static bool ClipSlab(float o, float d, float h, ref float t0, ref float t1)
+        {
+            if (MathF.Abs(d) < 1e-9f)
+            {
+                return MathF.Abs(o) <= h;
+            }
+
+            float ta = (-h - o) / d;
+            float tb = (h - o) / d;
+            t0 = MathF.Max(t0, MathF.Min(ta, tb));
+            t1 = MathF.Min(t1, MathF.Max(ta, tb));
+            return t0 <= t1;
+        }
+
+        /// <summary>True if two linear functions on [0, 1] (given by their end values) are positive at a common point.</summary>
+        private static bool BothPositiveSomewhere(float a0, float a1, float b0, float b1)
+        {
+            float lo = 0f;
+            float hi = 1f;
+            return PositivePart(a0, a1, ref lo, ref hi) && PositivePart(b0, b1, ref lo, ref hi) && (lo < hi || (a0 > 0f && b0 > 0f) || (a1 > 0f && b1 > 0f));
+        }
+
+        private static bool PositivePart(float v0, float v1, ref float lo, ref float hi)
+        {
+            if (v0 > 0f && v1 > 0f)
+            {
+                return true;
+            }
+
+            if (v0 <= 0f && v1 <= 0f)
+            {
+                return false;
+            }
+
+            float s = v0 / (v0 - v1);
+            if (v0 > 0f)
+            {
+                hi = MathF.Min(hi, s);
+            }
+            else
+            {
+                lo = MathF.Max(lo, s);
+            }
+
+            return lo <= hi;
         }
 
         private void BuildReverseEdges()
@@ -571,53 +966,118 @@ namespace Confluence.Arena.Navigation
 
         // ---- Clearance ---------------------------------------------------------------------------
 
+        /// <summary>
+        /// Clearance of every node: the distance to the nearest obstacle footprint (exact within
+        /// <see cref="ExactClearanceRadius"/>) or surface edge (where the node's surface ends with no walk, ledge, or
+        /// drop beyond), propagated outward over walk edges as a distance to the nearest known boundary point.
+        /// Every value is a distance to a real boundary point, so it never underestimates by more than the edge
+        /// bisection step.
+        /// </summary>
         private void ComputeClearance()
         {
             int nodeCount = _nodeHeight.Length;
             _clearance = new float[nodeCount];
             var srcX = new float[nodeCount];
             var srcZ = new float[nodeCount];
-            var heap = new NodeHeap(nodeCount, _rank);
             for (int a = 0; a < nodeCount; a++)
             {
                 _clearance[a] = float.PositiveInfinity;
+            }
+
+            // Squared distances until the end: the order is the same and the propagation takes no square roots.
+            SeedObstacleDistances(srcX, srcZ);
+            for (int a = 0; a < nodeCount; a++)
+            {
+                // Directions cut by an obstacle are measured exactly above; the rest end at a surface edge.
+                int open = _obstructedDirs[a] | PassableDirs(a);
+                if (open == 0xFF)
+                {
+                    continue;
+                }
+
                 int c = _nodeColumn[a];
                 int ci = c % _n;
                 int cj = c / _n;
-                Vec2 p = ColumnCenter(c);
+                Vec2 p = new Vec2(_nodeX[a], _nodeZ[a]);
+                if (!StandableNear(p, _nodeHeight[a], out float _))
+                {
+                    // The node's own surface gives way at its center (a higher surface without headroom within reach).
+                    if (0f < _clearance[a])
+                    {
+                        _clearance[a] = 0f;
+                        srcX[a] = p.X;
+                        srcZ[a] = p.Y;
+                    }
+
+                    continue;
+                }
+
                 for (int dir = 0; dir < 8; dir++)
                 {
-                    if (IsPassable(a, dir))
+                    if ((open & (1 << dir)) != 0)
                     {
                         continue;
                     }
 
                     Vec2 target = new Vec2(p.X + DirX[dir] * _cs, p.Y + DirZ[dir] * _cs);
-                    Vec2 crossing = EdgeCrossing(a, p, target, ci + DirX[dir], cj + DirZ[dir]);
-                    float dist = Vec2.Distance(p, crossing);
-                    if (dist < _clearance[a])
+                    if (!EdgeCrossing(a, p, target, ci + DirX[dir], cj + DirZ[dir], _clearance[a], out Vec2 crossing))
                     {
-                        _clearance[a] = dist;
+                        continue;
+                    }
+
+                    float d2 = Vec2.DistanceSquared(p, crossing);
+                    if (d2 < _clearance[a])
+                    {
+                        _clearance[a] = d2;
                         srcX[a] = crossing.X;
                         srcZ[a] = crossing.Y;
                     }
                 }
+            }
 
+            // Two queues with one order (key, then rank): the seeded nodes sorted once, and a heap for the improvements
+            // found while propagating. Taking the smaller head each time pops exactly the sequence one heap would.
+            var seeded = new ulong[nodeCount];
+            int seededCount = 0;
+            for (int a = 0; a < nodeCount; a++)
+            {
                 if (!float.IsPositiveInfinity(_clearance[a]))
                 {
-                    heap.Push(_clearance[a], a);
+                    seeded[seededCount++] = PackKey(_clearance[a], _rank[a]);
                 }
             }
 
-            while (heap.Count > 0)
+            Array.Sort(seeded, 0, seededCount);
+            var nodeOfRank = new int[nodeCount];
+            for (int a = 0; a < nodeCount; a++)
             {
-                int a = heap.Pop(out float key);
+                nodeOfRank[_rank[a]] = a;
+            }
+
+            var heap = new NodeHeap(nodeCount / 4, _rank);
+            int next = 0;
+            while (next < seededCount || heap.Count > 0)
+            {
+                int a;
+                float key;
+                if (heap.Count == 0 || (next < seededCount && seeded[next] < PackKey(heap.PeekKey, _rank[heap.PeekNode])))
+                {
+                    key = BitConverter.Int32BitsToSingle((int)(seeded[next] >> 32));
+                    a = nodeOfRank[(int)(seeded[next] & 0xFFFFFFFFUL)];
+                    next++;
+                }
+                else
+                {
+                    a = heap.Pop(out key);
+                }
+
                 if (key > _clearance[a])
                 {
                     continue;
                 }
 
-                Vec2 src = new Vec2(srcX[a], srcZ[a]);
+                float sx = srcX[a];
+                float sz = srcZ[a];
                 for (int e = _edgeStart[a]; e < _edgeStart[a + 1]; e++)
                 {
                     if (_edgeKind[e] != NavEdgeKind.Walk)
@@ -626,15 +1086,135 @@ namespace Confluence.Arena.Navigation
                     }
 
                     int b = _edgeTo[e];
-                    float candidate = Vec2.Distance(ColumnCenter(_nodeColumn[b]), src);
+                    float dx = _nodeX[b] - sx;
+                    float dz = _nodeZ[b] - sz;
+                    float candidate = dx * dx + dz * dz;
                     if (candidate < _clearance[b])
                     {
                         _clearance[b] = candidate;
-                        srcX[b] = src.X;
-                        srcZ[b] = src.Y;
+                        srcX[b] = sx;
+                        srcZ[b] = sz;
                         heap.Push(candidate, b);
                     }
                 }
+            }
+
+            for (int a = 0; a < nodeCount; a++)
+            {
+                _clearance[a] = MathF.Sqrt(_clearance[a]);
+            }
+        }
+
+        /// <summary>Sort key of a (non-negative squared distance, rank) pair: the float bits order like the values.</summary>
+        private static ulong PackKey(float key, int rank) => ((ulong)(uint)BitConverter.SingleToInt32Bits(key) << 32) | (uint)rank;
+
+        /// <summary>
+        /// Exact horizontal distance from each node to the part of every nearby footprint that obstructs a capsule
+        /// standing on the node's layer (see <see cref="StandingAllowance"/>; for ramps, the part of the footprint
+        /// where the surface rises past the allowance). Walks each collider's footprint grown by the exact radius.
+        /// </summary>
+        private void SeedObstacleDistances(float[] srcX, float[] srcZ)
+        {
+            if (_nodeHeight.Length == 0)
+            {
+                return;
+            }
+
+            float minH = float.PositiveInfinity;
+            float maxH = float.NegativeInfinity;
+            for (int a = 0; a < _nodeHeight.Length; a++)
+            {
+                minH = MathF.Min(minH, _nodeHeight[a]);
+                maxH = MathF.Max(maxH, _nodeHeight[a]);
+            }
+
+            const float r = ExactClearanceRadius;
+            for (int ci = 0; ci < _colliders.Length; ci++)
+            {
+                ref Collider col = ref _colliders[ci];
+                float allowance = StandingAllowance(ref col);
+
+                // Layers h it can obstruct: Top > h + allowance and Bottom < h + headroom.
+                float layerLow = col.Bottom - ArenaRules.Headroom;
+                float layerHigh = col.Top - allowance;
+                if (layerHigh <= minH || layerLow >= maxH || layerHigh <= layerLow)
+                {
+                    continue;
+                }
+
+                ColumnRange(col.MinX - r, col.MinZ - r, col.MaxX + r, col.MaxZ + r, out int i0, out int j0, out int i1, out int j1);
+                for (int j = j0; j <= j1; j++)
+                {
+                    for (int i = i0; i <= i1; i++)
+                    {
+                        int c = j * _n + i;
+                        int first = _columnFirst[c];
+                        int end = _columnFirst[c + 1];
+                        if (first == end)
+                        {
+                            continue;
+                        }
+
+                        Vec2 p = ColumnCenter(c);
+                        ToLocal(ref col, p.X, p.Y, out float lx, out float lz);
+                        float dx = MathF.Max(MathF.Abs(lx) - col.Hx, 0f);
+                        if (dx >= r)
+                        {
+                            continue;
+                        }
+
+                        for (int m = first; m < end; m++)
+                        {
+                            float h = _nodeHeight[m];
+                            if (h <= layerLow || h >= layerHigh)
+                            {
+                                continue;
+                            }
+
+                            ObstructedSpan(ref col, h + allowance, out float zLo, out float zHi);
+                            float dz = MathF.Max(MathF.Max(zLo - lz, lz - zHi), 0f);
+                            float d2 = dx * dx + dz * dz;
+                            if (d2 < r * r && d2 < _clearance[m])
+                            {
+                                // Nearest obstructing point, back in world space (the source for propagation).
+                                float qx = CMath.Clamp(lx, -col.Hx, col.Hx);
+                                float qz = CMath.Clamp(lz, zLo, zHi);
+                                _clearance[m] = d2;
+                                srcX[m] = col.Cx + qx * col.Cos + qz * col.Sin;
+                                srcZ[m] = col.Cz - qx * col.Sin + qz * col.Cos;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Local Z range of the footprint where the solid reaches above a height: all of it for plain boxes, the
+        /// stretch past the height for ramps (the surface is linear along the rise). Called only when the top does.
+        /// </summary>
+        private static void ObstructedSpan(ref Collider col, float above, out float zLo, out float zHi)
+        {
+            zLo = -col.Hz;
+            zHi = col.Hz;
+            if (col.RampRise <= 0f || col.Hz <= 0f)
+            {
+                return;
+            }
+
+            float own = (above - col.BaseY) / col.RampRise * (2f * col.Hz) - col.Hz;
+            if (own <= -col.Hz)
+            {
+                return;
+            }
+
+            if (col.RampSign > 0f)
+            {
+                zLo = MathF.Min(own, col.Hz);
+            }
+            else
+            {
+                zHi = -MathF.Min(own, col.Hz);
             }
         }
 
@@ -694,10 +1274,10 @@ namespace Confluence.Arena.Navigation
         }
 
         /// <summary>
-        /// The propagated clearance is the distance to a real surface edge, so it never underestimates; on a
+        /// The propagated clearance is the distance to a real boundary point, so it never underestimates; on a
         /// symmetric graph each node and its image measure the same geometry, and the smaller of the two estimates
-        /// is the better one for both. Without this, float rounding in rotated boxes and propagation order left
-        /// mirrored cells up to half a meter apart in clearance (and so in capsule and route admissibility).
+        /// is the better one for both. Without this, propagation order left mirrored cells apart in clearance (and
+        /// so in capsule and route admissibility).
         /// </summary>
         private void SymmetrizeClearance()
         {
@@ -714,59 +1294,42 @@ namespace Confluence.Arena.Navigation
         }
 
         /// <summary>
-        /// True when the node connects toward a neighbor column by any movement: walking, a common-jump ledge, or a safe
-        /// drop (diagonals need both of their orthogonal steps). Clearance measures distance to real boundaries only,
-        /// so a capsule beside a jumpable ledge or at the lip of a safe drop still counts as standing room.
+        /// Directions (bit d) in which the node connects toward the neighbor column by any movement: walking, a
+        /// common-jump ledge, or a safe drop; a diagonal also counts when both of its orthogonal steps do. Clearance
+        /// measures distance to real boundaries only, so a capsule beside a jumpable ledge or at the lip of a safe
+        /// drop still counts as standing room.
         /// </summary>
-        private bool IsPassable(int node, int dir)
+        private int PassableDirs(int node)
         {
-            if (HasEdgeInDirection(node, dir))
+            int bits = _edgeDirs[node];
+            int px = bits & 1;          // +X is direction 0
+            int pz = (bits >> 1) & 1;   // +Z is direction 1
+            int nx = (bits >> 2) & 1;   // -X is direction 2
+            int nz = (bits >> 3) & 1;   // -Z is direction 3
+            int diagonals = ((px & pz) << 4) | ((nx & pz) << 5) | ((nx & nz) << 6) | ((px & nz) << 7);
+            return bits | diagonals;
+        }
+
+        /// <summary>
+        /// Where the standable surface of node a, standable at its center p, ends on the way to q (bisection on
+        /// standability). False once the bisection shows the crossing lies no nearer than bestSq (squared distance), so
+        /// it cannot lower the node's clearance; the margin keeps that cut-off clear of float rounding, so the
+        /// clearances are exactly those of the full bisection.
+        /// </summary>
+        private bool EdgeCrossing(int a, Vec2 p, Vec2 q, int qi, int qj, float bestSq, out Vec2 crossing)
+        {
+            float h = _nodeHeight[a];
+            if (qi >= 0 && qj >= 0 && qi < _n && qj < _n && StandableNear(q, h, out float _))
             {
+                // The far column is standable at the center but not walk-connected (a step or slope too steep): the
+                // break lies between the two centers.
+                crossing = Vec2.Lerp(p, q, 0.5f);
                 return true;
             }
 
-            if (dir < 4)
-            {
-                return false;
-            }
-
-            int ox = DirX[dir] > 0 ? 0 : 2;  // +X is direction 0, -X is direction 2
-            int oz = DirZ[dir] > 0 ? 1 : 3;  // +Z is direction 1, -Z is direction 3
-            return HasEdgeInDirection(node, ox) && HasEdgeInDirection(node, oz);
-        }
-
-        private bool HasEdgeInDirection(int node, int dir)
-        {
-            int c = _nodeColumn[node];
-            int target = (c / _n + DirZ[dir]) * _n + (c % _n + DirX[dir]);
-            for (int e = _edgeStart[node]; e < _edgeStart[node + 1]; e++)
-            {
-                if (_nodeColumn[_edgeTo[e]] == target)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        // Where the standable surface of node a ends on the way from p to q (bisection on standability).
-        private Vec2 EdgeCrossing(int a, Vec2 p, Vec2 q, int qi, int qj)
-        {
-            float h = _nodeHeight[a];
-            if (StandableNear(p, h, out float _) == false)
-            {
-                return p;
-            }
-
+            float lengthSq = Vec2.DistanceSquared(p, q);
             float lo = 0f;
             float hi = 1f;
-            if (qi >= 0 && qj >= 0 && qi < _n && qj < _n && StandableNear(q, h, out float _))
-            {
-                // The far column is standable at the center but not walk-connected (headroom or slope): use the midpoint.
-                return Vec2.Lerp(p, q, 0.5f);
-            }
-
             for (int it = 0; it < CrossingBisections; it++)
             {
                 float mid = 0.5f * (lo + hi);
@@ -775,6 +1338,11 @@ namespace Confluence.Arena.Navigation
                 {
                     lo = mid;
                     h = hm;
+                    if (lo * lo * lengthSq > bestSq * (1f + CrossingCutoffMargin))
+                    {
+                        crossing = default(Vec2);
+                        return false;
+                    }
                 }
                 else
                 {
@@ -782,7 +1350,8 @@ namespace Confluence.Arena.Navigation
                 }
             }
 
-            return Vec2.LerpUnclamped(p, q, 0.5f * (lo + hi));
+            crossing = Vec2.LerpUnclamped(p, q, 0.5f * (lo + hi));
+            return true;
         }
 
         /// <summary>True if a surface within the support tolerance of hRef exists at p with standing headroom.</summary>
@@ -798,13 +1367,19 @@ namespace Confluence.Arena.Navigation
             float best = float.NaN;
             for (int k = _cellStart[column]; k < _cellStart[column + 1]; k++)
             {
-                Collider col = _colliders[_cellItems[k]];
-                if (!col.Walkable || !col.Box.ContainsXZ(p))
+                ref Collider col = ref _colliders[_cellItems[k]];
+                if (!col.Walkable)
                 {
                     continue;
                 }
 
-                float s = SurfaceHeight(col, p);
+                ToLocal(ref col, p.X, p.Y, out float lx, out float lz);
+                if (!ContainsLocal(ref col, lx, lz))
+                {
+                    continue;
+                }
+
+                float s = TopAtLocal(ref col, lz);
                 if (MathF.Abs(s - hRef) <= SupportTolerance && (float.IsNaN(best) || s > best))
                 {
                     best = s;
@@ -855,11 +1430,7 @@ namespace Confluence.Arena.Navigation
         /// <summary>Horizontal distance from the node to the nearest wall or surface edge.</summary>
         public float Clearance(int node) => _clearance[node];
 
-        public Vec3 NodePosition(int node)
-        {
-            Vec2 p = ColumnCenter(_nodeColumn[node]);
-            return new Vec3(p.X, _nodeHeight[node], p.Y);
-        }
+        public Vec3 NodePosition(int node) => new Vec3(_nodeX[node], _nodeHeight[node], _nodeZ[node]);
 
         /// <summary>Node at the mirrored position with the closest height, or -1.</summary>
         public int MirrorNode(int node)
@@ -1158,9 +1729,9 @@ namespace Confluence.Arena.Navigation
             }
 
             var ray = new Ray(a, delta / length);
-            for (int i = 0; i < _colliders.Count; i++)
+            for (int i = 0; i < _colliders.Length; i++)
             {
-                Collider col = _colliders[i];
+                ref Collider col = ref _colliders[i];
                 if (!col.BlocksSight)
                 {
                     continue;
@@ -1186,9 +1757,9 @@ namespace Confluence.Arena.Navigation
         /// <summary>LOS blocked by one specific solid (by id) when tested alone.</summary>
         public bool SolidBlocksSegment(int solidId, Vec3 a, Vec3 b)
         {
-            for (int i = 0; i < _colliders.Count; i++)
+            for (int i = 0; i < _colliders.Length; i++)
             {
-                Collider col = _colliders[i];
+                ref Collider col = ref _colliders[i];
                 if (col.SolidId != solidId)
                 {
                     continue;
@@ -1210,9 +1781,9 @@ namespace Confluence.Arena.Navigation
         public List<YawBox> BandBlockers(float bandLow, float bandHigh, int excludeSolidA = -1, int excludeSolidB = -1)
         {
             var result = new List<YawBox>();
-            for (int i = 0; i < _colliders.Count; i++)
+            for (int i = 0; i < _colliders.Length; i++)
             {
-                Collider col = _colliders[i];
+                ref Collider col = ref _colliders[i];
                 bool excluded = col.SolidId >= 0 && (col.SolidId == excludeSolidA || col.SolidId == excludeSolidB);
                 if (excluded || !col.BlocksSight || col.Box.Bottom > bandLow || col.Box.Top < bandHigh)
                 {

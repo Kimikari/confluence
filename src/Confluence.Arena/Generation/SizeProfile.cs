@@ -57,6 +57,9 @@ namespace Confluence.Arena.Generation
             // Quotas: Topology, Cover, Elevation, Material, Approach, Center (per half; mirrored to the full arena).
             // Elevation 1-2 per half gives 2-4 modules and cover 2-3 per half gives 4-6 (spec L660 "two to four
             // elevation modules, and three to six cover modules"; mirroring makes the counts even).
+            // Spawn distances are measured on true-size navigation: at 40 m, 10.5 m left sub-capsule slots between the
+            // wing tips, the lane-end noses, and corner cover of the center module, so the spawn path ran just past the
+            // 33.5 m band (spec L310).
             switch (diameter)
             {
                 case GlobalRules.Arena.DiameterSmall:
@@ -64,9 +67,9 @@ namespace Confluence.Arena.Generation
                 case GlobalRules.Arena.DiameterMedium:
                     return new SizeProfile(diameter, 9.75f, 0f, 4.0f, new[] { 1, 2, 1, 1, 1, 0 }, 7f, 6);
                 case GlobalRules.Arena.DiameterLarge:
-                    return new SizeProfile(diameter, 10.5f, 0f, 3.5f, new[] { 2, 3, 2, 1, 2, 0 }, 7f, 7);
+                    return new SizeProfile(diameter, 10.25f, 0f, 3.5f, new[] { 2, 3, 2, 1, 2, 0 }, 7f, 7);
                 case GlobalRules.Arena.DiameterHuge:
-                    return new SizeProfile(diameter, 11.5f, 0f, 3.0f, new[] { 3, 3, 2, 2, 3, 0 }, 7f, 8);
+                    return new SizeProfile(diameter, 11.25f, 0f, 3.0f, new[] { 3, 3, 2, 2, 3, 0 }, 7f, 8);
                 default:
                     throw new ArgumentOutOfRangeException(nameof(diameter), diameter, "Arena diameters are 24, 32, 40, or 48 m (spec L306).");
             }

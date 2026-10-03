@@ -152,6 +152,24 @@ namespace Confluence.Arena.Tests
                 }
 
                 PropShape shape = PropShapes.For(p.PropId);
+
+                // The Sim collides with the stored box: it must be the shape's body at the placement, nothing for
+                // floor-level props.
+                if (p.HasCollision != shape.BlocksMovement)
+                {
+                    problems.Add("props: " + p.PropId + " #" + p.Id + " collision flag differs from its shape");
+                }
+                else if (p.HasCollision)
+                {
+                    YawBox body = shape.BoxAt(p.Position, p.YawDeg);
+                    YawBox stored = p.CollisionBox;
+                    if (Vec3.Distance(body.Center, stored.Center) > 1e-3f || Vec3.Distance(body.HalfExtents, stored.HalfExtents) > 1e-3f
+                        || Math.Abs(CMath.DeltaAngle(body.YawDeg, stored.YawDeg)) > 0.01f)
+                    {
+                        problems.Add("props: " + p.PropId + " #" + p.Id + " collision box " + stored + " is not its body " + body);
+                    }
+                }
+
                 if (Vec3.DistanceXZ(p.Position, layout.Center) < layout.FinalFloorRadius + shape.PlacementRadius)
                 {
                     problems.Add("props: " + p.PropId + " on the final circle");

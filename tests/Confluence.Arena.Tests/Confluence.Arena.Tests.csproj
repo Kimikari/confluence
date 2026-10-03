@@ -14,7 +14,10 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Confluence.Core\Confluence.Core.csproj" />
-    <ProjectReference Include="..\..\src\Confluence.Arena\Confluence.Arena.csproj" />  </ItemGroup>
+    <ProjectReference Include="..\..\src\Confluence.Arena\Confluence.Arena.csproj" />
+    <!-- Round diameter equivalence only: the match owns the diameter and ArenaSchedule must repeat it. -->
+    <ProjectReference Include="..\..\src\Confluence.Match\Confluence.Match.csproj" />
+  </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
