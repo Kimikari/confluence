@@ -171,7 +171,7 @@ namespace Confluence.Sim.Tests.Content.Halen
             Assert.Equal(1f, jet.BankPayload.Push, 3);
             Assert.Equal(28f, jet.BankPayload.Direct, 3);
             Assert.Equal(28f, form.Payload.Direct, 3);
-            Assert.Equal(1.5f, jet.MissCloudRadius, 3 * 0 + 3 - 3 + 3);
+            Assert.Equal(1f, jet.MissCloudRadius, 3); // rank 1 mist (AUG-434 "1 m mist cloud")
         }
     }
 }
