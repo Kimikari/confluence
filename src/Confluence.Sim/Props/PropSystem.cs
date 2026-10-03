@@ -70,19 +70,9 @@ namespace Confluence.Sim.Props
                 PropMass mass = def != null && def.HasValidMass ? def.Mass : PropMass.Anchored;
                 float durability = def != null ? (float)Math.Max(0.0, def.Durability) : 0f;
                 CollisionSolid solid = null;
-                if (placement.HasCollision && placement.CollisionBox.HalfExtents.X > 0f && placement.CollisionBox.HalfExtents.Z > 0f
-                    && placement.CollisionBox.HalfExtents.Y > 0f)
+                if (HasBody(placement))
                 {
-                    int id = world.Collision.AddTemporarySolid(new TemporarySolidSpec
-                    {
-                        Box = placement.CollisionBox,
-                        Kind = SolidKind.Cover,
-                        BlocksSight = true,
-                        Walkable = true,
-                        Durability = durability,
-                        OwnerPlayer = -1,
-                        SourceId = placement.PropId,
-                    }, 0);
+                    int id = world.Collision.AddTemporarySolid(BodySpec(placement, durability), 0);
                     solid = world.Collision.Find(id);
                 }
 
@@ -94,6 +84,29 @@ namespace Confluence.Sim.Props
                     _bySolid.Add(solid.Id, body);
                 }
             }
+        }
+
+        /// <summary>A placement has a body when the arena generator stored a non-empty collision box for it (D-130).</summary>
+        public static bool HasBody(PropPlacement placement)
+        {
+            return placement != null && placement.HasCollision && placement.CollisionBox.HalfExtents.X > 0f
+                && placement.CollisionBox.HalfExtents.Z > 0f && placement.CollisionBox.HalfExtents.Y > 0f;
+        }
+
+        /// <summary>The prop body as a dynamic Cover solid: blocks movement and sight, walkable top (spec L171-L173).</summary>
+        public static TemporarySolidSpec BodySpec(PropPlacement placement, float durability)
+        {
+            if (placement == null) throw new ArgumentNullException(nameof(placement));
+            return new TemporarySolidSpec
+            {
+                Box = placement.CollisionBox,
+                Kind = SolidKind.Cover,
+                BlocksSight = true,
+                Walkable = true,
+                Durability = durability,
+                OwnerPlayer = -1,
+                SourceId = placement.PropId,
+            };
         }
 
         /// <summary>Bodies for a layout, with definitions from the catalogue when one is given.</summary>

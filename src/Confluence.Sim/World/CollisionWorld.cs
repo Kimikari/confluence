@@ -51,6 +51,30 @@ namespace Confluence.Sim.World
 
         public static CollisionWorld FromLayout(ArenaLayout layout) => new CollisionWorld(layout?.Solids);
 
+        /// <summary>
+        /// The layout's solids plus a body for every prop collision box the arena generator stored (D-130), as a duel's
+        /// world is at its first tick. For previews and tools that move a character without a duel; a duel builds its
+        /// prop bodies itself (<c>Props.PropSystem</c>) so they can move and break.
+        /// </summary>
+        public static CollisionWorld FromLayoutWithProps(ArenaLayout layout)
+        {
+            CollisionWorld world = FromLayout(layout);
+            if (layout?.Props == null)
+            {
+                return world;
+            }
+
+            foreach (PropPlacement placement in layout.Props)
+            {
+                if (Props.PropSystem.HasBody(placement))
+                {
+                    world.AddTemporarySolid(Props.PropSystem.BodySpec(placement, 0f), 0);
+                }
+            }
+
+            return world;
+        }
+
         /// <summary>Solids in deterministic query order (inactive ones included).</summary>
         public IReadOnlyList<CollisionSolid> Solids => _solids;
 

@@ -185,7 +185,7 @@ namespace Confluence.Client.App
                 }
                 else if (Is(arg, "-arenaRound") && hasValue)
                 {
-                    options.ArenaRound = ParseInt(args[++i], "-arenaRound", options, 1, ArenaSchedule.ScheduledRoundCapacity, options.ArenaRound);
+                    options.ArenaRound = ParseInt(args[++i], "-arenaRound", options, 1, Confluence.Match.MatchRules.ConclaveScheduledRoundCapacity, options.ArenaRound);
                 }
                 else if (Is(arg, "-labRound") && hasValue)
                 {

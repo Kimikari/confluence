@@ -86,7 +86,7 @@ namespace Confluence.Client.Cameras
             SpawnPoint spawn = layout?.Spawns != null && layout.Spawns.Length > 0 ? layout.Spawns[0] : null;
             Vec3 feet = spawn != null ? spawn.Position : Vec3.Zero;
             float yaw = spawn != null ? spawn.YawDeg : 0f;
-            _motor = new LocalMotor(CollisionWorld.FromLayout(layout), feet, yaw);
+            _motor = new LocalMotor(CollisionWorld.FromLayoutWithProps(layout), feet, yaw); // props collide as in a duel
             _clock.Reset();
             transform.position = CoreSpace.ToUnity(_motor.State.Position);
             SetLook(yaw, 0f);

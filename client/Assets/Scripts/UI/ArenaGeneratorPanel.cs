@@ -107,7 +107,7 @@ namespace Confluence.Client.UI
             var request = new ArenaRequest
             {
                 MatchSeed = seed,
-                Round = Math.Max(1, Math.Min(ArenaSchedule.ScheduledRoundCapacity, _round.value)),
+                Round = Math.Max(1, Math.Min(Confluence.Match.MatchRules.ConclaveScheduledRoundCapacity, _round.value)),
                 Diameter = _diameter.index <= 0 ? 0 : Diameters[_diameter.index - 1],
                 BiomeId = BiomeIdFromChoice(_biome.value),
             };

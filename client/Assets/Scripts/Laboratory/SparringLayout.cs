@@ -31,7 +31,7 @@ namespace Confluence.Client.Laboratory
             }
 
             ArenaLayout layout = source.Clone();
-            var world = CollisionWorld.FromLayout(layout);
+            var world = CollisionWorld.FromLayoutWithProps(layout); // prop bodies collide in the duel (D-130)
             Vec3 center = layout.Center;
             Vec3 toSpawn = layout.Spawns != null && layout.Spawns.Length > 0 ? layout.Spawns[0].Position - center : new Vec3(0f, 0f, -1f);
             float baseYaw = (float)(Math.Atan2(toSpawn.X, toSpawn.Z) * 180.0 / Math.PI);

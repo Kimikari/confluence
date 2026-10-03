@@ -258,7 +258,8 @@ namespace Confluence.Client.Laboratory
                 ArenaLayout layout = _sandbox ? SparringLayout.Create(_arena.Layout) : _arena.Layout;
                 EnsureRenderer(layout);
                 ShowOverview(false);
-                var world = new DuelWorld(layout, _session.PlayerSetup(), _session.OpponentSetup());
+                // The catalogue gives props their mass and durability and the biome its record (spec L171-L173).
+                var world = new DuelWorld(layout, _session.PlayerSetup(), _session.OpponentSetup(), new DuelWorldOptions { Catalogue = _catalogue });
                 _duel = OfflineDuel.Create(transform, _renderer, world, _catalogue, _context.Settings, new TrainingDummyPilot(_config.Dummy),
                     LaboratorySession.Label + (_sandbox ? "  |  sandbox sparring" : "  |  " + _session.RoundTitle), ControlsHint);
                 _duel.Reactions = (world.Materials as ReactionMaterials)?.World; // the duel's own reaction world (Sim default)

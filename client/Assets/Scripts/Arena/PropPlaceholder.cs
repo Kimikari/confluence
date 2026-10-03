@@ -11,7 +11,8 @@ namespace Confluence.Client.Arena
     /// TEMPORARY ASSET (docs/notes/client.md): placeholder body for a placed prop. Shape follows the catalogue
     /// category (barrel, basin, crate, prism, boulder, gong, crystal, post), size follows the mass class
     /// (spec L173: light, medium, heavy, anchored), and a camera-facing icon shows the interaction category
-    /// (spec L329 "prop interaction icons"). The prop's gameplay state comes from Sim later; this is static.
+    /// (spec L329 "prop interaction icons"). In a duel the renderer moves and hides it with the Sim's prop body
+    /// (<see cref="ArenaRenderer.SyncProps"/>).
     /// </summary>
     public static class PropPlaceholder
     {

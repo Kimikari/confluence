@@ -263,3 +263,125 @@ Precedence: (1) the explicit build requirements in `docs/confluence/confluence-c
 **D-125 Client flow and home menu.** L45–L49: Shop → Draft (augment rounds only) or Alcove; Draft → Alcove; Alcove → Duel (the only way into combat); Duel → Results; Results → Shop or Lobby; every state except Boot can return to the main menu. L341: Home lists Play, Training, Codex, Collection, Replays and Settings, with Collection and Replays disabled for now; Quit is added although L341 does not list it. L421: `Application.targetFrameRate = GlobalRules.Network.TargetFrameRate` (120).
 
 **D-126 Coordinates and synced assets.** Core axes equal Unity axes and yaw maps to Euler Y; the one sign flip is pitch (Core pitch is elevation, positive up), so Unity Euler X = −pitch (`CoreSpace.UnityEulerXFromPitch`). Synced DLLs and the StreamingAssets catalogue copy are gitignored and their `.meta` files committed; a missing `.meta` gets GUID = MD5("Confluence.Client/<folder>/<file>"), stable on every machine. Smoke runs use an in-memory settings store; otherwise settings and profile live in PlayerPrefs.
+
+## Stage 1b — Arena fix (`src/Confluence.Arena`, `docs/notes/arena.md`)
+
+**D-127 Navigation on true footprints.** L312, L321: walk, jump and drop edges are tested as segments against the true footprints of solids and stored prop collision boxes, so a solid thinner than the 0.5 m grid cuts every edge through it. Clearance is the exact distance to obstacle footprints within 1.5 m and is propagated (an upper bound) beyond. A solid whose mirror image was added first adopts the exact negated footprint, keeping half-turn symmetry bit-exact (D-061). Gaps of 0.8–1.3 m may read as closed on the grid, which errs on the safe side. The speed-ups (each collider tested once per segment, bounds prefilter, early bisection cut-off with a 1e-3 relative margin, a sorted seed queue beside the heap) are exact: layout hashes are unchanged by them. Resolves the Stage 1 thin-solid finding.
+
+**D-128 Deliberate gaps and refused rocks.** Gaps the generator leaves on purpose are joined or at least 1.6 m wide (0.8 m capsule plus a lattice diagonal); bulwark gates are sized by bisection on the exact distance between pieces, and skeleton posts may join a bulwark piece. A rock that a filler stage withdraws because it cost a skeleton guarantee is refused for the rest of the attempt. The route-zone lane-breaker budget stays 12 (24 gained 1–2% validity for about 10% more time).
+
+**D-129 Spawn distances under true geometry.** Spawn distance is 10.25 m at 40 m (was 10.5) and 11.25 m at 48 m (was 11.5); 32 m stays 9.75 m. The old 40 m skeleton left gaps narrower than a capsule and forced a 33.56 m spawn path, over D-064's 33.5 m band, which stays unchanged. D-066's 48 m landmark is also unchanged although it causes most 48 m rejections (PROGRESS known issues).
+
+**D-130 Stored prop collision.** L171–L173: `PropPlacement.CollisionBox` and `HasCollision` (Core contract) are written from the prop's shape by `PropShapes.WriteCollision` for every generated and fallback layout; mirrored twins carry exact images. The validator blocks route width with the stored box and fails a layout whose box differs from its shape (1e-4 m, 1e-3°); `ArenaLayoutHash` includes both fields. The Sim collides with exactly that box (D-155); a floor-level prop (`HasCollision` false) has no body. Resolves the Stage 1 prop-collision finding.
+
+**D-131 Match owns the round diameter.** L306: Match draws the sequence (`Schedules.ArenaDiameterSequence` on the Arena stream, round 0, sub 0; each four-round set is one draw, so a round's diameter does not depend on how many rounds are drawn). `ArenaSchedule.DiameterForRound` repeats that draw (equivalence tested against `ConclaveMatch` and `DuelMatch` on 200 seeds each) and `ScheduledRoundCapacity` was removed. Hosting's `ArenaProvider` passes Match's diameter as `ArenaRequest.Diameter` and Match's per-pass arena seed as the generator's `MatchSeed`; Arena derives its own retry attempts from it. Resolves the Stage 1 double-diameter finding.
+
+## Stage 1b — Sim casting and spell runtime (`src/Confluence.Sim/{Casting,Spells,Content,Input}`, `docs/notes/sim-spells.md`)
+
+**D-132 One input flag enum.** L84, L474: `Confluence.Casting.InputButtons` is the only flag set. Bits 0–18 are wire format (Primary…ModifierB 0–13, MoveForward/Back/Left/Right 14–17, SwapFocus 18; `All` = 19 bits); Net serializes by value and new actions take the next bit. `PlayerInput.MovementKeysFromAxes` derives the movement-key bits; `PlayerInput.Tapped` carries presses shorter than a tick; `PlayerInput.GrammarEvents` carries client grammar input (L365–L369). Combat events are never taken from the client (D-143). Resolves the Stage 1 input-flag finding.
+
+**D-133 Melee during a cast.** L474, D-049: a common melee press during preparation, windup or channel performs the strike and the spell yields (it cancels before commitment, or counts as a voluntary cancel after it). Only cast recovery blocks melee (`DuelWorld.StepMelee` checks `CastingStatus.InRecovery`); equip swaps stay blocked in every cast phase.
+
+**D-134 What stops casting.** L116: stun and hostile displacement (Displaced) prevent casting; root only stops movement. L175: the visible recall interrupts a committed cast (`InterruptCause.Recalled`) and cancels an open preparation.
+
+**D-135 Guarding spells.** L104, L535: spell direct hits are guardable by default, offensive melee spells such as SPL-010 included. Splash, field contact and trail contact are `DamageKind.Splash` and never guarded; a record may clear `GuardEligible`.
+
+**D-136 Exclusivity and per-target caps per cast.** L525: direct/splash exclusivity and "max N per target" apply across the whole cast (all its projectiles, pulses and parallel rays), counted on requested damage before mitigation.
+
+**D-137 One proc identity per cast.** L126: every hit of a cast carries the commit `CastDuelEvent` id as its original event, so beam pulses and split portions share one proc-budget entry.
+
+**D-138 Impact deposits and the heavy ring.** L163: an explicit "N at impact" deposits N in the impact cell only, unless the behavior declares a heavy direct projectile (`DepositSpec.HeavyImpact`), which keeps the default ring of one unit in the other cells within 1 m. SPL-009 Fireball is heavy (merge decision): its stated "Heat 2 at impact" is the heavy pattern's impact value, and the ring is what makes the record's "bounded steam patch" — a single 0.5 m steam column could never reach the 2 m acquisition path of L167. Deposits at a body hit use the projectile's contact point.
+
+**D-139 Telegraph and cue.** L96: a `SpellEvent.Telegraph` is emitted at cue start with the target predicted from the live aim; the machine holds the commit so release comes at least 0.25 s after the cue starts; an AtRelease teleport's destination stays live during the cue.
+
+**D-140 Recast windows.** L94: a recast window with no explicit length closes when the cast's last live entity ends; an explicit window ("recast within 1 s", SPL-008) outlives the effect.
+
+**D-141 Spell dashes and leaps.** L124: they halt the body when they end (displacement cancelled, horizontal velocity zeroed), so a stated distance is never exceeded; a hostile knockback arriving mid-dash is left alone.
+
+**D-142 Cone geometry.** The apex is at the caster's feet on the aim yaw; a body counts when any part of its width is inside the angle; per-target cover means solid geometry blocks both the chest line and the head line from the focus (eye − 0.35 m).
+
+**D-143 Server-generated combat events.** Casting reads combat events only from the server: world events (perfect guard, guard block, melee hit, melee parry, damage taken, forced displacement, teleported) and polled state (dodge completed, landed, melee windup completed, melee recovery ended, cooldown ready). Events emitted after a player's casting step reach that player on the next tick; each frame owns a copy of its events.
+
+**D-144 Cast payment, pricing and refunds.** L78, L90, L124: mana is paid all-or-nothing at commitment through the effect framework (`ICastHost.TryPayCommitment` → `EffectSystem.TryCommitPricedCast`), which consumes the matching next-cast bonuses and records the payment; recast surcharges use `TryPayMana`. The price is the stat cost reduction (≤ 30%) plus pending next-cast reductions as one fraction of the listed cost, floored together with mastery efficiency so at least 70% is paid; drawback increases (`CastModifiers.CostIncrease`) are added after the floor. Cooldowns use `StatSheet.EffectiveCooldownSec`. Every refund of a commitment — the interrupt-refund tag or an effect through `EffectSystem.RefundCast` — goes through the cast machine's `RefundLedger`: one cap of 25% of the payment per cast, and each refund effect at most once per cast (merge reconciliation of the two Stage 1b ledgers).
+
+**D-145 Spell defaults.** `SpellRules` values for what records leave open: projectile radius 0.15 m; ray width 0.1 m; 9 arc samples; wave segment 0.5 m with a 0.4 m obstacle probe and 1 m maximum target height; deployable radius 0.25 m; dash 26 m/s and leap 0.8 s when no duration is stated; summon attack every 1 s.
+
+**D-146 Stated move factors and ranges.** SPL-010 "caster slows 15% during windup" is the stated move factor 0.85 (`SpellForm` casting move factor) and its 4 m record range is the cone reach. SPL-009's 30 m range is the projectile's maximum travel.
+
+**D-147 Wizards without a casting route.** A wizard whose grammar is not executable and who has no guided normal route (a record stating no fixed normal preparation, such as WIZ-005's token syntax) gets no spell loadout and duels without casting instead of failing the duel (merge fix found by the 8-bot Conclave). D-010 pools never offer such a wizard's spells.
+
+## Stage 1b — Sim world, props, stats and effects (`src/Confluence.Sim/{World/Materials,Props,Stats,Effects}`, `docs/notes/sim-world.md`)
+
+**D-148 Reaction contact damage.** L126, L670, L672: `DamageKind.Environment`, generation 0, with the reaction's owner as attacker for attribution and feats only. It triggers no on-hit effects, lifesteal, procs or hit triggers and takes no outgoing-damage bonuses. Its source id is the spell recorded for the origin event (`ReactionMaterials.RecordSource`, automatic for spell deposits and impacts), else `REACTION:<kind>`. The owner is not exempt.
+
+**D-149 Clouds count as fields.** L128, L670: player clouds that count as fields become neutral owned entities `CLOUD:<VolumeKind>` with the 8 s cap (the volume's own lifetime usually ends them first). Spell fields and clouds share the three-field cap and the oldest of either retires (the volume with reason FieldLimit); a cloud that ends in the reaction world removes its entity; if nothing is retirable the new cloud is retired immediately.
+
+**D-150 Wet from cells.** L118, L175: a grounded player whose feet are within 0.35 m of a liquid-water cell's surface gets Wet (`RULE:WET-CELL`), lingering 1–1.25 s after leaving and re-applied 4 times a second while standing. Ice is not wet; rain never wets anyone directly (BIO-001).
+
+**D-151 Motor surfaces.** L175: chosen by flags, priority ice > sticky growth (its declared slow under the strongest-slow rule and the 30% cap) > damp sand > wet stone > normal. Burning, charged and venom cells are contact hazards only; feet more than 0.35 m above the 2D cell surface count as normal.
+
+**D-152 Acquisition agrees with Reactions.** L167: `ObscuringPathLength` reports at least 2 m whenever `ReactionWorld.BlocksAcquisition` is true (1e-4 tolerance), so `DuelWorld.HasClearSight` always agrees with the reaction world; volumes never stop projectiles or sound.
+
+**D-153 Spell deposits and impacts in the reaction world.** L136, L163: `QueueDeposit` uses the spell's declared footprint (else the circle of its radius, else the impact cell), its lifetime (0 = instant residue; player material at most 8 s, L128), its owning field id (dispels, L161) and the heavy ring of D-138, with strength clamped to 1–4. Electricity becomes a discharge with no declared damage; force pushes the props whose centers lie in the footprint; arcane becomes a dispel; light, shadow, sound and gravity carry no cell units. L145–L147, L153, L165: projectile impacts on the ground or a solid are queued as direct impacts (`IWorldMaterials.QueueImpact`, merge addition); walkable solids and props count as the ground cell; the impact's direct damage after mastery and bounce scaling shatters or wears struck ice and brittle cover (shards at 20+), and its impact heat reaches combustible solids.
+
+**D-154 Biome rules as Sim behaviors.** L656, L664, L668: BIO-001 (`RaincourtRainRule`) and BIO-011 (`WindmillYardGustRule`) install into a reaction world built without its environment; a biome without a behavior gets its announced gusts under the global wind rule. The Reactions static rule classes keep the data and no longer carry `[ContentBehavior]`.
+
+**D-155 Props in the duel.** L155, L171–L173: mass class and durability come from the catalogue (no record: anchored and indestructible). A prop with `HasCollision` is a dynamic Cover solid with exactly the stored box (D-130) that blocks movement and sight and has a walkable top; without it the prop has no body but can take durability damage. Pushes come from the reaction world's clamped impulse and slide at constant speed; they stop at solids (0.02 m resting tolerance), at unsupported edges (props never fall), on reaching a player, or when the distance is spent; a new push replaces the motion.
+
+**D-156 Prop collision damage.** L173, D-024: 5/15/25 by mass class when the relative speed along the push is at least 3 m/s, at most once per second per prop and player; `DamageKind.Prop`, attacker = the pusher with no self credit, never lifesteal or item effects; FEAT-021 counts it.
+
+**D-157 Stat caps.** L78–L124: walk, sprint and all-gait bonuses share the +20% cap per gait. Maximum mana and stamina are uncapped static capacity (L579). Mana regeneration is base × (1 + percent) + flat, at most 14/s ("within +40% cap" in EQP-066 is that ceiling). A dodge moves at most the 8 m dash cap; dodge and guard cooldowns are at least 0.5 s; the 0.8 s guard hold is a ceiling. Outgoing spell and weapon damage stats multiply original hits before the damage pipeline.
+
+**D-158 Effect dispatch.** L126, L433: once per tick at the end of tick-order step 7, in a fixed order: carried-over events, this tick's events, spell-runtime raises (`CastReleased`), polled changes, periodic. Gameplay triggers fire only in combat; RoundStart fires at alcove placement and CombatStart when the alcoves open; conditional modifiers are re-evaluated there (one tick of latency). At duel construction the wizard passive, the equipment and the shared augments attach in that order.
+
+**D-159 Hit triggers.** L126: only generation-0 Direct, Splash or Melee damage raises hit triggers; DirectHitDealt and DirectHitTaken need Direct or Melee; DamageTaken also fires for status pulses and falls. Environment, prop, boundary, recall and secondary damage raise none; a split hit is one trigger carrying every channel.
+
+**D-160 Effect proc budget.** L126: every activation passes `ProcBudget` (0.5 s and once per original hit) keyed by its budget group, which defaults to the attached effect; non-hit triggers use their event id or a synthetic id as origin. Effect outputs never become triggers, so there is one secondary generation.
+
+**D-161 Effect stacking.** Refresh keeps one instance and restarts its duration; Stack allows up to `MaxStacks` and refreshes the oldest at the maximum; Replace starts fresh; KeepExisting ignores new activations. Pending cast and hit bonuses keep the newest per effect, except Stack (up to `MaxStacks`) and KeepExisting.
+
+**D-162 Reserve and triggered shields.** L114, L579: only RoundStart effects grant reserve shields; triggered shields last at most 8 s (`ShieldPool`).
+
+**D-163 Next-hit bonuses.** They multiply the raw damage parts and add their flat amount to the first part; the first matching original hit consumes them; secondary damage neither uses nor consumes them.
+
+**D-164 Shared augment ranks.** L541: rank 2 of a shared augment replaces the rank 1 amount; drawbacks apply at both ranks.
+
+**D-165 One content registry.** ARCHITECTURE "Content model", D-010 (merge decision): the behavior contracts live once in `Confluence.Sim.Content` — `ISpellBehavior`, `ISpellTransform`, `IWizardKitBehavior`, `IAugmentBehavior`, `IEquipmentBehavior`, `IBiomeRuleBehavior`, `IPropBehavior`, and the attachment surface `IEffectHost`/`ISimEffect`, which `Effects.EffectHost`, `Effect` and `ConditionalModifier` implement. `ContentRegistry` is the only registry (reflection scan with per-prefix interface checks; `Default`, `Empty`, `FromBehaviors` for explicit instances) and serves the spell runtime, the effect framework and the biome install; `ContentBehaviorIndex` and `IEffectContentSource` were removed. Behavior classes live under `Content/` by record type (`SpellBehaviors`, `Augments`, `Equipment`, `Biomes`).
+
+## Stage 1b — Hosting (`src/Confluence.Hosting`, `docs/notes/hosting.md`)
+
+**D-166 One arena per pass.** L34: one arena is generated per pass and shared by every pair; each duel runs on its own `HostedArena.CreateCopy()`. The arena id is `arena:r<round>.a<attempt>:<seed hex>`.
+
+**D-167 Arena content availability.** D-010, D-069: a record type with no behavior class falls back to an explicit configurable set (`MatchHostSettings.ConfiguredBiomes/ConfiguredProps`, default every catalogue record), and the fallback is logged; a type switches to registry-only once any record of it is registered. Since Stage 1b BIO-001 and BIO-011 are registered, so standard arenas use exactly those two biomes; props still use the configured set. A lobby allowed-content list (L71) restricts only the record types it names.
+
+**D-168 Floors and Laboratory overrides.** D-010, L69, L71: under standard rules `MatchHost.Start()` refuses with `RefusedEconomyFloors`. `LaboratoryOverrides.BypassEconomyFloors` starts anyway (gaps logged and sent as a `HostNoticeMessage`); `PoolsUseWholeCatalogue` ("any catalogue content") lets shop and draft use unimplemented definitions. Both enter the host settings fingerprint and turn off `CountsForRating`. Full-match tests use both until the pools meet the floors.
+
+**D-169 Round snapshot and consumables.** L38, L65, L212, L427: `FinalizeLoadout` keeps a clone as the round snapshot, and every pass of the round (replays, void reruns) maps that snapshot. Consumable charges are spent on the live loadout only after a completed, non-voided duel reports `ResourceEvent.ConsumableUsed`.
+
+**D-170 Loadout mapping.** L202, L210, L212, L247, L571, L577: reserve items stay behind; a slot holding its issued item maps to an empty Sim slot (the plain issued focus); spent consumables are not sent; the enabled active is sent only from a slot that can activate (never the Sidearm); only non-dormant augments are sent, with ranks; presence is one charge.
+
+**D-171 Simultaneous surrender.** D-108: when both players surrender in one step the Sim calls it a draw; Match accepts draws only for simultaneous lethal or time, so it is reported as `SimultaneousLethal`.
+
+**D-172 Command idempotency and rate limits.** L429, D-073, D-116: idempotency is per player for the whole match and records failures too; the same id with a different canonical command returns `RequestIdConflict`; rate-limited requests are not recorded, so the id can be retried. `TickRateLimiter`: rerolls burst 3 then 1 per 15 ticks; other transactions burst 5 then 1 per 12 ticks; ready and surrender are never limited.
+
+**D-173 Duel timing.** L46, L47: the world is built with Match's `AlcoveTicks` and `CombatMaxTicks` and runs its own duel flow; world tick k equals Match's duel tick k. `ParallelDuels` pre-steps duels with `Parallel.For` with identical results.
+
+**D-174 Bots.** L381: bot randomness uses only `RngStream.Bot` (duel stream keyed by (duelId, player), economy stream by (round, 65536 + player)). Perception goes only through `DuelWorld.CanAcquire`, delayed by the reaction latency; reactions are at least 0.20 s and aim error at least 0.5°; guards and dodges happen by chance. Bot diagnostics count guards, dodges, jumps and melee from the Sim's own events.
+
+**D-175 Replays.** L419, L427, L433: an `InputTrack` run covers commands whose Tick and Sequence advance by 0 or 1 per step and whose controls are equal, `Tapped` included; a command carrying grammar events never joins a run and its list is copied (merge fix). A replay must run on the live match's world factory (`MatchHost.WorldFactory`).
+
+**D-176 The hosted duel world.** Merge decision: `SimWorldFactory(Catalogue, ContentRegistry)` builds the full authoritative duel — `SpellRuntime.FromCatalogue` over each player's loadout (D-147), the Sim's default `ReactionMaterials` with the biome rule (D-154), catalogue props (D-155), and the registered passives, equipment and augments (D-165). Match tests therefore run with live spells and reactions; the duel runner and the layout replay overload require an explicit factory.
+
+## Stage 1b — Unity M1 UI (`client/`, `docs/notes/client.md`)
+
+**D-177 Decisive sequence presentation.** L357–L359: the results list the loser's sequence ("How the training dummy fell"); a draw or timer win shows the player's own final seconds. Repeated periodic damage (boundary, status, environment) from one source to one target with gaps of at most 0.6 s merges into one line with its time range and summed loss; the death reason names who fell.
+
+**D-178 Guard and melee visuals.** L104: the 120° guard arc is a faint band from 0.45 m to 1.75 m with bright rims (white in the perfect window), scaled with a crouch, so the guarding body stays readable at melee range; the local player's own melee sweep is drawn at half opacity. `ArenaUnlitTransparent` culls nothing, so procedural meshes use one winding per face.
+
+**D-179 Laboratory dummy and training effects.** L69 ("editable" sandbox): the Guard dummy raises its guard on the player's melee windup when ready and holds it through the strike (timing and baiting the 3 s cooldown). Training effects go through the Sim's own rules with source −1, so they are rule damage without damage numbers: wet 6 s, burn 4 s at 4/s, slow 3 s at 25%, a 0.4 s stun (control immunity follows), a 40 shield for 6 s; offered in the Esc menu during combat.
+
+**D-180 HUD statuses and shields.** L347: status intensity shows as damage per second for damage over time and as a percentage for slows; the shield segment follows health and overlays the end of the bar when health is full; pills over the arena use an opaque backing instead of a text outline.
+
+**D-181 Reactions presentation.** The arena preview runs the layout's own `ReactionWorld` over the preview clock (tick 0 = −5 s, combat at tick 300, no bodies or spells); scrubbing back replays from tick 0. Since the merge the Laboratory duel draws the Sim's own reaction world (`DuelWorld.Materials`), so its visuals cannot diverge from the rules. Cells are drawn on their material patch's surface height (else the floor), because per-cell surface heights are internal to Reactions; volumes are the exact outer hull of their 0.5 m columns, wind offset included.
+
+**D-182 Smoke views and walk mode.** Duel smoke views use `-labFreeze` so each run produces the same frame (3.84 s is the dummy's guarded hit during the player's strike). Walk mode starts on spawn 0 facing the generator's AlcoveWall spawn screen 1.5 m ahead, as intended by L47 (no opponent visible from the exact spawn).

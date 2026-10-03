@@ -733,13 +733,32 @@ namespace Confluence.Client.Tests
             };
             int temporary = world.AddTemporarySolid(spec);
             Assert.GreaterOrEqual(temporary, 0);
-            Assert.AreEqual(1, renderer.SyncSolids(world.Collision));
+            Assert.AreEqual(1, renderer.SyncSolids(world.Collision, world.Props)); // prop bodies are drawn by their placeholders
             Assert.IsFalse(renderer.FindSolidObject(breakable.Id).activeSelf, "a destroyed solid is hidden");
             Assert.IsNotNull(renderer.FindSolidObject(temporary));
 
             duel.FastForward(Ticks.FromSeconds(2.5f));
-            Assert.AreEqual(0, renderer.SyncSolids(world.Collision), "an expired temporary solid disappears");
+            Assert.AreEqual(0, renderer.SyncSolids(world.Collision, world.Props), "an expired temporary solid disappears");
             Assert.IsNull(renderer.FindSolidObject(temporary));
+        }
+
+        [Test]
+        public void PropPlaceholdersFollowTheSimPropBodies()
+        {
+            ArenaLayout layout = SparringLayout.Create(TestArenas.Raincourt32.Layout);
+            ArenaRenderer renderer = ArenaRenderer.Create(layout, Cat);
+            _created.Add(renderer.gameObject);
+            var world = new DuelWorld(layout, DuelPlayerSetup.FromCatalogue(Cat, "p0", "WIZ-002"), DuelPlayerSetup.FromCatalogue(Cat, "p1", "WIZ-010"),
+                new DuelWorldOptions { Catalogue = Cat, AlcoveTicks = 0 }); // in combat at once: props take damage
+            Sim.Props.PropBody breakable = world.Props.Props.FirstOrDefault(p => p.HasCollision && p.Durability > 0f);
+            Assume.That(breakable != null, "the sample arena places a destructible prop");
+            int shown = renderer.SyncProps(world.Props);
+            Assert.AreEqual(renderer.PropCount, shown);
+
+            Assert.IsTrue(world.Props.Damage(breakable.Id, breakable.Durability + 1f, 0));
+            Assert.IsTrue(breakable.Destroyed);
+            Assert.AreEqual(shown - 1, renderer.SyncProps(world.Props), "a destroyed prop is hidden");
+            Assert.AreEqual(0, renderer.SyncSolids(world.Collision, world.Props), "prop bodies are not drawn twice");
         }
 
         [Test]

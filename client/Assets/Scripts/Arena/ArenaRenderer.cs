@@ -30,6 +30,8 @@ namespace Confluence.Client.Arena
         private readonly List<Mesh> _meshes = new List<Mesh>();
         private readonly List<SurfaceKind> _surfaces = new List<SurfaceKind>();
         private readonly List<GameObject> _props = new List<GameObject>();
+        private readonly Dictionary<int, GameObject> _propById = new Dictionary<int, GameObject>();
+        private readonly Dictionary<int, PropPlacement> _propPlacements = new Dictionary<int, PropPlacement>();
         private readonly List<GameObject> _wards = new List<GameObject>();
         private readonly List<int> _dynamicIds = new List<int>();
         private readonly HashSet<int> _liveDynamic = new HashSet<int>();
@@ -148,9 +150,11 @@ namespace Confluence.Client.Arena
         /// <summary>
         /// Mirrors a Sim collision world's dynamic solid state after <see cref="SetCombatTime"/>: layout solids the
         /// duel destroyed are hidden (durability, spec L171), and temporary solids (spell walls) are shown as boxes in
-        /// their material pattern while they exist. Returns the number of temporary solids shown.
+        /// their material pattern while they exist. Prop bodies are dynamic solids too, but their placeholders show them
+        /// (<see cref="SyncProps"/>), so solids of <paramref name="props"/> are skipped. Returns the number of temporary
+        /// solids shown.
         /// </summary>
-        public int SyncSolids(Confluence.Sim.World.CollisionWorld world)
+        public int SyncSolids(Confluence.Sim.World.CollisionWorld world, Confluence.Sim.Props.PropSystem props = null)
         {
             if (world == null || SolidsRoot == null)
             {
@@ -172,7 +176,7 @@ namespace Confluence.Client.Arena
                     continue;
                 }
 
-                if (!solid.Active)
+                if (!solid.Active || (props != null && props.IsPropSolid(solid.Id)))
                 {
                     continue;
                 }
@@ -210,6 +214,48 @@ namespace Confluence.Client.Arena
             return _dynamicIds.Count;
         }
 
+        /// <summary>
+        /// Moves each prop placeholder with its Sim body (pushed props slide, spec L155, L173) and hides destroyed props
+        /// (spec L171). Returns the number of props still shown.
+        /// </summary>
+        public int SyncProps(Confluence.Sim.Props.PropSystem props)
+        {
+            if (props == null)
+            {
+                return _props.Count;
+            }
+
+            int shown = 0;
+            IReadOnlyList<Confluence.Sim.Props.PropBody> bodies = props.Props;
+            for (int i = 0; i < bodies.Count; i++)
+            {
+                Confluence.Sim.Props.PropBody body = bodies[i];
+                if (!_propById.TryGetValue(body.Id, out GameObject go) || !_propPlacements.TryGetValue(body.Id, out PropPlacement placement))
+                {
+                    continue;
+                }
+
+                if (body.Destroyed)
+                {
+                    if (go.activeSelf)
+                    {
+                        go.SetActive(false);
+                    }
+
+                    continue;
+                }
+
+                shown++;
+                if (body.HasCollision && placement.HasCollision)
+                {
+                    Confluence.Core.Geometry.Vec3 moved = placement.Position + (body.Box.Center - placement.CollisionBox.Center);
+                    go.transform.position = CoreSpace.ToUnity(moved);
+                }
+            }
+
+            return shown;
+        }
+
         public void Clear()
         {
             for (int i = transform.childCount - 1; i >= 0; i--)
@@ -222,6 +268,8 @@ namespace Confluence.Client.Arena
             _retiring.Clear();
             _surfaces.Clear();
             _props.Clear();
+            _propById.Clear();
+            _propPlacements.Clear();
             _wards.Clear();
             Boundary = null;
             OverheadLight = null;
@@ -344,7 +392,10 @@ namespace Confluence.Client.Arena
 
                 PropDef def = null;
                 Catalogue?.PropsById.TryGetValue(placement.PropId ?? string.Empty, out def);
-                _props.Add(PropPlaceholder.Build(placement, def, PropsRoot, _materials));
+                GameObject prop = PropPlaceholder.Build(placement, def, PropsRoot, _materials);
+                _props.Add(prop);
+                _propById[placement.Id] = prop;
+                _propPlacements[placement.Id] = placement;
             }
         }
 

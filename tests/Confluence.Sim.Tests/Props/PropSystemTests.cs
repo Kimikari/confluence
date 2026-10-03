@@ -46,6 +46,22 @@ namespace Confluence.Sim.Tests.Props
         }
 
         [Fact]
+        public void A_Preview_Collision_World_Holds_The_Same_Prop_Bodies_As_A_Duel()
+        {
+            ArenaLayout layout = TestWorlds.Flat();
+            layout.Props.Add(WorldDuels.Prop(1, "PROP-006", new Vec3(0f, 0f, 0f), new Vec3(1f, 1f, 1f)));
+            layout.Props.Add(WorldDuels.Prop(2, "PROP-017", new Vec3(4f, 0f, 0f), new Vec3(1f, 1f, 1f), hasCollision: false));
+            Confluence.Sim.World.CollisionWorld preview = Confluence.Sim.World.CollisionWorld.FromLayoutWithProps(layout);
+            DuelWorld duel = WorldDuels.Duel(layout);
+
+            Confluence.Sim.World.CollisionSolid body = preview.Solids.Single(s => s.Dynamic);
+            Assert.Equal(layout.Props[0].CollisionBox.Center, body.Box.Center);
+            Assert.Equal(layout.Props[0].CollisionBox.HalfExtents, body.Box.HalfExtents);
+            Assert.Equal(duel.Props.Find(1).Solid.Box.Center, body.Box.Center);
+            Assert.Equal(duel.Collision.Solids.Count, preview.Solids.Count);
+        }
+
+        [Fact]
         public void Mass_Class_And_Durability_Come_From_The_Catalogue()
         {
             DuelWorld world = WithProps(

@@ -247,7 +247,8 @@ namespace Confluence.Client.Presentation
                 ? -(World.AlcoveTicks - World.Tick) / (float)Confluence.Core.Time.Ticks.PerSecond
                 : World.CombatSeconds;
             _arena.SetCombatTime(clock);
-            _arena.SyncSolids(World.Collision);
+            _arena.SyncSolids(World.Collision, World.Props);
+            _arena.SyncProps(World.Props);
             _entities.Sync(World);
             if (Reactions != null)
             {
