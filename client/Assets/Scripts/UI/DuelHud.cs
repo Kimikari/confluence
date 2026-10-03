@@ -230,9 +230,11 @@ namespace Confluence.Client.UI
                 string text = _name + " " + Mathf.CeilToInt(Mathf.Max(0f, value)) + "/" + Mathf.RoundToInt(max);
                 if (_shield != null)
                 {
+                    // The shield follows the health it protects; with too little room it overlays the bar's end, so a
+                    // shield on full health is still drawn (spec L347).
                     float shieldFraction = Mathf.Clamp01(shield / safeMax);
-                    _shield.style.left = Length.Percent(fraction * 100f);
-                    _shield.style.width = Length.Percent(Mathf.Min(shieldFraction, 1f - fraction) * 100f);
+                    _shield.style.left = Length.Percent(Mathf.Min(fraction, 1f - shieldFraction) * 100f);
+                    _shield.style.width = Length.Percent(shieldFraction * 100f);
                     _shield.style.display = shield > 0f ? DisplayStyle.Flex : DisplayStyle.None;
                     if (shield > 0f)
                     {

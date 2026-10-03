@@ -23,6 +23,7 @@ namespace Confluence.Client.UI
         private readonly Label _rule;
         private readonly Label _mode;
         private readonly Label _clock;
+        private readonly Label _environment;
         private readonly VisualElement _legend;
         private readonly VisualElement _crosshair;
 
@@ -43,11 +44,13 @@ namespace Confluence.Client.UI
             _rule = Ui.Text(string.Empty);
             _mode = Ui.Text(string.Empty);
             _clock = Ui.Text(string.Empty);
+            _environment = Ui.Muted(string.Empty);
             info.Add(_title);
             info.Add(_release);
             info.Add(_rule);
             info.Add(_mode);
             info.Add(_clock);
+            info.Add(_environment);
             info.Add(Ui.Muted("Tab overview | F walk/fly | WASD move | Space jump/up | Ctrl crouch/down | Alt dodge | Shift sprint/fast | "
                 + "Q/E or right-drag rotate, wheel zoom | P pause clock, [ ] scrub 5 s, Backspace reset | G generator | Esc leave"));
             SetPickingIgnore(info);
@@ -129,6 +132,13 @@ namespace Confluence.Client.UI
 
             _clock.text = "Combat clock " + timeSec.ToString("0.0", CultureInfo.InvariantCulture) + " s" + (paused ? " (paused)" : string.Empty)
                 + ": " + phase + ", min radius " + minRadius.ToString("0.0", CultureInfo.InvariantCulture) + " m";
+        }
+
+        /// <summary>One line on the arena's material state at the clock (see ArenaEnvironment.Summary).</summary>
+        public void SetEnvironment(string summary)
+        {
+            _environment.text = summary ?? string.Empty;
+            _environment.style.display = string.IsNullOrEmpty(summary) ? DisplayStyle.None : DisplayStyle.Flex;
         }
 
         private string BiomeName(string biomeId)

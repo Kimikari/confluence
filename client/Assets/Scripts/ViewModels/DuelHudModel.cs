@@ -226,7 +226,7 @@ namespace Confluence.Client.ViewModels
                     Glyph = Glyph(s.Kind),
                     Label = s.Kind.ToString(),
                     Seconds = s.ExpireTick == int.MaxValue ? -1f : s.RemainingTicks(now) / (float)Ticks.PerSecond,
-                    Value = s.Intensity > 0f ? ContentFormat.Number(s.Intensity) : null,
+                    Value = IntensityText(s),
                 });
             }
 
@@ -321,6 +321,22 @@ namespace Confluence.Client.ViewModels
             }
 
             return s.Kind == StatusKind.Slow || s.Kind == StatusKind.Chill ? StatusIconKind.Slow : StatusIconKind.Other;
+        }
+
+        // StatusApplication.Intensity: damage per second for damage over time, the slowed fraction for a slow.
+        private static string IntensityText(StatusInstance s)
+        {
+            if (s.Intensity <= 0f)
+            {
+                return null;
+            }
+
+            if (s.Rule.DamageOverTime)
+            {
+                return ContentFormat.Number(s.Intensity) + "/s";
+            }
+
+            return s.Kind == StatusKind.Slow ? ContentFormat.Percent(s.Intensity) : ContentFormat.Number(s.Intensity);
         }
 
         private static string Glyph(StatusKind kind)

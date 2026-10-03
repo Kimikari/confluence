@@ -4,6 +4,7 @@ using Confluence.Client.Arena;
 using Confluence.Client.Cameras;
 using Confluence.Client.Input;
 using Confluence.Client.Mapping;
+using Confluence.Client.Presentation;
 using Confluence.Client.Settings;
 using Confluence.Client.UI;
 using Confluence.Core.Arena;
@@ -17,8 +18,9 @@ namespace Confluence.Client.App
     /// The ArenaPreview state: generates an arena with Confluence.Arena's seeded generator (seed, round, diameter,
     /// and biome pickers; spec §7), renders it, and lets the player inspect it with the first-person rig (walking
     /// with the Sim CharacterMotor, or flying) or the rotatable overview camera, while a combat clock drives the
-    /// boundary contour and the final-cover schedule. Regenerating rebuilds the renderer and the walker's collision
-    /// world. Owns everything it creates and releases it on destroy.
+    /// boundary contour, the final-cover schedule, and the arena's own environment (<see cref="ArenaEnvironment"/>, drawn
+    /// by <see cref="ReactionViews"/>). Regenerating rebuilds the renderer, the walker's collision world, and the
+    /// environment. Owns everything it creates and releases it on destroy.
     /// </summary>
     public sealed class ArenaPreviewController : MonoBehaviour
     {
@@ -37,6 +39,7 @@ namespace Confluence.Client.App
         private bool _overview;
         private bool _generatorOpen;
         private float _hudRefresh;
+        private ReactionViews _reactionViews;
 
         public ArenaRenderer Arena { get; private set; }
         public FirstPersonRig Rig { get; private set; }
@@ -44,6 +47,11 @@ namespace Confluence.Client.App
         public GeneratedArena Generated { get; private set; }
         public float CombatTimeSec { get; private set; }
         public bool ClockPaused { get; private set; }
+
+        /// <summary>The generated arena's material world over the preview clock, or null before the first arena.</summary>
+        public ArenaEnvironment Environment { get; private set; }
+
+        public ReactionViews ReactionViews => _reactionViews;
 
         public static ArenaPreviewController Create(Catalogue catalogue, ClientSettings settings, UiShell ui, ArenaRequest request,
             PreviewView view, float startTimeSec, bool captureCursor, Action onExit)
@@ -123,6 +131,10 @@ namespace Confluence.Client.App
             }
 
             Arena.SetCombatTime(CombatTimeSec);
+            Environment = new ArenaEnvironment(layout);
+            _reactionViews?.Clear();
+            _reactionViews = new ReactionViews(transform, Arena.Materials, layout);
+            SyncEnvironment();
             _hud.Bind(Arena, Generated);
             if (first)
             {
@@ -280,6 +292,18 @@ namespace Confluence.Client.App
 
             CombatTimeSec = Mathf.Max(ArenaRenderer.AlcoveStartSec, time);
             Arena.SetCombatTime(CombatTimeSec);
+            SyncEnvironment();
+        }
+
+        private void SyncEnvironment()
+        {
+            if (Environment == null)
+            {
+                return;
+            }
+
+            Environment.AdvanceTo(CombatTimeSec);
+            _reactionViews.Sync(Environment.World);
         }
 
         private void RefreshHud()
@@ -295,10 +319,12 @@ namespace Confluence.Client.App
             _hud.SetMode(mode, !_overview && !_generatorOpen);
             float minRadius = Arena.Layout.Boundary != null ? Arena.Layout.Boundary.MinRadiusAt(CombatTimeSec) : 0f;
             _hud.SetClock(CombatTimeSec, ClockPaused, minRadius);
+            _hud.SetEnvironment(Environment != null ? Environment.Summary() : string.Empty);
         }
 
         private void OnDestroy()
         {
+            _reactionViews?.Clear();
             _smokeHold?.Dispose();
             _input?.Dispose();
             _input = null;

@@ -18,7 +18,8 @@
         "Confluence.Core.dll",
         "Confluence.Arena.dll",
         "Confluence.Economy.dll",
-        "Confluence.Sim.dll"
+        "Confluence.Sim.dll",
+        "Confluence.Reactions.dll"
     ],
     "autoReferenced": false,
     "defineConstraints": [

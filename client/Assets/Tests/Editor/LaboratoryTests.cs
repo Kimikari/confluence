@@ -527,8 +527,8 @@ namespace Confluence.Client.Tests
             Assert.Greater(hud.Shield, 0f, "the timed shield is up");
             Assert.Less(hud.Health + hud.Shield, hud.MaxHealth + TrainingEffects.Shield, "the burn pulsed");
             Assert.IsTrue(hud.Statuses.Any(s => s.Kind == StatusIconKind.Wet));
-            Assert.IsTrue(hud.Statuses.Any(s => s.Kind == StatusIconKind.DamageOverTime));
-            Assert.IsTrue(hud.Statuses.Any(s => s.Kind == StatusIconKind.Slow));
+            Assert.IsTrue(hud.Statuses.Any(s => s.Kind == StatusIconKind.DamageOverTime && s.Value == "4/s"), "burn damage per second");
+            Assert.IsTrue(hud.Statuses.Any(s => s.Kind == StatusIconKind.Slow && s.Value == "25%"), "the slowed fraction");
             Assert.IsTrue(hud.Statuses.Any(s => s.Kind == StatusIconKind.ControlImmunity), "the 0.4 s stun gave way to immunity (spec L116)");
             Assert.IsFalse(TrainingEffects.Apply(world, 0) == 5, "a second stun during immunity is blocked (spec L116)");
         }

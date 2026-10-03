@@ -41,6 +41,7 @@ namespace Confluence.Client.Presentation
         private DuelInput _input;
         private IDuelPilot _opponent;
         private OwnedEntityViews _entities;
+        private ReactionViews _reactionViews;
         private DamageNumbers _numbers;
         private Transform _viewFocus;
         private bool _ended;
@@ -66,6 +67,15 @@ namespace Confluence.Client.Presentation
         public OwnedEntityViews Entities => _entities;
 
         public DamageNumbers Numbers => _numbers;
+
+        /// <summary>
+        /// The duel's Confluence.Reactions world, drawn by <see cref="ReactionViews"/> when set. The Sim's materials are a
+        /// seam (<c>IWorldMaterials</c>, null by default) until the Sim-Reactions adapter exists; its host sets this so
+        /// cells and volumes appear, and nothing is drawn meanwhile.
+        /// </summary>
+        public Confluence.Reactions.ReactionWorld Reactions { get; set; }
+
+        public ReactionViews ReactionState => _reactionViews;
 
         /// <summary>Text of the most recent damage number, or null before the first confirmed hit.</summary>
         public string LastDamageNumber { get; private set; }
@@ -240,6 +250,16 @@ namespace Confluence.Client.Presentation
             _arena.SetCombatTime(clock);
             _arena.SyncSolids(World.Collision);
             _entities.Sync(World);
+            if (Reactions != null)
+            {
+                _reactionViews = _reactionViews ?? new ReactionViews(transform, _arena.Materials, World.Layout);
+                _reactionViews.Sync(Reactions);
+            }
+            else if (_reactionViews != null && (_reactionViews.CellCount > 0 || _reactionViews.VolumeCount > 0))
+            {
+                _reactionViews.Clear();
+            }
+
             _numbers.Update(Camera, dt);
             HudModel.Refresh(World);
             Hud.Refresh();
@@ -298,6 +318,7 @@ namespace Confluence.Client.Presentation
             _input = null;
             _numbers?.Clear();
             _entities?.Clear();
+            _reactionViews?.Clear();
         }
     }
 }
