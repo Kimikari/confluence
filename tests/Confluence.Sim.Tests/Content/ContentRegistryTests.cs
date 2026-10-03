@@ -45,7 +45,7 @@ namespace Confluence.Sim.Tests.Content
             IContentAvailability available = ContentRegistry.Default.Availability;
             Assert.True(available.IsAvailable("SPL-009"));
             Assert.True(available.IsAvailable("SPL-010"));
-            Assert.False(available.IsAvailable("SPL-011")); // D-010: no empty handlers in the pools
+            Assert.False(available.IsAvailable("SPL-017")); // D-010: no empty handlers in the pools
             Assert.False(available.IsAvailable(null));
         }
 
@@ -106,8 +106,14 @@ namespace Confluence.Sim.Tests.Content
             Assert.Equal(6, loadout.Spells.Count);
             Assert.Equal("SPL-009", loadout.Spells[0].SpellId);
             Assert.Equal("SPL-010", loadout.Spells[1].SpellId);
-            Assert.All(loadout.Spells.Skip(2), Assert.Null);
-            Assert.Null(loadout.Signature);
+            Assert.All(loadout.Spells, Assert.NotNull); // WIZ-002's whole default kit is implemented
+            Assert.NotNull(loadout.Signature);
+
+            // A slot whose record has no behavior stays empty.
+            DuelPlayerSetup partial = DuelPlayerSetup.FromCatalogue(SpellTestKit.Catalogue, "A", "WIZ-002", new[] { "SPL-009", "SPL-017" });
+            DuelWorld v = TestWorlds.Duel(null, partial, TestWorlds.Setup("B"), 0, -1, SpellRuntime.FromCatalogue(SpellTestKit.Catalogue));
+            Assert.Equal("SPL-009", v.Player(0).Caster.Loadout.Spells[0].SpellId);
+            Assert.Null(v.Player(0).Caster.Loadout.Spells[1]);
         }
     }
 }
