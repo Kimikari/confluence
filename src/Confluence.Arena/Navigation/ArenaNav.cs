@@ -94,6 +94,10 @@ namespace Confluence.Arena.Navigation
         /// </summary>
         private float[] _columnReach;
 
+        /// <summary>Per collider, the last segment test that examined it (see <see cref="SegmentObstructed"/>).</summary>
+        private int[] _colliderStamp;
+        private int _segmentStamp;
+
         private int[] _columnFirst;
         private float[] _nodeHeight;
         private float[] _nodeX;
@@ -366,6 +370,7 @@ namespace Confluence.Arena.Navigation
         {
             int columns = _n * _n;
             var counts = new int[columns + 1];
+            _colliderStamp = new int[_colliders.Length];
             _columnReach = new float[columns];
             for (int c = 0; c < columns; c++)
             {
@@ -777,34 +782,75 @@ namespace Confluence.Arena.Navigation
         /// True when a capsule moving along the ground segment p to q, its feet rising linearly from f0 to f1, runs into
         /// a collider: some point of the segment lies in a footprint whose solid reaches above the feet by more than
         /// the collider's allowance while its underside is below head height. Colliders are taken from the listed
-        /// columns, whose cells contain the segment (binning is conservative).
+        /// columns, whose cells contain the segment (binning is conservative). Each collider is tested once per segment,
+        /// and only when its padded footprint bounds overlap the segment's: both filters skip only colliders the exact
+        /// test would clear, so the answer (and the graph's half-turn symmetry) is unchanged.
         /// </summary>
         private bool SegmentObstructed(int c0, int c1, int c2, Vec2 p, Vec2 q, float f0, float f1)
         {
-            return ObstructedIn(c0, p, q, f0, f1)
-                || (c1 >= 0 && c1 != c0 && ObstructedIn(c1, p, q, f0, f1))
-                || (c2 >= 0 && c2 != c0 && c2 != c1 && ObstructedIn(c2, p, q, f0, f1));
+            _segmentStamp++;
+            var s = new SegmentProbe
+            {
+                P = p,
+                Q = q,
+                F0 = f0,
+                F1 = f1,
+                Low = MathF.Min(f0, f1),
+                High = MathF.Max(f0, f1),
+                MinX = MathF.Min(p.X, q.X),
+                MaxX = MathF.Max(p.X, q.X),
+                MinZ = MathF.Min(p.Y, q.Y),
+                MaxZ = MathF.Max(p.Y, q.Y),
+            };
+            return ObstructedIn(c0, ref s)
+                || (c1 >= 0 && c1 != c0 && ObstructedIn(c1, ref s))
+                || (c2 >= 0 && c2 != c0 && c2 != c1 && ObstructedIn(c2, ref s));
         }
 
-        private bool ObstructedIn(int column, Vec2 p, Vec2 q, float f0, float f1)
+        /// <summary>A walking segment under test: ground end points, feet heights, and its bounds.</summary>
+        private struct SegmentProbe
         {
-            float low = MathF.Min(f0, f1);
-            if (_columnReach[column] + ReachSlack <= low)
+            public Vec2 P;
+            public Vec2 Q;
+            public float F0;
+            public float F1;
+            public float Low;
+            public float High;
+            public float MinX;
+            public float MaxX;
+            public float MinZ;
+            public float MaxZ;
+        }
+
+        private bool ObstructedIn(int column, ref SegmentProbe s)
+        {
+            if (_columnReach[column] + ReachSlack <= s.Low)
             {
                 return false; // nothing binned here rises past its allowance above these feet (open floor)
             }
 
-            float high = MathF.Max(f0, f1);
             for (int k = _cellStart[column]; k < _cellStart[column + 1]; k++)
             {
-                ref Collider col = ref _colliders[_cellItems[k]];
-                float allowance = MovingAllowance(ref col);
-                if (col.Top <= low + allowance || col.Bottom >= high + ArenaRules.Headroom)
+                int ci = _cellItems[k];
+                if (_colliderStamp[ci] == _segmentStamp)
+                {
+                    continue; // already tested from another column this segment crosses
+                }
+
+                _colliderStamp[ci] = _segmentStamp;
+                ref Collider col = ref _colliders[ci];
+                if (col.MaxX < s.MinX || col.MinX > s.MaxX || col.MaxZ < s.MinZ || col.MinZ > s.MaxZ)
                 {
                     continue;
                 }
 
-                if (SegmentHits(ref col, p, q, f0, f1, allowance))
+                float allowance = MovingAllowance(ref col);
+                if (col.Top <= s.Low + allowance || col.Bottom >= s.High + ArenaRules.Headroom)
+                {
+                    continue;
+                }
+
+                if (SegmentHits(ref col, s.P, s.Q, s.F0, s.F1, allowance))
                 {
                     return true;
                 }
