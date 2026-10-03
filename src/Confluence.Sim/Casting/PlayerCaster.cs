@@ -137,12 +137,19 @@ namespace Confluence.Sim.Casting
         public CastModifiers ModifiersFor(CastableSpell spell)
         {
             if (spell == null) return new CastModifiers { CostReduction = _player.Stats.CostReduction };
-            CastPrice price = _world.Effects.PriceCast(_player.Index, QuoteFor(spell));
+            CastQuote quote = QuoteFor(spell);
+            CastPrice price = _world.Effects.PriceCast(_player.Index, quote);
+            CastTimingAdjust timing = _world.Effects.CastTiming(_player.Index, quote); // content hooks (Effects/EffectHooks.cs)
             float listed = Math.Max(0f, spell.Mana);
             return new CastModifiers
             {
                 CostReduction = listed > 0f ? (price.StatReduction + price.BonusReduction) / listed : _player.Stats.CostReduction,
                 CostIncrease = price.Increase,
+                WindupReduction = timing.WindupReduction,
+                MasteredWindupReduction = timing.MasteredWindupReduction,
+                WindupDeltaTicks = timing.WindupDeltaTicks,
+                RecoveryDeltaTicks = timing.RecoveryDeltaTicks,
+                RecoveryFloorTicks = timing.RecoveryFloorTicks,
             };
         }
 

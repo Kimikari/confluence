@@ -129,7 +129,7 @@ namespace Confluence.Sim.Spells
         {
             if (!_registry.TryGetSpell(spellId, out ISpellBehavior behavior)) return null;
             SpellDef def = _catalogue.Spell(spellId);
-            return SpellFormResolver.Resolve(def, behavior, TransformsOf(setup, spellId));
+            return SpellFormResolver.Resolve(def, behavior, TransformsOf(setup, spellId), AugmentFormStages.For(setup, _catalogue, _registry));
         }
 
         private List<ActiveTransform> TransformsOf(DuelPlayerSetup setup, string spellId)

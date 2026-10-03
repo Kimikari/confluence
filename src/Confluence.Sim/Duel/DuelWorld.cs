@@ -415,6 +415,7 @@ namespace Confluence.Sim.Duel
                 cmd.DisplacementBounds = _boundary; // spec L51: forced displacement stops at the edge
             }
 
+            Effects.AdjustMotor(p.Index, ref cmd); // content hooks: action costs and slows at this step (EffectHooks.cs)
             return cmd;
         }
 
@@ -558,6 +559,7 @@ namespace Confluence.Sim.Duel
             }
 
             MeleeProfile profile = p.Stats.EffectiveMelee(p.CurrentMeleeProfile); // spec L100-L102 after modifiers
+            profile = Effects.AdjustStrike(p.Index, profile); // content hooks at strike begin (EffectHooks.cs)
             if (!p.Resources.TrySpendStamina(profile.Stamina, Tick))
             {
                 return;

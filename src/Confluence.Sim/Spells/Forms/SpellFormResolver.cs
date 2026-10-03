@@ -34,7 +34,8 @@ namespace Confluence.Sim.Spells
     /// </summary>
     public static class SpellFormResolver
     {
-        public static SpellForm Resolve(SpellDef def, ISpellBehavior behavior, IReadOnlyList<ActiveTransform> transforms = null)
+        public static SpellForm Resolve(SpellDef def, ISpellBehavior behavior, IReadOnlyList<ActiveTransform> transforms = null,
+            IReadOnlyList<ActiveFormStage> sharedAugments = null)
         {
             if (def == null) throw new ArgumentNullException(nameof(def));
             if (behavior == null) throw new ArgumentNullException(nameof(behavior));
@@ -42,6 +43,7 @@ namespace Confluence.Sim.Spells
             form.Parameters.AddRange(behavior.Parameters);
             behavior.Build(form);
             Apply(form, transforms);
+            AugmentFormStages.Apply(form, sharedAugments); // spec L543: general augments on the resolved structure, then caps
             return form.Build();
         }
 
