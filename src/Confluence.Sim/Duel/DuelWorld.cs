@@ -8,6 +8,7 @@ using Confluence.Sim.Combat;
 using Confluence.Sim.Fields;
 using Confluence.Sim.Hashing;
 using Confluence.Sim.Input;
+using InputButtons = Confluence.Casting.InputButtons;
 using Confluence.Sim.Movement;
 using Confluence.Sim.Players;
 using Confluence.Sim.Status;
@@ -351,9 +352,9 @@ namespace Confluence.Sim.Duel
                 locks |= MotorLocks.Move | MotorLocks.Jump | MotorLocks.Dodge | MotorLocks.Sprint; // spec L116
             }
 
-            if (p.Melee.Busy || casting.Channeling)
+            if (p.Melee.Busy || casting.Channeling || casting.SuppressesSprint)
             {
-                locks |= MotorLocks.Sprint; // spec L80: sprint disallows channels and normal melee strikes
+                locks |= MotorLocks.Sprint; // spec L80: sprint disallows channels and normal melee strikes; quick casts only
             }
 
             if (p.Guard.InReleaseWindow(Tick))
@@ -506,8 +507,10 @@ namespace Confluence.Sim.Duel
                 return;
             }
 
-            // spec L80: sprint disallows normal melee strikes; guard, swaps, and casts are separate actions.
-            if (p.Motor.Sprinting || p.Guard.Active || p.Guard.InReleaseWindow(Tick) || p.IsSwapping || Spells.GetStatus(p.Index).Busy)
+            // spec L80: sprint disallows normal melee strikes; guard, swaps, and casts are separate actions. A melee press
+            // during a preparation, windup, or channel performs the strike and the spell yields (spec L474, D-049); cast
+            // recovery cannot be cancelled (spec L92).
+            if (p.Motor.Sprinting || p.Guard.Active || p.Guard.InReleaseWindow(Tick) || p.IsSwapping || Spells.GetStatus(p.Index).InRecovery)
             {
                 return;
             }
@@ -919,6 +922,7 @@ namespace Confluence.Sim.Duel
                 Resolution = resolution,
                 TargetPosition = target.Position,
                 Range = request.Range > 0f ? request.Range : attacker != null ? Vec3.Distance(attacker.Position, target.Position) : 0f,
+                CastId = request.CastId,
             };
             Emit(ev, request.Target);
             ev.OriginEventId = request.OriginEventId != 0 ? request.OriginEventId : ev.Id;
@@ -1037,7 +1041,14 @@ namespace Confluence.Sim.Duel
         /// Grants shield capacity (spec L114, L579): timed shields last at most 8 s; reserve shields persist until
         /// broken; all share the 100 cap. Returns the capacity added.
         /// </summary>
-        public float GrantShield(int player, string sourceId, float amount, int durationTicks, bool reserve = false)
+        public float GrantShield(int player, string sourceId, float amount, int durationTicks, bool reserve = false) =>
+            GrantShield(player, sourceId, amount, durationTicks, reserve, 0f);
+
+        /// <summary>
+        /// As <see cref="GrantShield(int, string, float, int, bool)"/> for a directional shield that protects only the
+        /// arc of <paramref name="arcHalfDeg"/> either side of the holder's facing (SPL-075, SPL-091; 0 = all round).
+        /// </summary>
+        public float GrantShield(int player, string sourceId, float amount, int durationTicks, bool reserve, float arcHalfDeg)
         {
             DuelPlayer p = _players[player];
             if (Phase == DuelPhase.Ended)
@@ -1045,7 +1056,7 @@ namespace Confluence.Sim.Duel
                 return 0f;
             }
 
-            float added = p.Shields.Add(sourceId, amount, durationTicks, reserve, Tick);
+            float added = p.Shields.Add(sourceId, amount, durationTicks, reserve, Tick, arcHalfDeg);
             if (added > 0f)
             {
                 Emit(new ShieldEvent { Change = ShieldChange.Gained, SourceId = sourceId, Amount = added, Reserve = reserve, TotalAfter = p.Shields.Total }, player);
@@ -1552,7 +1563,41 @@ namespace Confluence.Sim.Duel
                 _log.Add(e);
             }
 
+            for (int i = 0; i < _observers.Count; i++)
+            {
+                _observers[i].OnEvent(this, e);
+            }
+
             return e;
+        }
+
+        // ----- spell runtime hooks (casting/spells stage) ---------------------------------------------------
+
+        private readonly List<IDuelEventObserver> _observers = new List<IDuelEventObserver>();
+
+        /// <summary>
+        /// Emits an event produced by a later stage (cast phases, spell deliveries) into the same ordered stream, so
+        /// replays, the HUD, and the decisive sequence see one id sequence (spec L359, L419). Returns the event.
+        /// </summary>
+        public T RecordEvent<T>(T e, int player) where T : DuelEvent
+        {
+            if (e == null)
+            {
+                throw new ArgumentNullException(nameof(e));
+            }
+
+            return Emit(e, player);
+        }
+
+        /// <summary>Registers an observer that sees every event as it is emitted, in emission order.</summary>
+        public void AddEventObserver(IDuelEventObserver observer)
+        {
+            if (observer == null)
+            {
+                throw new ArgumentNullException(nameof(observer));
+            }
+
+            _observers.Add(observer);
         }
 
         private void EmitStatus(DuelPlayer p, StatusInstance s, StatusChange change)

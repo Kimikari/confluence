@@ -4,6 +4,7 @@ using Confluence.Sim.Combat;
 using Confluence.Sim.Duel;
 using Confluence.Sim.Hashing;
 using Confluence.Sim.Input;
+using InputButtons = Confluence.Casting.InputButtons;
 using Confluence.Sim.Movement;
 using Confluence.Sim.Status;
 
@@ -58,6 +59,9 @@ namespace Confluence.Sim.Players
 
         public InputButtons PreviousButtons { get; internal set; }
         public InputButtons Pressed { get; internal set; }
+
+        /// <summary>The player's cast machine and its host when a spell runtime is attached (casting stage), else null.</summary>
+        public Casting.PlayerCaster Caster { get; internal set; }
 
         public bool Alive => Resources.Alive;
         public bool IsSwapping => SwapEndTick >= 0;

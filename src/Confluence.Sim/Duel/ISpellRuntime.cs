@@ -43,11 +43,21 @@ namespace Confluence.Sim.Duel
         /// <summary>A channel is running: it counts as mana spending and disallows sprint (spec L78, L80).</summary>
         public bool Channeling;
 
-        /// <summary>In preparation, commitment, release, or recovery: blocks common melee and equip swaps.</summary>
+        /// <summary>
+        /// In preparation, windup, channel, or recovery: blocks equip swaps. Common melee is blocked only by recovery
+        /// (<see cref="InRecovery"/>); during the other phases a melee press performs the strike and the spell yields
+        /// (spec L474, D-049).
+        /// </summary>
         public bool Busy;
 
-        /// <summary>In cast recovery: equip swaps cannot cancel it (spec L106).</summary>
+        /// <summary>In cast recovery: equip swaps and common melee cannot cancel it (spec L92, L106).</summary>
         public bool InRecovery;
+
+        /// <summary>
+        /// A non-quick or channeled cast is being prepared, winding up, or channeling: the motor ends or refuses sprint
+        /// (spec L80; the cast is never refused for sprinting, DECISIONS D-048).
+        /// </summary>
+        public bool SuppressesSprint;
 
         public static CastingStatus Idle => new CastingStatus { MovementFactor = 1f };
     }

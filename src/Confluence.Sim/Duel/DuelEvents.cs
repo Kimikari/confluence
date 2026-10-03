@@ -1,3 +1,4 @@
+using Confluence.Casting;
 using Confluence.Core.Geometry;
 using Confluence.Core.Rules;
 using Confluence.Sim.Combat;
@@ -20,6 +21,12 @@ namespace Confluence.Sim.Duel
         Boundary,
         Resource,
         DuelEnd,
+
+        /// <summary>Cast phase changes: preparation, cue, commitment, release, cancel, interrupt, recast (casting stage).</summary>
+        Cast,
+
+        /// <summary>Spell delivery lifecycle: projectiles, rays, fields, deployables, summons, waves (spell runtime).</summary>
+        Spell,
     }
 
     /// <summary>
@@ -72,6 +79,9 @@ namespace Confluence.Sim.Duel
         public DamageResolution Resolution { get; internal set; }
         public Vec3 TargetPosition { get; internal set; }
         public float Range { get; internal set; }
+
+        /// <summary>The committed cast this damage belongs to (spells; recasts and splits share it), or none.</summary>
+        public CastEventId CastId { get; internal set; }
 
         public bool Lethal => Resolution != null && Resolution.Lethal;
 

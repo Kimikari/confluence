@@ -1,4 +1,5 @@
 using System;
+using Confluence.Casting;
 using Confluence.Core.Geometry;
 using Confluence.Core.Rules;
 
@@ -121,6 +122,18 @@ namespace Confluence.Sim.Combat
 
         /// <summary>Distance from attacker to target at release, for range feats (FEAT-009).</summary>
         public float Range;
+
+        // ----- spell runtime additions ------------------------------------------------------------------------
+
+        /// <summary>The committed cast this damage belongs to; recasts, splits, and delayed portions share it (spec L94, L508).</summary>
+        public CastEventId CastId;
+
+        /// <summary>
+        /// A conditional passive reduction the target holds against this particular hit (for example SPL-011 "reduces
+        /// incoming projectile damage 12%"). It combines multiplicatively with resistance and the other passives and
+        /// stays inside the 45% total cap (spec L112).
+        /// </summary>
+        public float ExtraPassiveReduction;
 
         public float TotalAmount
         {

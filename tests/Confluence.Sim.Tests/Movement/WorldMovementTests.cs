@@ -2,6 +2,7 @@ using Confluence.Core.Geometry;
 using Confluence.Core.Rules;
 using Confluence.Sim.Duel;
 using Confluence.Sim.Input;
+using InputButtons = Confluence.Casting.InputButtons;
 using Confluence.Sim.Players;
 
 namespace Confluence.Sim.Tests.Movement

@@ -5,6 +5,7 @@ using Confluence.Core.Time;
 using Confluence.Sim.Combat;
 using Confluence.Sim.Duel;
 using Confluence.Sim.Input;
+using InputButtons = Confluence.Casting.InputButtons;
 using Confluence.Sim.Status;
 
 namespace Confluence.Sim.Tests.Status

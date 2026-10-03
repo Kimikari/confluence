@@ -35,5 +35,12 @@ namespace Confluence.Casting
 
         /// <summary>Inside the spawn-alcove ward, which prevents casting (spec L46).</summary>
         bool IsWarded { get; }
+
+        /// <summary>
+        /// Another action or rule state refuses new casts right now without being control: a common melee strike, the
+        /// punishable guard release window (spec L104), an equip swap (spec L106), a visible recall (spec L175), or a
+        /// finished duel. It refuses opening a preparation, a signature, or a recast; it never interrupts a commitment.
+        /// </summary>
+        bool IsActionLocked { get; }
     }
 }

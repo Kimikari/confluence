@@ -58,6 +58,9 @@ namespace Confluence.Casting
         NoPendingRecast,
         NoSpellSelected,
         Busy,
+
+        /// <summary>A common action or rule state refuses casting this tick (see <see cref="ICastHost.IsActionLocked"/>).</summary>
+        ActionLocked,
     }
 
     /// <summary>

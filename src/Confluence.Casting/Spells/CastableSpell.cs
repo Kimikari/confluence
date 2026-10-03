@@ -202,6 +202,16 @@ namespace Confluence.Casting
 
         public CastableSpell WithStationary(bool stationary) => new CastableSpell(this) { IsStationary = stationary };
 
+        /// <summary>
+        /// A record-stated movement factor while casting (for example SPL-007 "caster movement -20% while winding up").
+        /// Spec L92 sets the class default; a record may state its own penalty, which this replaces (0-1 of walk speed).
+        /// </summary>
+        public CastableSpell WithMoveSpeedFactor(float factor)
+        {
+            if (!(factor >= 0f && factor <= 1f)) throw new ArgumentOutOfRangeException(nameof(factor));
+            return new CastableSpell(this) { MoveSpeedFactor = factor };
+        }
+
         /// <summary>A channel after release, clamped to the 3 s normal maximum (spec L92).</summary>
         public CastableSpell WithChannel(int maxTicks, int pulseTicks = 1)
         {

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Confluence.Core.Geometry;
 using Confluence.Core.Rules;
+using Confluence.Reactions.Grid;
 using Confluence.Sim.Combat;
 using Confluence.Sim.Hashing;
 
@@ -50,6 +51,22 @@ namespace Confluence.Sim.World
 
         /// <summary>Original cast or hit event for attribution and proc budgets.</summary>
         public int OriginEventId;
+
+        // ----- spell runtime additions: declared footprints (spec L136, L163) --------------------------------
+
+        /// <summary>
+        /// The spell's declared ground footprint (cone, lane, segment, circle, point) when <see cref="HasFootprint"/>;
+        /// otherwise the footprint is the circle of <see cref="Radius"/> around <see cref="Position"/> (0 = its cell).
+        /// </summary>
+        public Footprint Footprint;
+
+        public bool HasFootprint;
+
+        /// <summary>Ticks the deposited units persist; 0 = instant residue that reacts this step (spec L163).</summary>
+        public int LifetimeTicks;
+
+        /// <summary>Owned field (OwnedEntityRegistry id) the material belongs to, so a dispel can consume it (spec L161); 0 none.</summary>
+        public int FieldId;
     }
 
     /// <summary>Kind of ground surface under a character (spec L175).</summary>
