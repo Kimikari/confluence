@@ -57,6 +57,9 @@ namespace Confluence.Arena.Generation
             // Quotas: Topology, Cover, Elevation, Material, Approach, Center (per half; mirrored to the full arena).
             // Elevation 1-2 per half gives 2-4 modules and cover 2-3 per half gives 4-6 (spec L660 "two to four
             // elevation modules, and three to six cover modules"; mirroring makes the counts even).
+            // Spawn distances are measured on true-size navigation: at 40 m, 10.5 m left sub-capsule slots between the
+            // wing tips, the lane-end noses, and corner cover of the center module, so the spawn path ran just past the
+            // 33.5 m band (spec L310).
             switch (diameter)
             {
                 case GlobalRules.Arena.DiameterSmall:
