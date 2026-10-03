@@ -128,7 +128,7 @@ namespace Confluence.Client.UI
             body.Add(main);
 
             VisualElement side = Ui.Panel("cf-match-side");
-            side.Add(Ui.Label("Decisive sequence (last 5 s, numeric events)", "cf-build-section"));
+            side.Add(Ui.Label("Decisive sequence: " + _model.DecisiveHeading, "cf-build-section"));
             var scroll = new ScrollView(ScrollViewMode.Vertical);
             scroll.AddToClassList("cf-grow");
             if (_model.DecisiveSequence.Count == 0)

@@ -176,6 +176,10 @@ namespace Confluence.Client.ViewModels
         IReadOnlyList<ResolveLine> Resolve { get; }
         int NextIncome { get; }
         int WinnerBonus { get; }
+
+        /// <summary>Whose sequence is listed and over what window, for example "How the training dummy fell (last 5 s ...)".</summary>
+        string DecisiveHeading { get; }
+
         IReadOnlyList<string> DecisiveSequence { get; }
         IReadOnlyList<string> RemainingBuild { get; }
         string ContinueLabel { get; }

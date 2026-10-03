@@ -17,6 +17,7 @@ using Confluence.Economy;
 using Confluence.Economy.Augments;
 using Confluence.Economy.Loadouts;
 using Confluence.Economy.Shop;
+using Confluence.Sim.Combat;
 using Confluence.Sim.Duel;
 using Confluence.Sim.Input;
 using Confluence.Sim.Players;
@@ -343,6 +344,9 @@ namespace Confluence.Client.Tests
             Assert.AreEqual(8, session.PlayerResolve);
             Assert.AreEqual(7, session.OpponentResolve, "the loser loses 1 Resolve in rounds 1-3 (spec L36)");
             Assert.IsTrue(results.DecisiveSequence.Count > 0);
+            StringAssert.StartsWith("How the training dummy fell", results.DecisiveHeading, "the sequence explains the loser's death (spec L357)");
+            StringAssert.StartsWith("Training dummy fell at", results.Reason);
+            Assert.IsTrue(results.DecisiveSequence.Any(l => l.Contains("You hit Training dummy")), "the dummy's sequence lists the hits it took");
 
             session.NextRound();
             Assert.AreEqual(2, session.Round);
@@ -391,6 +395,34 @@ namespace Confluence.Client.Tests
             Assert.AreEqual("WIZ-002", setup.WizardId);
             CollectionAssert.AreEqual(player.Loadout.EquippedSpellIds, setup.EquippedSpellIds);
             Assert.AreEqual(staff.Id, setup.ItemIn(EquipmentSlot.MainFocus).Id);
+        }
+
+        [Test]
+        public void DecisiveSequenceMergesRepeatedBoundaryTicks()
+        {
+            // Idle fighters at the generated spawns end up outside the contracting boundary (spec L51), which damages
+            // them every tick; the numeric sequence lists each run of ticks once, with the summed health loss.
+            var world = new DuelWorld(TestArenas.Raincourt32.Layout, DuelPlayerSetup.FromCatalogue(Cat, "p0", "WIZ-002"),
+                DuelPlayerSetup.FromCatalogue(Cat, "p1", "WIZ-010"));
+            int limit = world.AlcoveTicks + world.CombatTicks + 10;
+            for (int i = 0; i < limit && !world.IsOver; i++)
+            {
+                world.Step(PlayerInput.Idle(world.Player(0).Motor.YawDeg), PlayerInput.Idle(world.Player(1).Motor.YawDeg));
+            }
+
+            List<DamageEvent> ticks = world.EventLog.OfType<DamageEvent>().Where(d => d.Kind == DamageKind.Boundary && d.Target == 0).ToList();
+            Assert.Greater(ticks.Count, 30, "the player stood outside the boundary for a while");
+            var names = new[] { "You", "Training dummy" };
+            List<string> lines = DuelEventText.Lines(world.EventLog, world.AlcoveTicks, names);
+            List<string> boundary = lines.Where(l => l.Contains("You took boundary damage")).ToList();
+            Assert.Greater(boundary.Count, 0);
+            Assert.Less(boundary.Count, ticks.Count / 10, "consecutive ticks share one line");
+            StringAssert.Contains(" x", boundary[0]);
+            StringAssert.IsMatch(@"^\d+\.\d\d-\d+\.\d\d s  ", boundary[0], "a merged line shows its time range");
+            float health = ticks.Sum(d => d.Resolution.HealthLost);
+            float listed = boundary.Sum(l => float.Parse(l.Substring(l.LastIndexOf("health -", StringComparison.Ordinal) + 8).Split(' ')[0],
+                System.Globalization.CultureInfo.InvariantCulture));
+            Assert.AreEqual(health, listed, 0.05f * boundary.Count, "merged lines keep the total health loss");
         }
 
         // Runs the session's duel with the training dummy: the demonstration pilot attacks until the dummy falls, or

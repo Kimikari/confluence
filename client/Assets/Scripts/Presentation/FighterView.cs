@@ -26,19 +26,29 @@ namespace Confluence.Client.Presentation
         private Transform _focus;
         private GameObject _guard;
         private MeshRenderer _guardRenderer;
+        private MeshRenderer[] _rimRenderers;
         private GameObject _swing;
         private MeshRenderer _swingRenderer;
         private Material _bodyMaterial;
         private Material _deadMaterial;
         private Material _guardMaterial;
+        private Material _guardRimMaterial;
         private Material _perfectMaterial;
+        private Material _perfectRimMaterial;
         private Material _windupMaterial;
         private Material _strikeMaterial;
         private Mesh _guardMesh;
+        private Mesh _rimMesh;
         private Mesh _swingMesh;
         private float _swingReach;
         private float _swingHalfDeg;
         private bool _firstPerson;
+
+        /// <summary>Guard band: radius beyond the capsule, bottom and top heights above the feet, and rim height (meters).</summary>
+        public const float GuardMargin = 0.3f;
+        public const float GuardBottom = 0.45f;
+        public const float GuardTop = 1.75f;
+        public const float GuardRimHeight = 0.04f;
 
         public int Index { get; private set; }
 
@@ -56,10 +66,16 @@ namespace Confluence.Client.Presentation
             Color color = SideColors[index % SideColors.Length];
             view._bodyMaterial = materials.Flat(color, index == 0 ? SurfaceKind.Metal : SurfaceKind.Wood);
             view._deadMaterial = materials.Flat(new Color(0.35f, 0.35f, 0.35f), SurfaceKind.Stone);
-            view._guardMaterial = materials.Glow(new Color(color.r, color.g, color.b, 0.28f));
-            view._perfectMaterial = materials.Glow(new Color(1f, 1f, 1f, 0.5f));
-            view._windupMaterial = materials.Glow(new Color(1f, 0.85f, 0.3f, 0.22f));
-            view._strikeMaterial = materials.Glow(new Color(1f, 0.3f, 0.2f, 0.45f));
+            // The guard is a faint pane with bright rims so the guarding body stays readable at melee range; the local
+            // player's own sweep is fainter because it lies across the first-person view.
+            Color rim = Color.Lerp(color, Color.white, 0.4f);
+            view._guardMaterial = materials.Glow(new Color(color.r, color.g, color.b, 0.14f));
+            view._guardRimMaterial = materials.Glow(new Color(rim.r, rim.g, rim.b, 0.85f));
+            view._perfectMaterial = materials.Glow(new Color(1f, 1f, 1f, 0.32f));
+            view._perfectRimMaterial = materials.Glow(Color.white);
+            float sweepAlpha = firstPerson ? 0.5f : 1f;
+            view._windupMaterial = materials.Glow(new Color(1f, 0.85f, 0.3f, 0.22f * sweepAlpha));
+            view._strikeMaterial = materials.Glow(new Color(1f, 0.3f, 0.2f, 0.45f * sweepAlpha));
 
             view._body = Primitive(PrimitiveType.Capsule, "Body", root.transform, view._bodyMaterial).transform;
             view._visor = Primitive(PrimitiveType.Cube, "Visor", root.transform, materials.Flat(Color.white, SurfaceKind.Glass)).transform;
@@ -73,9 +89,18 @@ namespace Confluence.Client.Presentation
                 view._focus.gameObject.SetActive(false);
             }
 
-            float radius = CharacterMotor.Radius + 0.35f;
-            view._guardMesh = ShapeMeshes.CylinderSector(radius, 0.15f, GlobalRules.Movement.StandingHeight + 0.1f, GuardState.HalfArcDeg, 24, "Guard arc");
+            // Torso-height band of the 120-degree frontal arc (spec L104) with a rim along its top and bottom edges.
+            float radius = CharacterMotor.Radius + GuardMargin;
+            view._guardMesh = ShapeMeshes.CylinderSector(radius, GuardBottom, GuardTop, GuardState.HalfArcDeg, 24, "Guard arc");
             view._guard = MeshObject("Guard arc", root.transform, view._guardMesh, view._guardMaterial, out view._guardRenderer);
+            view._rimMesh = ShapeMeshes.CylinderSector(radius + 0.005f, 0f, GuardRimHeight, GuardState.HalfArcDeg, 24, "Guard rim");
+            view._rimRenderers = new MeshRenderer[2];
+            for (int i = 0; i < view._rimRenderers.Length; i++)
+            {
+                GameObject edge = MeshObject("Guard rim", view._guard.transform, view._rimMesh, view._guardRimMaterial, out view._rimRenderers[i]);
+                edge.transform.localPosition = new Vector3(0f, i == 0 ? GuardBottom : GuardTop - GuardRimHeight, 0f);
+            }
+
             view._guard.SetActive(false);
             view._swing = MeshObject("Melee sweep", root.transform, null, view._strikeMaterial, out view._swingRenderer);
             view._swing.SetActive(false);
@@ -117,7 +142,13 @@ namespace Confluence.Client.Presentation
             _guard.SetActive(guarding);
             if (guarding)
             {
-                _guardRenderer.sharedMaterial = p.Guard.IsPerfect(tick) ? _perfectMaterial : _guardMaterial;
+                _guard.transform.localScale = new Vector3(1f, height / GlobalRules.Movement.StandingHeight, 1f); // follows a crouch
+                bool perfect = p.Guard.IsPerfect(tick);
+                _guardRenderer.sharedMaterial = perfect ? _perfectMaterial : _guardMaterial;
+                foreach (MeshRenderer edge in _rimRenderers)
+                {
+                    edge.sharedMaterial = perfect ? _perfectRimMaterial : _guardRimMaterial;
+                }
             }
 
             PresentSwing(p, yawDeg, alive);
@@ -196,6 +227,11 @@ namespace Confluence.Client.Presentation
             if (_guardMesh != null)
             {
                 ArenaMaterialLibrary.DestroyObject(_guardMesh);
+            }
+
+            if (_rimMesh != null)
+            {
+                ArenaMaterialLibrary.DestroyObject(_rimMesh);
             }
 
             if (_swingMesh != null)

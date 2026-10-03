@@ -8,6 +8,7 @@ using Confluence.Economy;
 using Confluence.Economy.Augments;
 using Confluence.Economy.Loadouts;
 using Confluence.Economy.Shop;
+using Confluence.Sim;
 using Confluence.Sim.Duel;
 using Confluence.Sim.Players;
 
@@ -230,9 +231,17 @@ namespace Confluence.Client.Laboratory
                 new ResolveLine { Name = OpponentName, Before = opponentBefore, After = OpponentResolve },
             };
 
-            IReadOnlyList<DuelEvent> sequence = result.DecisiveSequences != null && result.DecisiveSequences.Count > 0 ? result.DecisiveSequences[0] : null;
-            Results = new RoundResultsModel(RoundTitle + ": results", outcome, ReasonText(result), resolve,
+            // Spec L357-L359: the decisive sequence explains the death, so it follows the loser; a draw shows the player's.
+            int subject = result.IsDraw || result.Winner < 0 ? 0 : 1 - result.Winner;
+            IReadOnlyList<DuelEvent> sequence = result.DecisiveSequences != null && result.DecisiveSequences.Count > subject
+                ? result.DecisiveSequences[subject]
+                : null;
+            string heading = result.Reason == DuelEndReason.Death
+                ? (subject == 0 ? "How you fell" : "How the " + OpponentName.ToLowerInvariant() + " fell")
+                : "Your final seconds";
+            Results = new RoundResultsModel(RoundTitle + ": results", outcome, ReasonText(result, names), resolve,
                 matchOver ? 0 : Schedules.ShopIncome(false), won ? GlobalRules.Economy.WinnerBonus : 0,
+                heading + " (last " + ContentFormat.Number(SimRules.Duel.DecisiveSequenceSec) + " s, numeric events)",
                 DuelEventText.Lines(sequence, alcoveTicks, names), LoadoutLines(Player.Loadout), matchOver, onContinue);
             Phase = LabPhase.Results;
             return Results;
@@ -305,11 +314,12 @@ namespace Confluence.Client.Laboratory
             return lines;
         }
 
-        private static string ReasonText(DuelResult result)
+        private static string ReasonText(DuelResult result, string[] names)
         {
             switch (result.Reason)
             {
-                case DuelEndReason.Death: return "Defeat by health loss at " + ContentFormat.Seconds(result.CombatSeconds) + " of combat.";
+                case DuelEndReason.Death:
+                    return names[1 - result.Winner] + " fell at " + ContentFormat.Seconds(result.CombatSeconds) + " of combat: health reached 0 (spec L49).";
                 case DuelEndReason.SimultaneousDeath: return "Both fighters fell in the same simulation step: a draw (spec L53).";
                 case DuelEndReason.Timer:
                     return "Timer judgement at 90 s on health fraction: " + ContentFormat.Percent(result.HealthFractions[0]) + " vs "

@@ -143,7 +143,7 @@ namespace Confluence.Client.ViewModels
         private readonly Action _onContinue;
 
         public RoundResultsModel(string title, string outcome, string reason, IReadOnlyList<ResolveLine> resolve, int nextIncome, int winnerBonus,
-            IReadOnlyList<string> decisiveSequence, IReadOnlyList<string> remainingBuild, bool matchOver, Action onContinue)
+            string decisiveHeading, IReadOnlyList<string> decisiveSequence, IReadOnlyList<string> remainingBuild, bool matchOver, Action onContinue)
         {
             Title = title;
             Outcome = outcome;
@@ -151,6 +151,7 @@ namespace Confluence.Client.ViewModels
             Resolve = resolve ?? Array.Empty<ResolveLine>();
             NextIncome = nextIncome;
             WinnerBonus = winnerBonus;
+            DecisiveHeading = decisiveHeading;
             DecisiveSequence = decisiveSequence ?? Array.Empty<string>();
             RemainingBuild = remainingBuild ?? Array.Empty<string>();
             MatchOver = matchOver;
@@ -170,6 +171,7 @@ namespace Confluence.Client.ViewModels
         public IReadOnlyList<ResolveLine> Resolve { get; }
         public int NextIncome { get; }
         public int WinnerBonus { get; }
+        public string DecisiveHeading { get; }
         public IReadOnlyList<string> DecisiveSequence { get; }
         public IReadOnlyList<string> RemainingBuild { get; }
         public string ContinueLabel { get; }
