@@ -67,6 +67,14 @@ namespace Confluence.Sim.World
 
         /// <summary>Owned field (OwnedEntityRegistry id) the material belongs to, so a dispel can consume it (spec L161); 0 none.</summary>
         public int FieldId;
+
+        /// <summary>
+        /// Heavy direct projectile pattern (spec L163): <see cref="Strength"/> lands in the impact cell only and this many
+        /// units in the other cells within <see cref="AdjacentRadius"/>; 0 = a uniform deposit over the footprint.
+        /// </summary>
+        public int AdjacentStrength;
+
+        public float AdjacentRadius;
     }
 
     /// <summary>Kind of ground surface under a character (spec L175).</summary>

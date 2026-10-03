@@ -30,6 +30,8 @@ namespace Confluence.Casting.Tests.Support
             return true;
         }
 
+        public bool TryPayCommitment(CastableSpell spell, float amount) => TryPayMana(amount);
+
         public void RefundMana(float amount)
         {
             ManaPool += amount;

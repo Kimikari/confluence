@@ -4,6 +4,7 @@ using Confluence.Casting;
 using Confluence.Core.Time;
 using Confluence.Sim.Combat;
 using Confluence.Sim.Duel;
+using Confluence.Sim.Effects;
 using Confluence.Sim.Hashing;
 using Confluence.Sim.Movement;
 using Confluence.Sim.Players;
@@ -68,6 +69,16 @@ namespace Confluence.Sim.Casting
 
         public bool TryPayMana(float amount) => _world.TryCommitMana(_player.Index, amount, PaymentSource());
 
+        /// <summary>
+        /// The commitment payment goes through the effect framework, which consumes the "next cast" bonuses that priced
+        /// it and records the payment for refunds (spec L90, L124).
+        /// </summary>
+        public bool TryPayCommitment(CastableSpell spell, float amount)
+        {
+            if (spell == null) return TryPayMana(amount);
+            return _world.Effects.TryCommitPricedCast(_player.Index, QuoteFor(spell), amount, out _);
+        }
+
         public void RefundMana(float amount) => _world.RefundMana(_player.Index, amount, PaymentSource());
 
         public int CooldownRemainingTicks(string spellId)
@@ -85,8 +96,30 @@ namespace Confluence.Sim.Casting
             _readyTick[spell.Id] = _world.Tick + Ticks.FromSeconds(seconds);
         }
 
-        /// <summary>Ordinary cost reduction from the stat system, already capped at 30% (spec L124).</summary>
-        public CastModifiers ModifiersFor(CastableSpell spell) => new CastModifiers { CostReduction = _player.Stats.CostReduction };
+        /// <summary>
+        /// Cost modifiers at commitment (spec L124): the stat cost reduction (capped at 30%) plus pending "next cast"
+        /// reductions from effects as one fraction of the listed cost, which the machine floors together with mastery
+        /// efficiency at 70% of the listed cost; pending drawback increases are added after the floor.
+        /// </summary>
+        public CastModifiers ModifiersFor(CastableSpell spell)
+        {
+            if (spell == null) return new CastModifiers { CostReduction = _player.Stats.CostReduction };
+            CastPrice price = _world.Effects.PriceCast(_player.Index, QuoteFor(spell));
+            float listed = Math.Max(0f, spell.Mana);
+            return new CastModifiers
+            {
+                CostReduction = listed > 0f ? (price.StatReduction + price.BonusReduction) / listed : _player.Stats.CostReduction,
+                CostIncrease = price.Increase,
+            };
+        }
+
+        /// <summary>The effect framework's view of a cast (filters read the id, the damaging flag, and the form's tags).</summary>
+        private CastQuote QuoteFor(CastableSpell spell)
+        {
+            SpellForm form = Loadout.FormFor(spell.Id);
+            bool damaging = form != null ? form.HasTag("damaging") : true;
+            return CastQuote.Of(spell.Id, spell.Mana, damaging, form?.Tags);
+        }
 
         public bool IsSilenced => _player.Statuses.IsSilenced;
 

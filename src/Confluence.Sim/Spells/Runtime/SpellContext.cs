@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Confluence.Core.Geometry;
+using Confluence.Core.Rules;
 using Confluence.Core.Time;
 using Confluence.Reactions.Grid;
 using Confluence.Sim.Combat;
@@ -319,7 +320,15 @@ namespace Confluence.Sim.Spells
 
                 Vec2 flat = new Vec2(direction.X, direction.Z);
                 deposit.Direction = flat.LengthSquared() > 0f ? flat.Normalized() : Vec2.Zero;
-                if (footprint.HasValue)
+                if (d.HeavyImpact && placement == DepositPlacement.Impact)
+                {
+                    // Spec L163: the stated units in the impact cell, the default ring in the other cells within 1 m.
+                    deposit.AdjacentStrength = GlobalRules.World.HeavyProjectileAdjacentDeposit;
+                    deposit.AdjacentRadius = GlobalRules.World.HeavyProjectileAdjacentRadius;
+                    deposit.Footprint = Footprint.Circle(point.XZ(), deposit.AdjacentRadius);
+                    deposit.HasFootprint = true;
+                }
+                else if (footprint.HasValue)
                 {
                     deposit.Footprint = footprint.Value;
                     deposit.HasFootprint = true;

@@ -87,6 +87,7 @@ namespace Confluence.Sim.Spells
         private DepositPlacement _placement;
         private float _radius;
         private float _lifetimeSec;
+        private bool _heavyImpact;
 
         public DepositKind Kind { get => _kind; set => _kind = Set(value); }
 
@@ -99,6 +100,13 @@ namespace Confluence.Sim.Spells
 
         /// <summary>How long the units persist (0: instant residue that reacts this step).</summary>
         public float LifetimeSec { get => _lifetimeSec; set => _lifetimeSec = Set(value); }
+
+        /// <summary>
+        /// Heavy direct projectile pattern (spec L163 "two units at its impact cell and one in adjacent cells within 1
+        /// meter"): <see cref="Strength"/> lands in the impact cell and the default adjacent units in the other cells
+        /// within 1 m. Only meaningful for <see cref="DepositPlacement.Impact"/>.
+        /// </summary>
+        public bool HeavyImpact { get => _heavyImpact; set => _heavyImpact = Set(value); }
 
         internal void ApplyGlobalCaps()
         {

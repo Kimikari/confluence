@@ -68,6 +68,8 @@ namespace Confluence.Sim.Tests.Content
             WorldDeposit heat = materials.Deposits.Single();
             Assert.Equal(DepositKind.Heat, heat.Kind);
             Assert.Equal(2, heat.Strength);
+            Assert.Equal(1, heat.AdjacentStrength);    // heavy projectile ring (spec L163)
+            Assert.Equal(1f, heat.AdjacentRadius, 3);
             Assert.Equal(0, heat.SourcePlayer);
             Assert.Equal("SPL-009", heat.SourceId);
             SpellEvent impact = SpellTestKit.SpellEvents(w, SpellEventKind.ProjectileImpact).Single();

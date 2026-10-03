@@ -161,6 +161,7 @@ namespace Confluence.Hosting.Tests
             public bool IsWarded => false;
             public bool IsActionLocked => false;
             public bool TryPayMana(float amount) => true;
+            public bool TryPayCommitment(CastableSpell spell, float amount) => true;
             public void RefundMana(float amount) { }
             public int CooldownRemainingTicks(string spellId) => 0;
             public void StartCooldown(CastableSpell spell) { }

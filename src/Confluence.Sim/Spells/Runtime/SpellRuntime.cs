@@ -284,6 +284,7 @@ namespace Confluence.Sim.Spells
                             cast.ReleaseTick = _world.Tick;
                             cast.Form.Delivery.Release(_ctx, cast);
                             cast.Form.Script?.OnReleased(_ctx, cast);
+                            _world.Effects.RaiseCastReleased(caster.Player, cast.SpellId, cast.OriginEventId); // spec L90 "on release" triggers
                         }
 
                         break;

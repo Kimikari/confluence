@@ -440,8 +440,9 @@ namespace Confluence.Casting
             }
 
             CastModifiers modifiers = _host.ModifiersFor(_spell);
-            float cost = MasteryClamp.PaidCost(_spell.Mana, modifiers.CostReduction, MasteryClamp.ManaEfficiency(mastery, modifiers));
-            if (!_host.TryPayMana(cost))
+            float cost = MasteryClamp.PaidCost(_spell.Mana, modifiers.CostReduction, MasteryClamp.ManaEfficiency(mastery, modifiers))
+                + Math.Max(0f, modifiers.CostIncrease);
+            if (!_host.TryPayCommitment(_spell, cost))
             {
                 CancelPreparation(CancelReason.InsufficientMana, tick, events);
                 return;

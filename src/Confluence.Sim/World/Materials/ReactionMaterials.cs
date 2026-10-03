@@ -173,16 +173,21 @@ namespace Confluence.Sim.World.Materials
         }
 
         /// <summary>
-        /// The generic Sim deposit (spec L163 defaults: a quick projectile deposits one unit at its impact cell). Units
-        /// without a stated lifetime are instant residue that reacts this step; spells that state lifetimes, damage, or
-        /// footprints use the typed requests above.
+        /// The generic Sim deposit from the spell runtime (spec L136, L163): the spell's declared footprint (or the circle of
+        /// its radius, or its impact cell), its lifetime (0 = instant residue that reacts this step; player material lasts
+        /// at most 8 s, L128), the owning field for dispels (L161), and the heavy-projectile pattern when declared. Spells
+        /// that state damage or other specifics use the typed requests above.
         /// </summary>
         public void QueueDeposit(in WorldDeposit d)
         {
             ReactionWorld world = RequireWorld();
             int owner = d.SourcePlayer >= 0 && d.SourcePlayer < DuelWorld.PlayerCount ? d.SourcePlayer : ReactionRules.MapOwner;
             RecordSource(d.OriginEventId, d.SourceId);
-            Footprint footprint = d.Radius > 0f ? Footprint.Circle(d.Position.XZ(), d.Radius) : Footprint.Point(d.Position.XZ());
+            bool heavy = d.AdjacentStrength > 0 && d.AdjacentRadius > 0f;
+            Footprint footprint = heavy ? Footprint.Circle(d.Position.XZ(), d.AdjacentRadius)
+                : d.HasFootprint ? d.Footprint
+                : d.Radius > 0f ? Footprint.Circle(d.Position.XZ(), d.Radius)
+                : Footprint.Point(d.Position.XZ());
             int strength = Math.Max(1, Math.Min(d.Strength, GlobalRules.World.MaxUnitsPerCell));
             Vec3 direction = new Vec3(d.Direction.X, 0f, d.Direction.Y);
             switch (d.Kind)
@@ -198,10 +203,15 @@ namespace Confluence.Sim.World.Materials
                     {
                         Material = MaterialOf(d.Kind),
                         Strength = strength,
+                        Pattern = heavy ? DepositPattern.HeavyImpact : DepositPattern.Uniform,
+                        AdjacentStrength = heavy ? Math.Min(d.AdjacentStrength, GlobalRules.World.MaxUnitsPerCell) : 0,
+                        AdjacentRadius = heavy ? d.AdjacentRadius : 0f,
                         Footprint = footprint,
                         SurfaceY = d.Position.Y,
+                        LifetimeTicks = Math.Max(0, d.LifetimeTicks),
                         Owner = owner,
                         SourceEventId = d.OriginEventId,
+                        FieldId = d.FieldId,
                     });
                     break;
                 case DepositKind.Electricity:

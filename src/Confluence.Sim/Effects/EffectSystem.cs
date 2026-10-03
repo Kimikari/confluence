@@ -255,8 +255,26 @@ namespace Confluence.Sim.Effects
         /// </summary>
         public bool TryCommitCast(int player, in CastQuote quote, out CastReceipt receipt)
         {
-            receipt = default;
             CastPrice price = PriceCast(player, quote);
+            return TryCommitPricedCast(player, quote, price, out receipt);
+        }
+
+        /// <summary>
+        /// Pays a cast the cast machine priced (the spell runtime's path, <c>ICastHost.TryPayCommitment</c>): the machine
+        /// floored the stat and pending reductions of <see cref="PriceCast"/> together with mastery efficiency at 70% and
+        /// added the drawbacks (spec L124, L480), so <paramref name="paid"/> is final. Consumes the next-cast bonuses that
+        /// priced it and records the payment for refunds.
+        /// </summary>
+        public bool TryCommitPricedCast(int player, in CastQuote quote, float paid, out CastReceipt receipt)
+        {
+            CastPrice price = PriceCast(player, quote);
+            price.Paid = Math.Max(0f, paid);
+            return TryCommitPricedCast(player, quote, price, out receipt);
+        }
+
+        private bool TryCommitPricedCast(int player, in CastQuote quote, in CastPrice price, out CastReceipt receipt)
+        {
+            receipt = default;
             if (!World.TryCommitMana(player, price.Paid, quote.SpellId))
             {
                 return false;

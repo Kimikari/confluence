@@ -12,6 +12,9 @@ namespace Confluence.Casting
         /// <summary>Ordinary cost reduction from all non-mastery sources (fraction; negative = surcharge).</summary>
         public float CostReduction;
 
+        /// <summary>Flat mana added after the 70% floor by drawbacks ("next cast costs 4 more"; spec L124 floors reductions only).</summary>
+        public float CostIncrease;
+
         /// <summary>Equipment/augment efficiency that modifies a cast rewarded with mana efficiency (spec L480).</summary>
         public float MasteryLinkedEfficiency;
 

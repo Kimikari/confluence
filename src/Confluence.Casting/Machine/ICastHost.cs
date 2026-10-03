@@ -16,6 +16,13 @@ namespace Confluence.Casting
         /// </summary>
         bool TryPayMana(float amount);
 
+        /// <summary>
+        /// Pays a spell's commitment cost (spec L78, L90): the same all-or-nothing rule as <see cref="TryPayMana"/>, but
+        /// the host learns which cast is paid, so it can consume the "next cast" bonuses that priced it through
+        /// <see cref="ModifiersFor"/> and record the payment for refunds. Recast surcharges use <see cref="TryPayMana"/>.
+        /// </summary>
+        bool TryPayCommitment(CastableSpell spell, float amount);
+
         /// <summary>Returns mana; the machine has already applied the per-cast refund caps (spec L90, L124).</summary>
         void RefundMana(float amount);
 

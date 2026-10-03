@@ -8,7 +8,7 @@ namespace Confluence.Sim.Content.SpellBehaviors
     /// <summary>
     /// SPL-009 Fireball (WIZ-002 Bram Cinder): "24 m/s projectile; 1.8 m splash; direct and splash cannot both damage
     /// one target." Damage "48 direct OR 28 splash", thermal; "Heat 2 at impact consumes water and makes a bounded steam
-    /// patch" (the steam is the reactions stage's response to the deposit). Mana 18, cooldown 5 s, 0.35 s windup, range
+    /// patch" (the heavy-projectile deposit of spec L163; the steam is the reactions stage's response to it). Mana 18, cooldown 5 s, 0.35 s windup, range
     /// 30 m come from the record (spec L525). The direct hit is a projectile hit, so a frontal guard reduces it (spec
     /// L104); the splash is area damage and is not guarded.
     /// </summary>
@@ -35,7 +35,11 @@ namespace Confluence.Sim.Content.SpellBehaviors
             payload.Splash = Splash.Float;
             payload.SplashRadius = SplashRadius.Float;
             payload.SplashExcludesDirect = true; // "direct and splash cannot both damage one target"
-            payload.AddDeposit(DepositKind.Heat, (int)ImpactHeat.Value, DepositPlacement.Impact);
+
+            // Fireball is a heavy direct projectile (spec L163): its stated "Heat 2 at impact" is the impact-cell value of
+            // the heavy pattern, and the unstated adjacent ring keeps its default (one unit within 1 m), which is what
+            // makes the record's "bounded steam patch" on water rather than a single 0.5 m column.
+            payload.AddDeposit(DepositKind.Heat, (int)ImpactHeat.Value, DepositPlacement.Impact).HeavyImpact = true;
         }
     }
 }
