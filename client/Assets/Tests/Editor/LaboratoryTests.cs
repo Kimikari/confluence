@@ -512,6 +512,28 @@ namespace Confluence.Client.Tests
         }
 
         [Test]
+        public void LaboratoryTrainingEffectsGoThroughTheSimRules()
+        {
+            DuelWorld world = NewWorld(SparringLayout.Create(TestArenas.Raincourt32.Layout));
+            var hud = new DuelHudModel(Cat, 0);
+            Step(world, 1);
+            Assert.IsFalse(TrainingEffects.Available(world), "statuses only apply in combat (spec L46)");
+            Assert.AreEqual(0, TrainingEffects.Apply(world, 0));
+
+            Step(world, world.AlcoveTicks);
+            Assert.AreEqual(5, TrainingEffects.Apply(world, 0), "wet, burn, slow, stun, and shield");
+            Step(world, Ticks.FromSeconds(1f));
+            hud.Refresh(world);
+            Assert.Greater(hud.Shield, 0f, "the timed shield is up");
+            Assert.Less(hud.Health + hud.Shield, hud.MaxHealth + TrainingEffects.Shield, "the burn pulsed");
+            Assert.IsTrue(hud.Statuses.Any(s => s.Kind == StatusIconKind.Wet));
+            Assert.IsTrue(hud.Statuses.Any(s => s.Kind == StatusIconKind.DamageOverTime));
+            Assert.IsTrue(hud.Statuses.Any(s => s.Kind == StatusIconKind.Slow));
+            Assert.IsTrue(hud.Statuses.Any(s => s.Kind == StatusIconKind.ControlImmunity), "the 0.4 s stun gave way to immunity (spec L116)");
+            Assert.IsFalse(TrainingEffects.Apply(world, 0) == 5, "a second stun during immunity is blocked (spec L116)");
+        }
+
+        [Test]
         public void FinalSecondsShowTheJudgementAndTheBoundaryCue()
         {
             DuelWorld world = NewWorld(TestArenas.Raincourt32.Layout);
@@ -606,6 +628,11 @@ namespace Confluence.Client.Tests
             int hits = duel.World.EventLog.OfType<DamageEvent>().Count(e => e.Attacker == 0 && e.Target == 1);
             Assert.AreEqual(hits, duel.DamageNumbersShown, "numbers only for confirmed hits");
             Assert.IsTrue(duel.World.EventLog.OfType<GuardEvent>().Any(g => g.Player == 1), "the dummy guards");
+            List<DamageEvent> landed = duel.World.EventLog.OfType<DamageEvent>().Where(e => e.Attacker == 0).ToList();
+            Assert.IsTrue(landed.Any(e => e.Resolution.Guard != GuardOutcome.None), "the dummy guards some strikes (spec L104)");
+            Assert.IsTrue(landed.Any(e => e.Resolution.Guard == GuardOutcome.None), "and takes others while its guard cools down");
+            StringAssert.Contains("guard", DamageNumbers.Text(landed.First(e => e.Resolution.Guard != GuardOutcome.None)).ToLowerInvariant(),
+                "a guarded hit's number shows the guard outcome");
             Assert.Less(duel.HudModel.Stamina, 100f, "melee and movement spent stamina");
 
             // The guard arc and the melee sweep follow the authoritative state tick by tick.
@@ -740,7 +767,7 @@ namespace Confluence.Client.Tests
         {
             CommandLineOptions o = CommandLineOptions.Parse(new[]
             {
-                "-laboratory", "-labScreen", "DRAFT", "-labRound", "3", "-labWizard", "WIZ-006", "-labDuelTime", "12.5", "-labDemo", "-arenaSeed", "42",
+                "-laboratory", "-labScreen", "DRAFT", "-labRound", "3", "-labWizard", "WIZ-006", "-labDuelTime", "12.5", "-labDemo", "-labFreeze", "-arenaSeed", "42",
             });
             Assert.IsTrue(o.Laboratory);
             Assert.AreEqual(LabScreen.Draft, o.LabScreen);
@@ -748,6 +775,7 @@ namespace Confluence.Client.Tests
             Assert.AreEqual("WIZ-006", o.LabWizard);
             Assert.AreEqual(12.5f, o.LabDuelTimeSec);
             Assert.IsTrue(o.LabDemo);
+            Assert.IsTrue(o.LabFreeze);
             LaboratoryConfig config = LaboratoryController.ConfigFrom(o, TestCatalogue.Instance);
             Assert.AreEqual("WIZ-006", config.PlayerWizardId);
             Assert.AreEqual(42ul, config.MatchSeed);

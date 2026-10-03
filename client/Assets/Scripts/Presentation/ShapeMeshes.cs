@@ -6,8 +6,8 @@ namespace Confluence.Client.Presentation
     public static class ShapeMeshes
     {
         /// <summary>
-        /// Vertical curved band: the part of a cylinder of this radius within +-halfAngle of +Z, from y0 to y1, double
-        /// sided (the guard's frontal arc, spec L104).
+        /// Vertical curved band: the part of a cylinder of this radius within +-halfAngle of +Z, from y0 to y1 (the
+        /// guard's frontal arc, spec L104).
         /// </summary>
         public static Mesh CylinderSector(float radius, float y0, float y1, float halfAngleDeg, int segments, string name)
         {
@@ -24,20 +24,10 @@ namespace Confluence.Client.Presentation
                 uvs[i * 2 + 1] = new Vector2(t, 1f);
             }
 
-            var triangles = new int[segments * 12];
-            for (int i = 0; i < segments; i++)
-            {
-                int a = i * 2, b = a + 1, c = a + 2, d = a + 3, k = i * 12;
-                triangles[k] = a; triangles[k + 1] = b; triangles[k + 2] = c;
-                triangles[k + 3] = c; triangles[k + 4] = b; triangles[k + 5] = d;
-                triangles[k + 6] = c; triangles[k + 7] = b; triangles[k + 8] = a;
-                triangles[k + 9] = d; triangles[k + 10] = b; triangles[k + 11] = c;
-            }
-
-            return Build(name, vertices, uvs, triangles);
+            return Build(name, vertices, uvs, Strip(segments));
         }
 
-        /// <summary>Flat horizontal sector between two radii within +-halfAngle of +Z, double sided (melee reach, spec L100).</summary>
+        /// <summary>Flat horizontal sector between two radii within +-halfAngle of +Z (melee reach, spec L100).</summary>
         public static Mesh Sector(float innerRadius, float outerRadius, float halfAngleDeg, int segments, string name)
         {
             var vertices = new Vector3[(segments + 1) * 2];
@@ -53,17 +43,22 @@ namespace Confluence.Client.Presentation
                 uvs[i * 2 + 1] = new Vector2(t, 1f);
             }
 
-            var triangles = new int[segments * 12];
+            return Build(name, vertices, uvs, Strip(segments));
+        }
+
+        // One winding per quad: the feedback materials (ArenaMaterialLibrary.Glow) cull nothing, so both faces draw;
+        // a second, reversed triangle would blend every surface twice.
+        private static int[] Strip(int segments)
+        {
+            var triangles = new int[segments * 6];
             for (int i = 0; i < segments; i++)
             {
-                int a = i * 2, b = a + 1, c = a + 2, d = a + 3, k = i * 12;
+                int a = i * 2, b = a + 1, c = a + 2, d = a + 3, k = i * 6;
                 triangles[k] = a; triangles[k + 1] = b; triangles[k + 2] = c;
                 triangles[k + 3] = c; triangles[k + 4] = b; triangles[k + 5] = d;
-                triangles[k + 6] = c; triangles[k + 7] = b; triangles[k + 8] = a;
-                triangles[k + 9] = d; triangles[k + 10] = b; triangles[k + 11] = c;
             }
 
-            return Build(name, vertices, uvs, triangles);
+            return triangles;
         }
 
         private static Mesh Build(string name, Vector3[] vertices, Vector2[] uvs, int[] triangles)

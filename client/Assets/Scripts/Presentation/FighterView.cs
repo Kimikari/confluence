@@ -69,13 +69,13 @@ namespace Confluence.Client.Presentation
             // The guard is a faint pane with bright rims so the guarding body stays readable at melee range; the local
             // player's own sweep is fainter because it lies across the first-person view.
             Color rim = Color.Lerp(color, Color.white, 0.4f);
-            view._guardMaterial = materials.Glow(new Color(color.r, color.g, color.b, 0.14f));
+            view._guardMaterial = materials.Glow(new Color(color.r, color.g, color.b, 0.12f));
             view._guardRimMaterial = materials.Glow(new Color(rim.r, rim.g, rim.b, 0.85f));
-            view._perfectMaterial = materials.Glow(new Color(1f, 1f, 1f, 0.32f));
+            view._perfectMaterial = materials.Glow(new Color(1f, 1f, 1f, 0.3f));
             view._perfectRimMaterial = materials.Glow(Color.white);
             float sweepAlpha = firstPerson ? 0.5f : 1f;
-            view._windupMaterial = materials.Glow(new Color(1f, 0.85f, 0.3f, 0.22f * sweepAlpha));
-            view._strikeMaterial = materials.Glow(new Color(1f, 0.3f, 0.2f, 0.45f * sweepAlpha));
+            view._windupMaterial = materials.Glow(new Color(1f, 0.85f, 0.3f, 0.35f * sweepAlpha));
+            view._strikeMaterial = materials.Glow(new Color(1f, 0.3f, 0.2f, 0.6f * sweepAlpha));
 
             view._body = Primitive(PrimitiveType.Capsule, "Body", root.transform, view._bodyMaterial).transform;
             view._visor = Primitive(PrimitiveType.Cube, "Visor", root.transform, materials.Flat(Color.white, SurfaceKind.Glass)).transform;

@@ -2,6 +2,7 @@ using System;
 using Confluence.Core.Geometry;
 using Confluence.Core.Rules;
 using Confluence.Core.Time;
+using Confluence.Sim.Combat;
 using Confluence.Sim.Duel;
 using Confluence.Sim.Input;
 using Confluence.Sim.Movement;
@@ -21,7 +22,10 @@ namespace Confluence.Client.Laboratory
         /// <summary>Stands still facing the player.</summary>
         Idle,
 
-        /// <summary>Faces the player and guards whenever the guard is off cooldown (practise guard angles, spec L104).</summary>
+        /// <summary>
+        /// Faces the player and raises its guard against a melee windup when the guard is ready, holding it through the
+        /// strike (spec L102-L104): practise guard angles, and baiting the 3 s guard cooldown before the real strike.
+        /// </summary>
         Guard,
 
         /// <summary>Strafes left and right facing the player (practise tracking).</summary>
@@ -78,8 +82,10 @@ namespace Confluence.Client.Laboratory
             switch (Mode)
             {
                 case DummyMode.Guard:
-                    // Hold guard while it is up; press again as soon as the cooldown allows (a fresh press starts it).
-                    if (me.Guard.Active || (me.Guard.CanStart(now) && !me.IsHeld(InputButtons.Guard)))
+                    // A fresh press starts the guard; holding keeps it until the attack is over or the 0.8 s hold ends.
+                    MeleePhase attack = target.Melee.Phase;
+                    bool threatened = attack == MeleePhase.Windup || attack == MeleePhase.Strike;
+                    if (threatened && (me.Guard.Active || (me.Guard.CanStart(now) && !me.IsHeld(InputButtons.Guard))))
                     {
                         input.Buttons |= InputButtons.Guard;
                     }

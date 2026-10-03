@@ -46,7 +46,7 @@ namespace Confluence.Client.UI
                 }
             });
             panel.Add(dummy);
-            panel.Add(Ui.Muted("Idle stands still; Guard raises its guard whenever it can; Strafe side-steps; Spar closes in and strikes."));
+            panel.Add(Ui.Muted("Idle stands still; Guard raises its guard against your melee windup when ready; Strafe side-steps; Spar closes in and strikes."));
             panel.Add(Ui.TextField("Arena seed", config.MatchSeed.ToString(System.Globalization.CultureInfo.InvariantCulture), 20, text =>
             {
                 if (ulong.TryParse(text, out ulong seed))

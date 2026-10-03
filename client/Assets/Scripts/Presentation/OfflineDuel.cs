@@ -67,6 +67,9 @@ namespace Confluence.Client.Presentation
 
         public DamageNumbers Numbers => _numbers;
 
+        /// <summary>Text of the most recent damage number, or null before the first confirmed hit.</summary>
+        public string LastDamageNumber { get; private set; }
+
         public FighterView Fighter(int index) => _fighters[index];
 
         /// <summary>One line of state for smoke logs: clock, health, hits, numbers on screen, guard state.</summary>
@@ -76,7 +79,8 @@ namespace Confluence.Client.Presentation
             DuelPlayer other = World.Player(1 - LocalPlayer);
             return "t=" + World.CombatSeconds.ToString("0.0") + " s, phase " + World.Phase + ", health " + me.Resources.Health.ToString("0") + "/"
                 + other.Resources.Health.ToString("0") + ", distance " + Core.Geometry.Vec3.DistanceXZ(me.Position, other.Position).ToString("0.00")
-                + " m, damage numbers " + DamageNumbersShown + " (" + _numbers.ActiveCount + " on screen), opponent guard shown " + _fighters[1 - LocalPlayer].GuardShown;
+                + " m, damage numbers " + DamageNumbersShown + " (" + _numbers.ActiveCount + " on screen, last '" + LastDamageNumber + "'), opponent guard shown " + _fighters[1 - LocalPlayer].GuardShown
+                + ", melee " + me.Melee.Phase;
         }
 
         /// <summary>Raised once when the duel resolves (spec L49).</summary>
@@ -131,7 +135,10 @@ namespace Confluence.Client.Presentation
             float dt = Time.deltaTime;
             if (Paused)
             {
+                // The world holds still, but the view keeps presenting it (zero elapsed time) so numbers projected before
+                // the HUD had a layout appear, and nothing ages behind the menu.
                 _clock.Reset();
+                Present(1f, 0f);
                 return;
             }
 
@@ -188,6 +195,7 @@ namespace Confluence.Client.Presentation
                 {
                     _numbers.Spawn(hit);
                     DamageNumbersShown++;
+                    LastDamageNumber = DamageNumbers.Text(hit);
                 }
             }
 

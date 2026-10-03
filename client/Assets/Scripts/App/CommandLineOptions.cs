@@ -60,7 +60,8 @@ namespace Confluence.Client.App
     /// <item>-menuPanel play|settings|codex|training: open that main-menu entry at start.</item>
     /// <item>-laboratory: open the offline Laboratory; -labScreen setup|reveal|shop|draft|build|duel|results picks the
     /// screen, -labRound &lt;n&gt; the starting round, -labWizard/-labOpponent WIZ-nnn the wizards, -labDuelTime &lt;s&gt;
-    /// fast-forwards the sandbox duel, -labDemo applies the scripted demonstration state (smoke screenshots).</item>
+    /// fast-forwards the sandbox duel, -labFreeze holds the duel still after that fast-forward (repeatable
+    /// screenshots), -labDemo applies the scripted demonstration state (smoke screenshots).</item>
     /// <item>-screenshot &lt;path&gt;: write a PNG of the screen shortly before quitting (or after 3 s).</item>
     /// <item>-quitAfter &lt;seconds&gt;: quit after this much real time; the exit code is 1 if errors were logged.</item>
     /// </list>
@@ -96,6 +97,9 @@ namespace Confluence.Client.App
         public float LabDuelTimeSec { get; private set; } = -1f;
 
         public bool LabDemo { get; private set; }
+
+        /// <summary>Hold the Laboratory duel still after the -labDuelTime fast-forward (no Esc menu), for repeatable shots.</summary>
+        public bool LabFreeze { get; private set; }
 
         public string ScreenshotPath { get; private set; }
 
@@ -141,6 +145,10 @@ namespace Confluence.Client.App
                 else if (Is(arg, "-labDemo"))
                 {
                     options.LabDemo = true;
+                }
+                else if (Is(arg, "-labFreeze"))
+                {
+                    options.LabFreeze = true;
                 }
                 else if (Is(arg, "-previewView") && hasValue)
                 {

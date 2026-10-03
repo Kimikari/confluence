@@ -123,13 +123,14 @@ Write-Host "Player: $Output"
 
 # ---- 5. Smoke runs -----------------------------------------------------------------------------------------
 # Each view: name, player switches, and real seconds before quitting (screens that generate an arena hold the
-# screenshot until it is released, see App/SmokeTestDriver.cs).
+# screenshot until it is released, see App/SmokeTestDriver.cs). Duel views freeze after the fast-forward
+# (-labFreeze) so the frame is the same on every run: 3.84 s is the dummy's guarded hit during the strike.
 $smokeViews = @(
     @{ Name = 'arena'; Args = @('-arenaPreview', '-previewView', 'overview', '-arenaSeed', '7919', '-arenaDiameter', '32', '-arenaBiome', 'BIO-001'); Quit = 8 },
-    @{ Name = 'sandbox'; Args = @('-laboratory', '-labScreen', 'duel', '-labDemo', '-labDuelTime', '3'); Quit = 9 },
+    @{ Name = 'sandbox'; Args = @('-laboratory', '-labScreen', 'duel', '-labDemo', '-labDuelTime', '3.84', '-labFreeze'); Quit = 9 },
     @{ Name = 'shop'; Args = @('-laboratory', '-labScreen', 'shop', '-labDemo'); Quit = 8 },
     @{ Name = 'draft'; Args = @('-laboratory', '-labScreen', 'draft', '-labDemo'); Quit = 8 },
-    @{ Name = 'hud'; Args = @('-laboratory', '-labScreen', 'duel', '-labDemo', '-labDuelTime', '78'); Quit = 9 },
+    @{ Name = 'hud'; Args = @('-laboratory', '-labScreen', 'duel', '-labDemo', '-labDuelTime', '78', '-labFreeze'); Quit = 9 },
     @{ Name = 'reveal'; Args = @('-laboratory', '-labScreen', 'reveal'); Quit = 8 },
     @{ Name = 'results'; Args = @('-laboratory', '-labScreen', 'results', '-labDemo'); Quit = 8 }
 )

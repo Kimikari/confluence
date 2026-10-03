@@ -521,6 +521,15 @@ namespace Confluence.Client.Laboratory
                     CloseOverlays();
                     StartDuel();
                 }));
+                if (TrainingEffects.Available(_duel.World))
+                {
+                    panel.Add(Ui.Button("Training effects on you: " + TrainingEffects.Description, () =>
+                    {
+                        TrainingEffects.Apply(_duel.World, OfflineDuel.LocalPlayer);
+                        CloseOverlays();
+                    }));
+                }
+
                 panel.Add(Ui.Button("Dummy behavior: " + _config.Dummy + " (change)", () =>
                 {
                     _config.Dummy = (DummyMode)(((int)_config.Dummy + 1) % Enum.GetValues(typeof(DummyMode)).Length);
@@ -729,7 +738,25 @@ namespace Confluence.Client.Laboratory
 
             if (options.LabDuelTimeSec >= 0f)
             {
-                _duel.FastForward(_duel.World.AlcoveTicks + Ticks.FromSeconds(options.LabDuelTimeSec));
+                int frame = _duel.World.AlcoveTicks + Ticks.FromSeconds(options.LabDuelTimeSec);
+                if (options.LabDemo && options.LabDuelTimeSec >= 60f)
+                {
+                    // HUD demonstration: the training effects one second before the frame, so the burn has ticked and
+                    // the stun has given way to control immunity (spec L116, L347).
+                    _duel.FastForward(Math.Max(0, frame - Ticks.PerSecond));
+                    TrainingEffects.Apply(_duel.World, OfflineDuel.LocalPlayer);
+                    _duel.FastForward(frame - _duel.World.Tick);
+                }
+                else
+                {
+                    _duel.FastForward(frame);
+                }
+
+                if (options.LabFreeze)
+                {
+                    _duel.Paused = true;
+                    Debug.Log("[Laboratory] Duel held at " + _duel.Describe());
+                }
             }
 
             if (options.LabScreen == LabScreen.Build)
