@@ -219,6 +219,17 @@ namespace Confluence.Net.Transport
             }
         }
 
+        /// <summary>
+        /// Discards the clock estimate and probes quickly again (the server's simulation clock started or jumped, for
+        /// example when the match begins after the lobby): stale samples never pin the estimate to the old timeline.
+        /// </summary>
+        public void ResyncClock()
+        {
+            Clock.Reset();
+            _pingsSent = 0;
+            _nextPingMs = _clock.NowMs;
+        }
+
         /// <summary>Forgets the player identity (pending requests fail).</summary>
         public void ForgetSession()
         {

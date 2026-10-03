@@ -82,9 +82,15 @@ namespace Confluence.Net.Game.Client
             if (options.Ruleset == null) throw new ArgumentException("A ruleset fingerprint is required.", nameof(options));
             _clock = options.Clock ?? SystemNetClock.Instance;
             _arenas = new ClientArenas(options.Catalogue, options.Generator);
-            Transport = new ClientTransport(new ClientIdentity(options.DisplayName, options.Ruleset, options.ClientBuild), options.Transport, _clock);
+            Transport = new ClientTransport(new ClientIdentity(options.DisplayName, options.Ruleset, options.ClientBuild), options.Transport ?? GameTransport.Defaults(), _clock);
             Transport.Messages.On(GameProtocol.LobbyState, (c, m) => OnLobby(m));
-            Transport.Messages.On(GameProtocol.MatchSettings, (c, m) => { View.Settings = m; View.Seat = m.YourSeat; });
+            Transport.Messages.On(GameProtocol.MatchSettings, (c, m) =>
+            {
+                // The server's simulation clock starts with the match: drop lobby-time clock samples.
+                if (View.Settings == null) Transport.ResyncClock();
+                View.Settings = m;
+                View.Seat = m.YourSeat;
+            });
             Transport.Messages.On(GameProtocol.Phase, (c, m) => OnPhase(m));
             Transport.Messages.On(GameProtocol.RoundReveal, (c, m) => View.Reveal = m);
             Transport.Messages.On(GameProtocol.Arena, (c, m) => OnArena(m));

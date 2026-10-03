@@ -106,6 +106,7 @@ namespace Confluence.Net.Game.Server
         private readonly ServerTickClock _tickClock;
         private int _ticksRun;
         private string _notice = string.Empty;
+        private System.Threading.Tasks.Task _warmup;
 
         public GameServer(Catalogue catalogue, ArenaGenerator generator, RulesetFingerprint ruleset, GameServerSettings settings,
             INetClock clock = null, ArenaCache arenaCache = null, ITokenSource tokens = null)
@@ -124,7 +125,7 @@ namespace Confluence.Net.Game.Server
             BuildWizardList();
 
             var identity = new ServerIdentity(ruleset) { MaxSessions = settings.PlayerCount - settings.Bots + 8 };
-            Transport = new ServerTransport(identity, settings.Transport, _clock, tokens);
+            Transport = new ServerTransport(identity, settings.Transport ?? GameTransport.Defaults(), _clock, tokens);
             _tickClock = new ServerTickClock(this, _clock);
             Transport.TickClock = _tickClock;
             Transport.WelcomeTickRate = settings.TicksPerWallSecond;
@@ -206,7 +207,15 @@ namespace Confluence.Net.Game.Server
         public void Poll()
         {
             Transport.Poll();
-            if (Status == LobbyStatus.Waiting && AllSeatsJoined()) StartMatch();
+            if (Status != LobbyStatus.Waiting) return;
+            if (Host == null)
+            {
+                if (AllSeatsJoined()) StartMatch();
+            }
+            else if (_warmup != null && _warmup.IsCompleted)
+            {
+                BeginMatch();
+            }
         }
 
         /// <summary>One authoritative step (spec L421) with its outgoing traffic. A no-op outside a running match.</summary>
@@ -381,6 +390,17 @@ namespace Confluence.Net.Game.Server
             host.DuelStarted += OnDuelStarted;
             host.DuelStepped += OnDuelStepped;
             Host = host;
+
+            // Generate the first round's arena in the background while the transport keeps polling, so the first
+            // authoritative tick never stalls the connections (generation takes 0.3-8 s per layout).
+            _warmup = host.Arenas.Prefetch(host.ArenaPrefetch.Predict(1));
+            Log("Preparing round 1 arena before the match starts.");
+        }
+
+        private void BeginMatch()
+        {
+            MatchHost host = Host;
+            _warmup = null;
             HostStartResult result = host.Start();
             if (!result.Started)
             {
