@@ -89,6 +89,15 @@ Stage 1b arena-fix (in progress; WIP commits on the branch):
 - Measured after the navigation fix (576 batch): per-attempt validity dropped (24 m 51 -> 48%, 32 m 51 -> 42%,
   40 m 75 -> 58%, 48 m 40 -> 31%), 48 m fallback 1.4 -> 4.9%, batch wall time 56 -> 102 s; navigation build about
   20% slower (BuildEdges 2.4 -> 5.5 ms at 48 m). Next: tune generation for the true geometry, speed up the build.
+- Tuning in progress (commit 469656a, WIP): refused-rock list (a stage never re-places a withdrawn rock), skeleton
+  posts may join bulwarks, spawn distance 40 m 10.5 -> 10.25 and 48 m 11.5 -> 11.25 (the old 40 m geometry pinched the
+  wing tip against MOD-070-like center cover and forced a 33.56 m spawn path), route-zone lane-breaker budget 12 -> 24.
+  576 batch after it: fallback 0.7 / 0 / 0 / 2.8%, wall 70 s. THE WIP COMMIT STILL HOLDS "diag ..." Notes and ARENA_*
+  environment toggles in ArenaAssembler.cs: remove them all before the final commit (grep "diag \|ARENA_").
+- Findings: the filler's stage checks now withdraw many rocks for losing the second disjoint approach (true route
+  width); contraction pockets form before the filler at 32 m (wing tip vs center module cover) and after it at 48 m
+  (lane posts beside bulwark V joints); the repair then strips cover. Contraction-guarded stages, a no-slot attachment
+  rule, and FillerGap 1.35 were all tried and lowered validity (they block lane breakers).
 
 - Per-attempt validity (3 seeds x 24 biomes): 24 m ~53%, 32 m ~54%, 40 m ~75%, 48 m ~40%. Released through Generate
   with 8 seeds then the fallback: 576-arena batch fallback 0 / 0 / 0 / 1.4% by size; an 1800-arena census 0.33%

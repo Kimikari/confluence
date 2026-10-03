@@ -238,12 +238,6 @@ namespace Confluence.Arena.Generation
         /// </summary>
         private readonly List<YawBox> _refusedRocks = new List<YawBox>();
 
-        /// <summary>True while terrain stages must also keep every accessible cell connected as the boundary contracts.</summary>
-        private bool _guardContraction;
-        private int _diagBroken = -1;
-        private string _diagReason;
-        public Dictionary<string, int> DiagLaneReasons = new Dictionary<string, int>();
-
         public ArenaAssembler(ArenaContent content, ulong seed, int diameter, BiomeDef biome, IContentAvailability props, bool conservative)
         {
             _content = content;
@@ -277,7 +271,6 @@ namespace Confluence.Arena.Generation
             // Reach and spawn path run through the bastions, crossover strips, and center, which stay keep-out zones
             // from here on, so tuning on the bare skeleton fixes them for the finished arena.
             TuneBastions();
-            { var dn = ArenaNav.Build(_layout, NoProps); Notes.Add("diag tuned path " + new ArenaSurvey(_layout, dn).SpawnPathLength() + " wing " + _bastion.WingLength + " min " + _wingMin); }
             AddSkeletonKeepOuts();
             PlaceLaneEnds();
 
@@ -295,12 +288,8 @@ namespace Confluence.Arena.Generation
                 PlaceLandmark();
             }
 
-            { var dn0 = ArenaNav.Build(_layout, NoProps); Notes.Add("diag laneend path " + new ArenaSurvey(_layout, dn0).SpawnPathLength()); }
-            if (Environment.GetEnvironmentVariable("ARENA_STOP") == "laneend") return _layout;
             PlaceBulwarks();
-            { var dn1 = ArenaNav.Build(_layout, NoProps); Notes.Add("diag bulwark-only path " + new ArenaSurvey(_layout, dn1).SpawnPathLength()); }
             PlaceSkeletonLanePosts();
-            { var dn = ArenaNav.Build(_layout, NoProps); Notes.Add("diag bulwark path " + new ArenaSurvey(_layout, dn).SpawnPathLength()); }
 
             // The biome rule's sources and objects come next, then the remaining catalogue modules.
             DressBiome(ArenaNav.Build(_layout, NoProps));
@@ -309,18 +298,10 @@ namespace Confluence.Arena.Generation
             PlaceOutcrops(_p.OutcropPairs);
 
             ArenaNav nav = ArenaNav.Build(_layout, NoProps);
-            Notes.Add("diag strands prefill " + StrandsFloor());
-            if (Environment.GetEnvironmentVariable("ARENA_STOP") == "prefill") return _layout;
             nav = FillTerrain(nav);
-            Notes.Add("diag strands postfill " + StrandsFloor());
 
-            { var dn = ArenaNav.Build(_layout, NoProps); Notes.Add("diag after fill cover " + new ArenaSurvey(_layout, dn).Cover().CoverFraction + " solids " + _layout.Solids.Count); }
             PlaceProps(nav);
-            { var dn = ArenaNav.Build(_layout, NoProps); Notes.Add("diag after props cover " + new ArenaSurvey(_layout, dn).Cover().CoverFraction + " solids " + _layout.Solids.Count); }
-            Notes.Add("diag strands postprops " + StrandsFloor());
             RepairContraction();
-            Notes.Add("diag strands postrepair " + StrandsFloor());
-            { var dn = ArenaNav.Build(_layout, NoProps); Notes.Add("diag after repair cover " + new ArenaSurvey(_layout, dn).Cover().CoverFraction + " solids " + _layout.Solids.Count); }
             AddLighting();
             AddGusts();
             return _layout;
@@ -904,12 +885,10 @@ namespace Confluence.Arena.Generation
                 _w.PlaceModulePair(g, site.Position, site.Turns);
                 if (!RoutesIntact(mark))
                 {
-                    Notes.Add("diag island reject " + g.ModuleId);
                     _w.Rollback(mark);
                     continue;
                 }
 
-                Notes.Add("diag island ok " + g.ModuleId);
                 foreach (LocalRect cut in g.FloorCutouts)
                 {
                     Rect2 world = CutoutRect(cut, site.Position, site.Turns);
@@ -1231,7 +1210,6 @@ namespace Confluence.Arena.Generation
             {
                 if (_routeBaseline[i] && !now[i])
                 {
-                    _diagBroken = i;
                     _witness = previous; // the caller undoes the addition
                     _witnessWithProps = previousWithProps;
                     return false;
@@ -1386,7 +1364,7 @@ namespace Confluence.Arena.Generation
             // Inner row: pieces of BulwarkPieceLength with gates BulwarkGateClear wide between their facing corners;
             // the outer row covers each gate's arc with some overlap.
             float pieceDeg = BulwarkPieceLength / inner * CMath.Rad2Deg;
-            float gateDeg = Environment.GetEnvironmentVariable("ARENA_GATE") != null ? float.Parse(Environment.GetEnvironmentVariable("ARENA_GATE"), System.Globalization.CultureInfo.InvariantCulture) / inner * CMath.Rad2Deg : GateDeg(inner, pieceDeg);
+            float gateDeg = GateDeg(inner, pieceDeg);
             float pitchDeg = pieceDeg + gateDeg;
             float coverDeg = (gateDeg * CMath.Deg2Rad * inner + BulwarkGateOverlap) / outer * CMath.Rad2Deg;
             for (float a = a0; a < a1; a += pitchDeg)
@@ -1803,14 +1781,12 @@ namespace Confluence.Arena.Generation
             bool breakLanes = true;
             bool fillFloor = true;
             _routeBaseline = RouteConditions(); // after the islands and outcrops
-            _guardContraction = Environment.GetEnvironmentVariable("ARENA_GUARD") != null && !StrandsFloor();
             for (int pass = 0; pass < FillerPasses; pass++)
             {
                 var survey = new ArenaSurvey(_layout, nav);
                 CoverStats stats = survey.Cover();
                 List<FiringLane> lanes = new LaneMeter(nav, _layout).LongerThan(GlobalRules.Arena.FiringLaneMax - 1.5f);
                 float missing = (coverTarget - stats.CoverFraction) * stats.UsableArea * 0.5f; // per side
-                Notes.Add("diag fill pass " + pass + " cover " + stats.CoverFraction.ToString("0.000") + " usable " + stats.UsableArea.ToString("0") + " lanes " + lanes.Count + " missing " + missing.ToString("0.0"));
                 if (lanes.Count == 0 && missing <= 0f)
                 {
                     break;
@@ -1843,7 +1819,6 @@ namespace Confluence.Arena.Generation
                 // not run again, and validation judges what is left.
                 if (placed > 0 && !StageKeepsRoutes(laneMark))
                 {
-                    Notes.Add("diag lane stage undone");
                     placed = 0;
                     breakLanes = false;
                 }
@@ -1852,11 +1827,9 @@ namespace Confluence.Arena.Generation
                 {
                     AssemblyMark fillMark = MarkAll();
                     int filled = FillOpenFloor(nav, ref missing);
-                    Notes.Add("diag open floor " + filled);
-                    { int acc = Accrete(ref missing); Notes.Add("diag accrete " + acc); filled += acc; }
+                    filled += Accrete(ref missing);
                     if (filled > 0 && !StageKeepsRoutes(fillMark))
                     {
-                        Notes.Add("diag fill stage undone");
                         filled = 0;
                         fillFloor = false;
                     }
@@ -1910,7 +1883,7 @@ namespace Confluence.Arena.Generation
         /// </summary>
         private bool StageKeepsRoutes(AssemblyMark mark)
         {
-            if (StageIntact(mark.Writer))
+            if (RoutesIntact(mark.Writer))
             {
                 return true;
             }
@@ -1937,7 +1910,7 @@ namespace Confluence.Arena.Generation
                 {
                     int mid = (lo + hi) / 2;
                     ApplyStage(baseCount, stage, keep, mid);
-                    if (StageIntact(mark.Writer))
+                    if (RoutesIntact(mark.Writer))
                     {
                         lo = mid;
                     }
@@ -1948,11 +1921,10 @@ namespace Confluence.Arena.Generation
                 }
 
                 keep[hi - 1] = false;
-                Notes.Add("diag withdraw c" + _diagBroken + " " + stage[2 * (hi - 1)].Box.HalfExtents.X.ToString("0.00") + "x" + stage[2 * (hi - 1)].Box.HalfExtents.Z.ToString("0.00"));
                 _refusedRocks.Add(stage[2 * (hi - 1)].Box);
                 _refusedRocks.Add(stage[2 * (hi - 1) + 1].Box);
                 ApplyStage(baseCount, stage, keep, pairs);
-                if (StageIntact(mark.Writer))
+                if (RoutesIntact(mark.Writer))
                 {
                     return true;
                 }
@@ -1976,13 +1948,6 @@ namespace Confluence.Arena.Generation
 
             return false;
         }
-
-        /// <summary>
-        /// The skeleton guarantees hold after a terrain stage, and when the floor contracted cleanly before the filler
-        /// (spec L676), the stage strands no floor either: a rock that would is withdrawn here rather than stripped by
-        /// the contraction repair later, which costs cover the arena needs.
-        /// </summary>
-        private bool StageIntact(LayoutWriter.Checkpoint since) => RoutesIntact(since) && (!_guardContraction || !StrandsFloor());
 
         /// <summary>Rewrites the layout's solids as the base plus the kept stage pairs among the first count pairs.</summary>
         private void ApplyStage(int baseCount, List<Solid> stage, bool[] keep, int count)
@@ -2078,7 +2043,6 @@ namespace Confluence.Arena.Generation
         private bool TryBreakLaneInRouteZone(FiringLane lane, out YawBox placed)
         {
             placed = default(YawBox);
-            if (_laneRouteChecks >= LaneRouteChecks) Notes.Add("diag routezone budget out"); else Notes.Add("diag routezone try");
             Vec2 dir = (lane.B - lane.A).Normalized();
             Vec2 across = new Vec2(dir.Y, -dir.X);
             // Interior points every 0.5 m, from the middle of the lane outward.
@@ -2253,7 +2217,6 @@ namespace Confluence.Arena.Generation
                 fractions.Add(1f - f);
             }
 
-            var diagWhy = new Dictionary<string, int>();
             for (int i = 0; i < fractions.Count; i++)
             {
                 Vec2 p = Vec2.Lerp(lane.A, lane.B, fractions[i]);
@@ -2273,7 +2236,6 @@ namespace Confluence.Arena.Generation
                 float height = _rng.Range(2.2f, 3.0f);
                 var post = new YawBox(new Vec3(p.X, height * 0.5f, p.Y), new Vec3(SpurThickness * 0.5f, height * 0.5f, 0.6f), CMath.YawOf(side));
                 bool postFits = AttachedRockFits(post, out int touched, LaneBreakerAttachLimit);
-                { string why = postFits ? "fits" : _diagReason; diagWhy[why] = (diagWhy.TryGetValue(why, out int n0) ? n0 : 0) + 1; }
                 if (postFits && touched < 0)
                 {
                     AddAttachedPair(post, touched);
@@ -2296,7 +2258,7 @@ namespace Confluence.Arena.Generation
                     return true;
                 }
             }
-            { var diagParts = new List<string>(); foreach (var kv in diagWhy) diagParts.Add(kv.Key + "=" + kv.Value); Notes.Add("diag lanefail " + string.Join(",", diagParts)); }
+
             return false;
         }
 
@@ -2403,7 +2365,7 @@ namespace Confluence.Arena.Generation
             Rect2 bounds = Rect2.Around(box);
             if (!InAuthoredHalf(box.Center.XZ()))
             {
-                { _diagReason = "half"; return false; }
+                return false;
             }
 
             // A rock in a route zone (checked on the navigation grid by the caller) still keeps out of the hard zones.
@@ -2411,20 +2373,20 @@ namespace Confluence.Arena.Generation
                 ? OverlapsZone(box, _hardZones) || Footprint2D.Overlap(box, ZoneBox(_laneZone))
                 : OverlapsKeepOut(bounds))
             {
-                { _diagReason = "keepout"; return false; }
+                return false;
             }
 
             for (int i = 0; i < 4; i++)
             {
                 if (_layout.Boundary.RadialMargin(box.FootprintCorner(i).ToXZ(), 0f) < ArenaRules.ContourStripWidth)
                 {
-                    { _diagReason = "contour"; return false; }
+                    return false;
                 }
             }
 
             if (Footprint2D.Distance(box, MirrorMath.Box(box)) < FillerGap || OverlapsRefused(box))
             {
-                { _diagReason = "mirror"; return false; }
+                return false;
             }
 
             int touching = 0;
@@ -2448,12 +2410,7 @@ namespace Confluence.Arena.Generation
                 // one module instance are one obstacle. A rock may stand against a deck or ramp side but never on or into it.
                 if (s.Walkable && d <= 0.05f)
                 {
-                    { _diagReason = "deck"; return false; }
-                }
-
-                if ((Environment.GetEnvironmentVariable("ARENA_NOSLOT") != null || (Environment.GetEnvironmentVariable("ARENA_BWSLOT") != null && _bulwarks.Contains(s.Id))) && d > BulwarkJoinTolerance)
-                {
-                    { _diagReason = "slot"; return false; }
+                    return false;
                 }
 
                 if (s.ModuleIndex >= 0 && s.ModuleIndex == touchedModule)
@@ -2463,7 +2420,7 @@ namespace Confluence.Arena.Generation
 
                 if (++touching > touchLimit || _attached.Contains(s.Id) || AttachmentsOf(s.Id) >= attachLimit)
                 {
-                    { _diagReason = "touch"; return false; }
+                    return false;
                 }
 
                 touchedId = s.Id;
@@ -2476,7 +2433,7 @@ namespace Confluence.Arena.Generation
             {
                 if (BoxTouchesPatch(box, m, RockPatchMargin))
                 {
-                    { _diagReason = "patch"; return false; }
+                    return false;
                 }
             }
 
@@ -2637,6 +2594,7 @@ namespace Confluence.Arena.Generation
             return 4f * hx * hz;
         }
 
+        /// <summary>True when a footprint overlaps a rock a terrain stage withdrew (see <see cref="_refusedRocks"/>).</summary>
         private bool OverlapsRefused(YawBox box)
         {
             for (int i = 0; i < _refusedRocks.Count; i++)
@@ -2729,7 +2687,6 @@ namespace Confluence.Arena.Generation
         private void RepairContraction()
         {
             _repairNav = null;
-            if (Environment.GetEnvironmentVariable("ARENA_NOREPAIR") != null) return;
             for (int iteration = 0; iteration < ContractionRepairs; iteration++)
             {
                 ArenaNav nav = _repairNav ?? ArenaNav.Build(_layout);
