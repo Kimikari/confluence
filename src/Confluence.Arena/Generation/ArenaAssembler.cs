@@ -113,11 +113,21 @@ namespace Confluence.Arena.Generation
         /// <summary>Free space a skeleton post keeps to other solids, so it never pinches a passage into a pocket.</summary>
         private const float SkeletonPostGap = 2.0f;
 
+        /// <summary>Footprints this close count as joined into one obstacle rather than leaving a slot between them.</summary>
+        private const float BulwarkJoinTolerance = 0.05f;
+
         /// <summary>Skeleton posts close only lanes with at least this many meters inside the skeleton zones.</summary>
         private const float SkeletonPostMinZoneRun = 12f;
 
-        /// <summary>Opening between inner-row bulwark pieces (a capsule passage with margin).</summary>
-        private const float BulwarkGate = 1.6f;
+        /// <summary>
+        /// Clear width between the facing corners of consecutive inner-row bulwark pieces: a capsule (0.8 m) plus a
+        /// lattice diagonal (0.71 m), so the navigation grid holds a connected capsule path through every gate at any
+        /// orientation. The pieces turn with the arc, so the opening is narrowest at their inner corners.
+        /// </summary>
+        private const float BulwarkGateClear = 1.6f;
+
+        /// <summary>The outer piece behind a gate overlaps the gate's arc by this much in total (both ends).</summary>
+        private const float BulwarkGateOverlap = 1.2f;
 
         /// <summary>Radial spacing between the bulwark rows (center to center).</summary>
         private const float BulwarkRowSpacing = 2.75f;
@@ -1345,20 +1355,59 @@ namespace Confluence.Arena.Generation
                 return;
             }
 
-            // Inner row: pieces of BulwarkPieceLength with BulwarkGate openings; the outer row covers each opening.
-            float pitchDeg = (BulwarkPieceLength + BulwarkGate) / inner * CMath.Rad2Deg;
+            // Inner row: pieces of BulwarkPieceLength with gates BulwarkGateClear wide between their facing corners;
+            // the outer row covers each gate's arc with some overlap.
             float pieceDeg = BulwarkPieceLength / inner * CMath.Rad2Deg;
+            float gateDeg = GateDeg(inner, pieceDeg);
+            float pitchDeg = pieceDeg + gateDeg;
+            float coverDeg = (gateDeg * CMath.Deg2Rad * inner + BulwarkGateOverlap) / outer * CMath.Rad2Deg;
             for (float a = a0; a < a1; a += pitchDeg)
             {
                 PlaceArc(a, Math.Min(a + pieceDeg, a1), inner);
                 float gate0 = a + pieceDeg;
                 if (gate0 < a1)
                 {
-                    float gateMid = gate0 + (pitchDeg - pieceDeg) * 0.5f;
-                    float coverDeg = (BulwarkGate + 1.2f) / outer * CMath.Rad2Deg;
+                    float gateMid = gate0 + gateDeg * 0.5f;
                     PlaceArc(gateMid - coverDeg * 0.5f, gateMid + coverDeg * 0.5f, outer);
                 }
             }
+        }
+
+        /// <summary>
+        /// Angular gap between consecutive inner-row pieces of the given angular length whose facing footprints are
+        /// <see cref="BulwarkGateClear"/> apart (bisection on the exact footprint distance).
+        /// </summary>
+        private static float GateDeg(float radius, float pieceDeg)
+        {
+            YawBox first = ArcPiece(0f, pieceDeg, radius);
+            float lo = 0f;
+            float hi = 90f;
+            for (int i = 0; i < 24; i++)
+            {
+                float mid = 0.5f * (lo + hi);
+                float b0 = pieceDeg + mid;
+                if (Footprint2D.Distance(first, ArcPiece(b0, b0 + pieceDeg, radius)) < BulwarkGateClear)
+                {
+                    lo = mid;
+                }
+                else
+                {
+                    hi = mid;
+                }
+            }
+
+            return hi;
+        }
+
+        /// <summary>One straight bulwark piece along the chord of an arc (angles in degrees), its ends overlapping the chord ends.</summary>
+        private static YawBox ArcPiece(float b0, float b1, float radius)
+        {
+            Vec2 p0 = Vec2.FromYaw(b0) * radius;
+            Vec2 p1 = Vec2.FromYaw(b1) * radius;
+            Vec2 mid = (p0 + p1) * 0.5f;
+            float length = Vec2.Distance(p0, p1) + BulwarkThickness * 0.5f;
+            return new YawBox(new Vec3(mid.X, ArenaRules.TallWallHeight * 0.5f, mid.Y),
+                new Vec3(length * 0.5f, ArenaRules.TallWallHeight * 0.5f, BulwarkThickness * 0.5f), CMath.YawOf(mid));
         }
 
         /// <summary>One straight bulwark piece spanning an arc of a circle (angles in degrees).</summary>
@@ -1379,12 +1428,7 @@ namespace Confluence.Arena.Generation
 
             foreach (float r in radii)
             {
-                Vec2 p0 = Vec2.FromYaw(b0) * r;
-                Vec2 p1 = Vec2.FromYaw(b1) * r;
-                Vec2 mid = (p0 + p1) * 0.5f;
-                float length = Vec2.Distance(p0, p1) + BulwarkThickness * 0.5f;
-                var box = new YawBox(new Vec3(mid.X, ArenaRules.TallWallHeight * 0.5f, mid.Y),
-                    new Vec3(length * 0.5f, ArenaRules.TallWallHeight * 0.5f, BulwarkThickness * 0.5f), CMath.YawOf(mid));
+                YawBox box = ArcPiece(b0, b1, r);
                 if (BulwarkFits(box))
                 {
                     Solid wall = _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, box, ArenaMaterials.Rock, 0f));
@@ -1491,7 +1535,9 @@ namespace Confluence.Arena.Generation
 
                     var box = new YawBox(new Vec3(p.X, ArenaRules.TallWallHeight * 0.5f, p.Y),
                         new Vec3(SkeletonPostLength * 0.5f, ArenaRules.TallWallHeight * 0.5f, BulwarkThickness * 0.5f), yaw + 90f);
-                    if (BulwarkFits(box, SkeletonPostGap, ArenaRules.ContourStripWidth + 1f))
+                    // The post keeps its gap from bulwark pieces and earlier posts too: a narrower slot between two
+                    // anchored walls is no capsule passage and strands the floor behind it (spec L676).
+                    if (BulwarkFits(box, SkeletonPostGap, ArenaRules.ContourStripWidth + 1f) && ClearOfBulwarks(box, BulwarkGateClear))
                     {
                         Solid wall = _w.AddMirroredPair(_w.NewSolid(SolidKind.Wall, box, ArenaMaterials.Rock, 0f));
                         _bulwarks.Add(wall.Id);
@@ -1506,6 +1552,25 @@ namespace Confluence.Arena.Generation
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// True when a footprint either joins each bulwark piece and skeleton post (overlaps or touches it, so the two
+        /// make one obstacle) or keeps at least the gap from it: never a slot narrower than the gap between them.
+        /// </summary>
+        private bool ClearOfBulwarks(YawBox box, float gap)
+        {
+            foreach (Solid s in _layout.Solids)
+            {
+                if (!_bulwarks.Contains(s.Id) || !Footprint2D.Within(box, s.Box, gap))
+                {
+                    continue;
+                }
+
+                return false;
+            }
+
+            return true;
         }
 
         /// <summary>Distance along a ray to the first solid tall enough to block a standing lane.</summary>
@@ -1713,6 +1778,7 @@ namespace Confluence.Arena.Generation
                 CoverStats stats = survey.Cover();
                 List<FiringLane> lanes = new LaneMeter(nav, _layout).LongerThan(GlobalRules.Arena.FiringLaneMax - 1.5f);
                 float missing = (coverTarget - stats.CoverFraction) * stats.UsableArea * 0.5f; // per side
+                Notes.Add("diag fill pass " + pass + " cover " + stats.CoverFraction.ToString("0.000") + " usable " + stats.UsableArea.ToString("0") + " lanes " + lanes.Count + " missing " + missing.ToString("0.0"));
                 if (lanes.Count == 0 && missing <= 0f)
                 {
                     break;
@@ -1745,6 +1811,7 @@ namespace Confluence.Arena.Generation
                 // not run again, and validation judges what is left.
                 if (placed > 0 && !StageKeepsRoutes(laneMark))
                 {
+                    Notes.Add("diag lane stage undone");
                     placed = 0;
                     breakLanes = false;
                 }
@@ -1753,9 +1820,11 @@ namespace Confluence.Arena.Generation
                 {
                     AssemblyMark fillMark = MarkAll();
                     int filled = FillOpenFloor(nav, ref missing);
+                    Notes.Add("diag open floor " + filled);
                     filled += Accrete(ref missing);
                     if (filled > 0 && !StageKeepsRoutes(fillMark))
                     {
+                        Notes.Add("diag fill stage undone");
                         filled = 0;
                         fillFloor = false;
                     }
