@@ -104,6 +104,39 @@ namespace Confluence.Client.Tests
         }
 
         [Test]
+        public void TheShopChoosesOneEnabledActiveAndTheRestAreDormant()
+        {
+            // Spec L575: one enabled active chosen in the shop; other active equipment is dormant. Two actives of
+            // different non-weapon categories both land in slots that allow activation.
+            var player = new PlayerEconomy(Cat, "WIZ-002", 0);
+            List<EquipmentDef> actives = Cat.EquipmentById.Values
+                .Where(e => e.HasValidActivation && e.IsActive && e.Category != EquipmentCategory.Staff
+                    && e.Category != EquipmentCategory.Wand && e.Category != EquipmentCategory.Weapon && e.Category != EquipmentCategory.Consumable)
+                .GroupBy(e => e.Category).Select(g => g.OrderBy(e => e.Id, StringComparer.Ordinal).First())
+                .OrderBy(e => e.Id, StringComparer.Ordinal).Take(2).ToList();
+            Assert.AreEqual(2, actives.Count, "the catalogue has actives in two non-weapon categories (EQP-062 armor, EQP-077 clothing, ...)");
+            foreach (EquipmentDef def in actives)
+            {
+                Assert.AreEqual(TransactionCode.Success, player.Loadout.AddItem(def, def.Price, null, out OwnedEquipment _));
+            }
+
+            EconomyShopModel shop = OpenShop(player);
+            OwnedEquipment first = player.Loadout.AllItems.First(i => i.Id == actives[0].Id);
+            OwnedEquipment second = player.Loadout.AllItems.First(i => i.Id == actives[1].Id);
+            Assert.AreEqual(3, shop.Build.ActiveChoices.Count, "no active, or either item");
+
+            shop.SetEnabledActive(second.InstanceId);
+            Assert.IsFalse(shop.MessageIsError, shop.Message);
+            Assert.AreEqual(second.Definition.Name, shop.Build.EnabledActive);
+            Assert.IsTrue(shop.Build.ActiveChoices.Single(c => c.InstanceId == second.InstanceId).Selected);
+            Assert.IsTrue(player.Loadout.IsDormantActive(first), "the other active is dormant");
+
+            shop.SetEnabledActive(null);
+            Assert.AreEqual("None", shop.Build.EnabledActive);
+            Assert.IsTrue(shop.Build.ActiveChoices.Single(c => c.InstanceId == null).Selected);
+        }
+
+        [Test]
         public void SpellSwapKeepsSixOfTheEightKitSpells()
         {
             var player = new PlayerEconomy(Cat, "WIZ-002", 0);
