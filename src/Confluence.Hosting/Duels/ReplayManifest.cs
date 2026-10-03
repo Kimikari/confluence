@@ -11,11 +11,26 @@ using Confluence.Sim.Players;
 
 namespace Confluence.Hosting.Duels
 {
-    /// <summary>Consecutive identical commands of one player, run-length encoded.</summary>
+    /// <summary>
+    /// Consecutive commands of one player that differ at most in their stamps, run-length encoded: element k of the run
+    /// is <see cref="Input"/> with <c>Tick</c> and <c>Sequence</c> advanced by <c>k * Step</c>. Step 0 is a repeated
+    /// command (a network source re-sending the latest input); step 1 is a fresh command every tick with unchanged
+    /// controls (a bot standing still, a client holding a button).
+    /// </summary>
     public struct InputRun
     {
         public PlayerInput Input;
         public int Count;
+        public int Step;
+
+        /// <summary>Element <paramref name="k"/> of the run.</summary>
+        public PlayerInput At(int k)
+        {
+            PlayerInput input = Input;
+            input.Tick += k * Step;
+            input.Sequence = unchecked(input.Sequence + (uint)(k * Step));
+            return input;
+        }
     }
 
     /// <summary>One player's per-tick command stream of a duel (every step, alcove included).</summary>
@@ -30,32 +45,38 @@ namespace Confluence.Hosting.Duels
 
         public void Append(in PlayerInput input)
         {
+            Length++;
             int last = _runs.Count - 1;
-            if (last >= 0 && Same(_runs[last].Input, input))
+            if (last >= 0 && SameControls(_runs[last].Input, input))
             {
                 InputRun run = _runs[last];
-                run.Count++;
-                _runs[last] = run;
-            }
-            else
-            {
-                _runs.Add(new InputRun { Input = input, Count = 1 });
+                PlayerInput previous = run.At(run.Count - 1);
+                int step = input.Tick - previous.Tick;
+                bool stampsAdvance = unchecked(input.Sequence - previous.Sequence) == unchecked((uint)step);
+                bool extends = stampsAdvance && (run.Count == 1 ? step == 0 || step == 1 : step == run.Step);
+                if (extends)
+                {
+                    run.Step = step;
+                    run.Count++;
+                    _runs[last] = run;
+                    return;
+                }
             }
 
-            Length++;
+            _runs.Add(new InputRun { Input = input, Count = 1 });
         }
 
-        /// <summary>The commands in step order.</summary>
+        /// <summary>The commands in step order, exactly as recorded.</summary>
         public IEnumerable<PlayerInput> Expand()
         {
             foreach (InputRun run in _runs)
-                for (int i = 0; i < run.Count; i++) yield return run.Input;
+                for (int k = 0; k < run.Count; k++) yield return run.At(k);
         }
 
-        internal static bool Same(in PlayerInput a, in PlayerInput b) =>
-            a.Tick == b.Tick && a.Sequence == b.Sequence && a.MoveX.Equals(b.MoveX) && a.MoveY.Equals(b.MoveY) &&
-            a.YawDeg.Equals(b.YawDeg) && a.PitchDeg.Equals(b.PitchDeg) && a.Buttons == b.Buttons &&
-            a.SelectedSlot == b.SelectedSlot && a.ViewTick == b.ViewTick;
+        /// <summary>Equal in everything except the <c>Tick</c> and <c>Sequence</c> stamps.</summary>
+        private static bool SameControls(in PlayerInput a, in PlayerInput b) =>
+            a.MoveX.Equals(b.MoveX) && a.MoveY.Equals(b.MoveY) && a.YawDeg.Equals(b.YawDeg) && a.PitchDeg.Equals(b.PitchDeg) &&
+            a.Buttons == b.Buttons && a.SelectedSlot == b.SelectedSlot && a.ViewTick == b.ViewTick;
     }
 
     public enum ReplayActionKind

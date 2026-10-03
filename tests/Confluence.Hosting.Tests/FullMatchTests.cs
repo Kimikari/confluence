@@ -209,6 +209,7 @@ namespace Confluence.Hosting.Tests
             Assert.Equal(report.FinalStateHash, manifest.FinalStateHash);
             Assert.Equal(report.FinalTick, manifest.Inputs[0].Length);
             Assert.Equal(report.FinalTick, manifest.Inputs[1].Length);
+            Assert.All(manifest.Inputs, track => Assert.True(track.Runs.Count < track.Length)); // held commands share runs
             Assert.Contains("WIZ-002", manifest.ContentIds);
             Assert.Contains(host.Arenas.Get(manifest.ArenaId).BiomeId, manifest.ContentIds);
             Assert.Equal(report.Setup.Side0Player, manifest.Side0Player);

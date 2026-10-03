@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Confluence.Core.Rules;
 using Confluence.Core.Time;
@@ -6,6 +7,7 @@ using Confluence.Hosting.Commands;
 using Confluence.Hosting.Duels;
 using Confluence.Match;
 using Confluence.Sim.Duel;
+using Confluence.Sim.Input;
 using MatchDuelEndReason = Confluence.Match.DuelEndReason;
 using SimDuelEndReason = Confluence.Sim.Duel.DuelEndReason;
 
@@ -25,6 +27,35 @@ namespace Confluence.Hosting.Tests
             // Both surrendering in one step is a draw (D-108), reported as a same-step simultaneous outcome (L53).
             Assert.Equal(MatchDuelEndReason.SimultaneousLethal, DuelOutcomeMapper.MapReason(SimDuelEndReason.Surrender, true));
         }
+
+        [Fact]
+        public void Input_Track_Compresses_Repeated_And_Advancing_Commands_And_Expands_Exactly()
+        {
+            var recorded = new List<PlayerInput>();
+            PlayerInput held = PlayerInput.Idle(90f).With(InputButtons.Primary);
+            for (int t = 1; t <= 10; t++) recorded.Add(Stamp(held, t, (uint)t));         // fresh command each tick
+            for (int t = 11; t <= 14; t++) recorded.Add(Stamp(held, 10, 10u));           // network source repeating the last
+            recorded.Add(Stamp(held.Moving(0f, 1f), 15, 11u));                           // controls change
+            recorded.Add(Stamp(held.Moving(0f, 1f), 17, 12u));                           // stamps jump: new run
+            recorded.Add(Stamp(held.Moving(0f, 1f), 18, uint.MaxValue));                 // sequence breaks: new run
+
+            var track = new InputTrack();
+            foreach (PlayerInput input in recorded) track.Append(input);
+
+            Assert.Equal(recorded.Count, track.Length);
+            Assert.Equal(new[] { 10, 4, 1, 1, 1 }, track.Runs.Select(r => r.Count));
+            Assert.Equal(recorded.Select(Text), track.Expand().Select(Text));
+        }
+
+        private static PlayerInput Stamp(PlayerInput input, int tick, uint sequence)
+        {
+            input.Tick = tick;
+            input.Sequence = sequence;
+            return input;
+        }
+
+        private static string Text(PlayerInput i) =>
+            i.Tick + "/" + i.Sequence + "/" + i.MoveX + "," + i.MoveY + "/" + i.YawDeg + "," + i.PitchDeg + "/" + i.Buttons + "/" + i.SelectedSlot + "/" + i.ViewTick;
 
         [Fact]
         public void Alcove_And_Combat_Clocks_Agree_With_The_Sim_And_Idle_Players_Fall_To_The_Boundary_Together()

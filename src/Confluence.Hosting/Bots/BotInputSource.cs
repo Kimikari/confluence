@@ -230,6 +230,7 @@ namespace Confluence.Hosting.Bots
                     Stats.Guards++;
                     break;
                 case MovementEvent move when move.Change == MovementChange.Dodged:
+                    Stats.Dodges++;
                     break;
                 case MovementEvent move when move.Change == MovementChange.Jumped:
                     Stats.Jumps++;
