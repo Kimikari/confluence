@@ -107,6 +107,9 @@ namespace Confluence.Reactions.Grid
         // Venom residue patch (L159).
         public int VenomHazard;
 
+        // Sticky growth slow fraction declared by its source (SPL-104 "20% slow"); Sim caps it at 30% (L116, L175).
+        public float StickySlow;
+
         public bool HasIce => IceDurability > 0f;
         public bool IsBurning => BurnEnd > 0;
 

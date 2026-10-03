@@ -27,6 +27,12 @@ namespace Confluence.Sim.Duel
 
         /// <summary>Spell delivery lifecycle: projectiles, rays, fields, deployables, summons, waves (spell runtime).</summary>
         Spell,
+
+        /// <summary>Prop pushes, collisions, damage, and destruction (Confluence.Sim.Props).</summary>
+        Prop,
+
+        /// <summary>Effect activations and cues (Confluence.Sim.Effects).</summary>
+        Effect,
     }
 
     /// <summary>

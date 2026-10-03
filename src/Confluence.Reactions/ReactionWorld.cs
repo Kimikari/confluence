@@ -105,14 +105,34 @@ namespace Confluence.Reactions
         /// prisms, light shafts, and the biome environment rule (spec L664, L668).
         /// </summary>
         public ReactionWorld(ArenaLayout layout, int combatStartTick = 0)
+            : this(layout, combatStartTick, true)
+        {
+        }
+
+        /// <summary>
+        /// World for an assembled arena. With <paramref name="installEnvironment"/> false the biome rule and the gust
+        /// schedule are left to the caller: the Sim installs them through its biome behaviors (BIO-001, BIO-011) with
+        /// the same classes <see cref="EnvironmentRules.Install"/> uses.
+        /// </summary>
+        public ReactionWorld(ArenaLayout layout, int combatStartTick, bool installEnvironment)
             : this(CellGrid.ForArena(layout), combatStartTick)
         {
             Layout = layout;
             Sound = new SoundOcclusionQuery(layout.Solids);
             InitializeFromLayout(layout);
-            EnvironmentRules.Install(this, layout);
+            if (installEnvironment)
+            {
+                EnvironmentRules.Install(this, layout);
+            }
+
             RebuildActive();
         }
+
+        /// <summary>
+        /// Rebuilds the active-cell set after the caller installed scheduled sources or deposited initial material
+        /// outside a step (biome installation by the Sim).
+        /// </summary>
+        public void RefreshActiveCells() => RebuildActive();
 
         public CellGrid Grid => _grid;
 
@@ -145,6 +165,9 @@ namespace Confluence.Reactions
         public IReadOnlyList<int> ActiveCells => _active;
 
         public IReadOnlyList<ScheduledSource> ScheduledSources => _sources;
+
+        /// <summary>Announced gusts in start order (spec L138, L664: shown in preview and the environment panel).</summary>
+        public IReadOnlyList<ScheduledGust> ScheduledGusts => _gusts;
 
         public IReadOnlyList<LightShaft> LightShafts => _lightShafts;
 
@@ -406,7 +429,8 @@ namespace Confluence.Reactions
             if (c.Heat.Units > 0) flags |= SurfaceFlags.Hot;
             if (c.BurnSuppressedUntil > _tick) flags |= SurfaceFlags.Extinguished;
             if ((c.Flags & (MaterialFlags.Conductive | MaterialFlags.Metal)) != 0) flags |= SurfaceFlags.Conductive;
-            return new SurfaceInfo(SurfaceInfo.Classify(flags), flags, c.Units(), index);
+            float slow = (flags & SurfaceFlags.StickyGrowth) != 0 ? c.StickySlow : 0f;
+            return new SurfaceInfo(SurfaceInfo.Classify(flags), flags, c.Units(), index, slow, c.SurfaceY);
         }
 
         public ObscurationVolume FindVolume(int id) => _volumeById.TryGetValue(id, out ObscurationVolume v) ? v : null;
@@ -606,6 +630,7 @@ namespace Confluence.Reactions
             if (material == Material.Growth)
             {
                 c.State &= ~(CellState.GrowthCombustible | CellState.GrowthSticky);
+                c.StickySlow = 0f;
             }
             else if (material == Material.Venom && c.VenomHazard != 0)
             {

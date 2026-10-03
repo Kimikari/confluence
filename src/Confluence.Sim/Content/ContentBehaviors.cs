@@ -66,6 +66,7 @@ namespace Confluence.Sim.Content
     /// <summary>A biome's environment rule (BIO-), installed once when a duel world is built.</summary>
     public interface IBiomeRuleBehavior
     {
+        /// <summary>Installs the rule; <paramref name="biome"/> is the catalogue record when one is available, else null.</summary>
         void Install(DuelWorld world, BiomeDef biome);
     }
 
@@ -76,9 +77,10 @@ namespace Confluence.Sim.Content
     }
 
     /// <summary>
-    /// The per-player target that augment, equipment, and passive behaviors attach to. The effects framework
-    /// (Confluence.Sim.Effects) implements it; this minimal contract lets content and the spell runtime depend on it
-    /// without depending on that framework's types.
+    /// The per-player target that wizard passives, equipment, and shared augments attach to, implemented by
+    /// <see cref="Confluence.Sim.Effects.EffectHost"/> (one per player, owned by the duel's
+    /// <see cref="Confluence.Sim.Effects.EffectSystem"/>). Content depends only on this contract plus the framework's
+    /// effect types (<c>Effect</c>, <c>ConditionalModifier</c>, the <c>IEffectAction</c> implementations).
     /// </summary>
     public interface IEffectHost
     {
@@ -86,14 +88,14 @@ namespace Confluence.Sim.Content
 
         DuelWorld World { get; }
 
-        /// <summary>A stat modifier that lasts for the duel (applied under the global caps by the stat sheet).</summary>
+        /// <summary>A stat modifier that lasts for the duel; the stat block applies it under the global caps.</summary>
         void AddModifier(StatModifier modifier);
 
-        /// <summary>Attaches a framework effect (trigger, condition, magnitude, budget group...).</summary>
+        /// <summary>Attaches a framework effect: an <c>Effect</c> (triggered) or a <c>ConditionalModifier</c> (spec L433).</summary>
         void Attach(ISimEffect effect);
     }
 
-    /// <summary>Marker for an effect the effects framework runs; identified by its catalogue source.</summary>
+    /// <summary>An effect the framework runs, identified by its catalogue source (spec L433 "Effects expose ...").</summary>
     public interface ISimEffect
     {
         string SourceId { get; }

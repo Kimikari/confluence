@@ -51,7 +51,10 @@ namespace Confluence.Sim.Combat
         }
 
         /// <summary>Releases the guard; the cooldown runs from release (spec L104).</summary>
-        public void Release(int now)
+        public void Release(int now) => Release(now, CooldownTicks);
+
+        /// <summary>Releases the guard with the player's modified cooldown (stat block, spec L104, L124).</summary>
+        public void Release(int now, int cooldownTicks)
         {
             if (!Active)
             {
@@ -60,11 +63,14 @@ namespace Confluence.Sim.Combat
 
             Active = false;
             ReleaseTick = now;
-            CooldownUntil = now + CooldownTicks;
+            CooldownUntil = now + Math.Max(0, cooldownTicks);
         }
 
         /// <summary>True when the guard has been held for its maximum duration.</summary>
-        public bool HoldExpired(int now) => Active && now - StartTick >= MaxHoldTicks;
+        public bool HoldExpired(int now) => HoldExpired(now, MaxHoldTicks);
+
+        /// <summary>True when the guard has been held for the player's (at most 0.8 s) hold limit.</summary>
+        public bool HoldExpired(int now, int maxHoldTicks) => Active && now - StartTick >= Math.Min(maxHoldTicks, MaxHoldTicks);
 
         /// <summary>Marks the once-per-guard perfect reward; returns false if it was already granted.</summary>
         public bool TryClaimPerfectReward()

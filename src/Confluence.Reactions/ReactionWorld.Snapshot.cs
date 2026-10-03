@@ -21,6 +21,7 @@ namespace Confluence.Reactions
         private const byte GroupDamp = 8;
         private const byte GroupCharge = 16;
         private const byte GroupVenom = 32;
+        private const byte GroupSticky = 64;
 
         /// <summary>Captures the dynamic state between steps (see <see cref="ReactionSnapshot"/>).</summary>
         public ReactionSnapshot CaptureSnapshot()
@@ -344,6 +345,7 @@ namespace Confluence.Reactions
             if (c.DampUnits != 0 || c.DampUntil != 0) groups |= GroupDamp;
             if (c.ChargeHazard != 0) groups |= GroupCharge;
             if (c.VenomHazard != 0) groups |= GroupVenom;
+            if (c.StickySlow != 0f) groups |= GroupSticky;
             w.Write(groups);
             if ((groups & GroupIce) != 0)
             {
@@ -368,6 +370,7 @@ namespace Confluence.Reactions
 
             if ((groups & GroupCharge) != 0) w.Write(c.ChargeHazard);
             if ((groups & GroupVenom) != 0) w.Write(c.VenomHazard);
+            if ((groups & GroupSticky) != 0) w.Write(c.StickySlow);
         }
 
         private void ReadCell(BinaryReader r)
@@ -425,6 +428,7 @@ namespace Confluence.Reactions
 
             if ((groups & GroupCharge) != 0) c.ChargeHazard = r.ReadInt32();
             if ((groups & GroupVenom) != 0) c.VenomHazard = r.ReadInt32();
+            if ((groups & GroupSticky) != 0) c.StickySlow = r.ReadSingle();
             _activeMark[index] = true;
             _active.Add(index);
         }

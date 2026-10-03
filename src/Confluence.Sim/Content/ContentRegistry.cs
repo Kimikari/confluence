@@ -31,6 +31,9 @@ namespace Confluence.Sim.Content
         /// <summary>The behaviors shipped in Confluence.Sim.</summary>
         public static ContentRegistry Default => DefaultRegistry.Value;
 
+        /// <summary>A registry without behaviors (duels that run the bare rules).</summary>
+        public static ContentRegistry Empty { get; } = new ContentRegistry();
+
         /// <summary>Registered record ids in ordinal order.</summary>
         public IReadOnlyList<string> Ids => _ids;
 
@@ -81,6 +84,24 @@ namespace Confluence.Sim.Content
             return registry;
         }
 
+        /// <summary>
+        /// A registry of explicit behavior instances keyed by record id (tests, tools, Laboratory variants). Each
+        /// instance must implement the interface its id prefix expects, exactly as for scanned classes.
+        /// </summary>
+        public static ContentRegistry FromBehaviors(IEnumerable<KeyValuePair<string, object>> behaviors)
+        {
+            if (behaviors == null) throw new ArgumentNullException(nameof(behaviors));
+            var registry = new ContentRegistry();
+            foreach (KeyValuePair<string, object> entry in behaviors)
+            {
+                if (entry.Value == null) throw new ArgumentException("Behavior for " + entry.Key + " is null.", nameof(behaviors));
+                registry.Add(entry.Key, entry.Value.GetType(), entry.Value);
+            }
+
+            registry._ids.Sort(StringComparer.Ordinal);
+            return registry;
+        }
+
         /// <summary>The interface a record id must implement (null when its prefix is not a behavior record type).</summary>
         public static Type[] ExpectedInterfaces(string id)
         {
@@ -96,11 +117,27 @@ namespace Confluence.Sim.Content
 
         private void Register(string id, Type type)
         {
-            Type[] expected = ExpectedInterfaces(id);
-            if (expected == null) return; // generator content (MOD-) is implemented by Arena without a Sim behavior
+            if (ExpectedInterfaces(id) == null) return; // generator content (MOD-) is implemented by Arena without a Sim behavior
             if (type.IsAbstract || !type.IsClass)
             {
                 throw new InvalidOperationException(type.FullName + " is marked [ContentBehavior(\"" + id + "\")] but is not a concrete class.");
+            }
+
+            ConstructorInfo ctor = type.GetConstructor(Type.EmptyTypes);
+            if (ctor == null)
+            {
+                throw new InvalidOperationException(type.FullName + " (" + id + ") needs a public parameterless constructor.");
+            }
+
+            Add(id, type, null, ctor);
+        }
+
+        private void Add(string id, Type type, object instance, ConstructorInfo ctor = null)
+        {
+            Type[] expected = ExpectedInterfaces(id);
+            if (expected == null)
+            {
+                throw new InvalidOperationException(id + " is not a record type with a Sim behavior.");
             }
 
             bool matches = false;
@@ -120,13 +157,7 @@ namespace Confluence.Sim.Content
                 throw new InvalidOperationException("Two behaviors claim " + id + ": " + _types[id].FullName + " and " + type.FullName + ".");
             }
 
-            ConstructorInfo ctor = type.GetConstructor(Type.EmptyTypes);
-            if (ctor == null)
-            {
-                throw new InvalidOperationException(type.FullName + " (" + id + ") needs a public parameterless constructor.");
-            }
-
-            _byId.Add(id, ctor.Invoke(null));
+            _byId.Add(id, instance ?? ctor.Invoke(null));
             _types.Add(id, type);
             _ids.Add(id);
         }

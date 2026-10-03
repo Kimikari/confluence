@@ -35,15 +35,18 @@ namespace Confluence.Sim.Combat
             return MeleeProfile.DefaultFor(category);
         }
 
-        /// <summary>Half angle of the strike sweep: thrusts sweep straight, blades across the committed aim.</summary>
+        /// <summary>
+        /// Half angle of the strike sweep: thrusts sweep straight, blades across the committed aim. Chosen by profile
+        /// category name, so a profile changed by equipment or augment modifiers keeps its sweep.
+        /// </summary>
         public static float ArcHalfDeg(MeleeProfile profile)
         {
-            if (profile.Equals(MeleeProfile.Heavy))
+            if (string.Equals(profile.Name, MeleeProfile.Heavy.Name, StringComparison.Ordinal))
             {
                 return SimRules.Melee.HeavyArcHalfDeg;
             }
 
-            if (profile.Equals(MeleeProfile.LightBlade))
+            if (string.Equals(profile.Name, MeleeProfile.LightBlade.Name, StringComparison.Ordinal))
             {
                 return SimRules.Melee.LightBladeArcHalfDeg;
             }

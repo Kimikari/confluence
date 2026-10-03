@@ -64,6 +64,12 @@ namespace Confluence.Reactions.Operations
         /// <summary>Growth: sticky growth slows (L175).</summary>
         public bool Sticky { get; set; }
 
+        /// <summary>
+        /// Growth: the slow fraction a sticky patch declares (SPL-104 "sticky patch for 3 s with 20% slow"). Reported by
+        /// <see cref="ReactionWorld.SurfaceAt"/>; the Sim applies it under the strongest-slow rule and 30% cap (L116, L175).
+        /// </summary>
+        public float SlowFraction { get; set; }
+
         /// <summary>Venom: a declared soluble venom effect dilutes in water (L159).</summary>
         public bool Soluble { get; set; }
 

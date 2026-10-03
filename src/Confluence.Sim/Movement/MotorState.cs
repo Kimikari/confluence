@@ -148,8 +148,14 @@ namespace Confluence.Sim.Movement
 
         public MotorLocks Locks;
 
-        /// <summary>Capped movement bonus times the strongest slow (spec L116, L124). 1 = unmodified.</summary>
+        /// <summary>
+        /// Extra speed multiplier, normally one minus the strongest slow (spec L116). Movement bonuses come from
+        /// <see cref="Tuning"/>. 1 = unmodified.
+        /// </summary>
         public float SpeedMultiplier;
+
+        /// <summary>Gait speeds, bonuses, and action costs after modifiers (spec L80-L82, L124); default = rule values.</summary>
+        public MotorTuning Tuning;
 
         /// <summary>Casting movement factor of walk speed: 1 none, 0.85 quick, 0.70 heavy/control/field, 0 stationary (spec L92).</summary>
         public float CastSpeedFactor;
