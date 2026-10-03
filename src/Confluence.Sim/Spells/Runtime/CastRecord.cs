@@ -76,6 +76,12 @@ namespace Confluence.Sim.Spells
         /// <summary>Live delivery entities spawned by this cast (projectiles, fields, deployables, summons...).</summary>
         public int LiveEntities { get; internal set; }
 
+        /// <summary>
+        /// A choice the caster made for this cast before its release ("Choose gap direction before release"), recorded
+        /// by the form's script at commitment from the caster's input and read by the delivery; 0 = the default form.
+        /// </summary>
+        public int Choice { get; set; }
+
         /// <summary>The release resolved or spawned its effect; with no live entities left the effect has ended.</summary>
         public bool Released => ReleaseTick >= 0;
 
@@ -102,6 +108,7 @@ namespace Confluence.Sim.Spells
             h.Add(Form.SpellId);
             h.Add(ReleaseTick);
             h.Add(LiveEntities);
+            h.Add(Choice);
             for (int i = 0; i < _hitKinds.Length; i++)
             {
                 h.Add((int)_hitKinds[i]);

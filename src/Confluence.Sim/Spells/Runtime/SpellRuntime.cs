@@ -88,6 +88,7 @@ namespace Confluence.Sim.Spells
             }
 
             world.AddEventObserver(_feed);
+            world.AddEventObserver(new ListeningEntityForwarder(this)); // ISpellEventListener entities (additive hook)
         }
 
         // ----- step 3 ---------------------------------------------------------------------------------------
@@ -320,6 +321,7 @@ namespace Confluence.Sim.Spells
             _casts.Add(cast);
             _world.NotifyOffensiveAction(player); // spec L120: invisibility ends on a cast or signature activation
             if (e.Mastery.IsMastered) _world.RecordMasteryCast(player);
+            form.Script?.OnCommitted(_ctx, cast); // commitment-time telegraphs (additive hook)
         }
 
         private void OnRecast(CastRecord cast)

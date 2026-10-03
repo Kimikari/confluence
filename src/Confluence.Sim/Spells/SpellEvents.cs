@@ -59,6 +59,26 @@ namespace Confluence.Sim.Spells
         TetherLaunched,
         TetherAttached,
         TetherEnded,
+
+        // ----- appended by the WIZ-002 kit (values above are unchanged) ---------------------------------------
+
+        /// <summary>An area burst resolved at <see cref="SpellEvent.Position"/>; <see cref="SpellEvent.Amount"/> is its radius.</summary>
+        AreaBurst,
+
+        /// <summary>A visible counterplay marker (casting marker, bounce mark, marked arc) at a position and direction.</summary>
+        Marker,
+
+        /// <summary>A prop or construct became hot; <see cref="SpellEvent.Amount"/> is its contact damage per second.</summary>
+        Heated,
+
+        /// <summary>A hot prop or construct was cooled or lost its anchor before its lifetime ended.</summary>
+        Cooled,
+
+        /// <summary>A spell's own heat met water and became steam (premature steaming, steam strips, puffs, jets).</summary>
+        Steamed,
+
+        /// <summary>A spell moved an existing cloud (manual pushes and pulls); <see cref="SpellEvent.Amount"/> is the distance.</summary>
+        CloudMoved,
     }
 
     /// <summary>One spell delivery event in the world's ordered event stream.</summary>
