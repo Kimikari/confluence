@@ -165,10 +165,10 @@ namespace Confluence.Net.Tests.Game
             // Removing an entry the baseline does not hold is a forged delta.
             var w = new NetWriter();
             DuelFrame a = Frame(400);
-            DuelFrame b = Frame(402);
+            DuelFrame b = Frame(402, dropVolume: true);
             SnapshotCodec.EncodeBody(w, b, a, null);
             byte[] delta = w.ToArray();
-            DuelFrame stranger = Frame(400, cells: 2);
+            DuelFrame stranger = Frame(400, dropVolume: true);
             Assert.ThrowsAny<Exception>(() => Decode(delta, new SnapshotHeader(402, 0, 400), stranger, out _));
         }
 

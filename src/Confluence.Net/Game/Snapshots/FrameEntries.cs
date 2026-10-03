@@ -334,8 +334,8 @@ namespace Confluence.Net.Game.Snapshots
             int expires = r.ReadVarInt();
             int minX = r.ReadVarIntInRange(-4096, 4096);
             int minZ = r.ReadVarIntInRange(-4096, 4096);
-            int sizeX = r.ReadVarIntInRange(0, 1024);
-            int sizeZ = r.ReadVarIntInRange(0, 1024);
+            int sizeX = r.ReadCountValue(0, 1024);
+            int sizeZ = r.ReadCountValue(0, 1024);
             byte[] bits = r.ReadBlob(WireLimits.MaxVolumeBitmapBytes);
             if (bits.Length != (sizeX * sizeZ + 7) / 8) throw new NetReadException(NetReadError.InvalidValue, "volume bitmap size mismatch");
             return new VolumeEntry(key, kind, owner, baseY, height, ox, oz, blocks, expires, minX, minZ, sizeX, sizeZ, bits);
