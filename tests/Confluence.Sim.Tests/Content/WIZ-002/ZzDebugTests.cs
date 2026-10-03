@@ -1,6 +1,8 @@
 using System.Linq;
 using Confluence.Core.Geometry;
+using Confluence.Sim.Content.Wizards.Wiz002;
 using Confluence.Sim.Duel;
+using Confluence.Sim.Fields;
 using Confluence.Sim.Spells;
 using Xunit.Abstractions;
 
@@ -16,19 +18,20 @@ namespace Confluence.Sim.Tests.Content.Wiz002
         }
 
         [Fact]
-        public void Debug_Lash_Steam()
+        public void Debug_Wake_Cool()
         {
-            DuelWorld w = BramKit.Duel(BramKit.Bram(BramKit.LateKit, BramKit.Aug("AUG-318")), BramKit.FlatWith(BramKit.Water(new Vec2(0f, -3f), 1f, 1f, 2)));
+            var wet = BramKit.FlatWith(BramKit.Water(new Vec2(0f, -3.17f), 4f, 1f, 3));
+            DuelWorld w = BramKit.Duel(BramKit.Bram(null, BramKit.Aug("AUG-307")), wet);
             TestWorlds.Place(w, 1, new Vec3(6f, 0f, 6f), 180f);
-            _out.WriteLine("before " + BramKit.Reactions(w).UnitsAt(new Vec3(0f, 0f, -3f)).Water + " / " + BramKit.Reactions(w).UnitsAt(new Vec3(0.25f, 0f, -3.25f)).Water);
-            BramKit.Cast(w, 0);
-            for (int i = 0; i < 30; i++)
+            w.Step(TestWorlds.A.Selecting(1), TestWorlds.B);
+            BramKit.Cast(w, 1, 15, TestWorlds.A.Selecting(1));
+            for (int t = 0; t < 60; t++)
             {
-                BramKit.Run(w, 1);
-                _out.WriteLine(w.Tick + " water " + BramKit.Reactions(w).UnitsAt(new Vec3(0f, 0f, -3f)).Water + " heat " + BramKit.Reactions(w).UnitsAt(new Vec3(0f, 0f, -3f)).Heat + " vols " + BramKit.Reactions(w).Volumes.Count);
+                BramKit.Run(w, 1, TestWorlds.A.Selecting(1));
+                var s = BramKit.Entity<HeatStripEntity>(w);
+                var u = BramKit.Reactions(w).UnitsAt(new Vec3(1f, 0f, -3.17f));
+                _out.WriteLine(w.Tick + ": strip=" + (s == null ? "null" : s.Alive.ToString()) + " owned=" + w.Owned.Count(0, OwnedEntityKind.Field) + " heat=" + u.Heat + " water=" + u.Water + " fields=" + string.Join(",", w.Owned.Entities.Select(o => o.DefinitionId + "/" + o.Owner + "/" + o.Kind)));
             }
-
-            foreach (SpellEvent e in BramKit.Spell(w, SpellEventKind.Steamed)) _out.WriteLine(e + " " + e.Position + " " + e.Direction);
         }
     }
 }
