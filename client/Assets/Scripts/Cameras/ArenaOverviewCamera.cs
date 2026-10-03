@@ -42,17 +42,23 @@ namespace Confluence.Client.Cameras
             ArenaOverviewCamera overview = go.AddComponent<ArenaOverviewCamera>();
             overview._input = input;
             overview._settings = settings;
-            overview._target = target;
-            overview._minDistance = Mathf.Max(6f, arenaRadius * 0.6f);
-            overview._maxDistance = Mathf.Max(20f, arenaRadius * 5f);
-            overview.Distance = Mathf.Clamp(arenaRadius * 2.6f, overview._minDistance, overview._maxDistance);
             overview.Camera = go.AddComponent<Camera>();
             overview.Camera.fieldOfView = VerticalFieldOfView;
             overview.Camera.nearClipPlane = 0.3f;
             overview.Camera.farClipPlane = 600f;
             overview.Camera.clearFlags = CameraClearFlags.Skybox;
-            overview.Apply();
+            overview.Retarget(target, arenaRadius);
             return overview;
+        }
+
+        /// <summary>Frames a (new) arena: orbit center and the zoom range follow its radius.</summary>
+        public void Retarget(Vector3 target, float arenaRadius)
+        {
+            _target = target;
+            _minDistance = Mathf.Max(6f, arenaRadius * 0.6f);
+            _maxDistance = Mathf.Max(20f, arenaRadius * 5f);
+            Distance = Mathf.Clamp(arenaRadius * 2.6f, _minDistance, _maxDistance);
+            Apply();
         }
 
         public void SetView(float yawDeg, float tiltDeg, float distance)

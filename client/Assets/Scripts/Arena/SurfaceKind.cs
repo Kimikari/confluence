@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Confluence.Core.Arena;
 using Confluence.Core.Rules;
 using UnityEngine;
@@ -79,6 +80,50 @@ namespace Confluence.Client.Arena
         public static int Count => Styles.Length;
 
         public static SurfaceStyle Style(SurfaceKind kind) => Styles[(int)kind];
+
+        /// <summary>
+        /// Every surface kind a layout contains (solids and ground patches), in enum order: the same list the renderer's
+        /// legend shows, available before anything is rendered (round reveal, spec L44, L329).
+        /// </summary>
+        public static List<SurfaceKind> PresentIn(ArenaLayout layout)
+        {
+            var seen = new bool[Styles.Length];
+            if (layout != null)
+            {
+                if (layout.Solids != null)
+                {
+                    foreach (Solid solid in layout.Solids)
+                    {
+                        if (solid != null)
+                        {
+                            seen[(int)ForSolid(solid)] = true;
+                        }
+                    }
+                }
+
+                if (layout.Materials != null)
+                {
+                    foreach (MaterialPatch patch in layout.Materials)
+                    {
+                        if (patch != null)
+                        {
+                            seen[(int)ForPatch(patch)] = true;
+                        }
+                    }
+                }
+            }
+
+            var kinds = new List<SurfaceKind>();
+            for (int i = 0; i < seen.Length; i++)
+            {
+                if (seen[i])
+                {
+                    kinds.Add((SurfaceKind)i);
+                }
+            }
+
+            return kinds;
+        }
 
         /// <summary>
         /// Surface kind of a collision solid: the module material name first (stone, slate, basalt, rock, metal,
@@ -174,7 +219,8 @@ namespace Confluence.Client.Arena
             }
         }
 
-        private static SurfaceKind FromFlags(MaterialFlags flags, SurfaceKind fallback)
+        /// <summary>Surface kind from material flags alone (temporary solids carry flags but no material name).</summary>
+        public static SurfaceKind FromFlags(MaterialFlags flags, SurfaceKind fallback)
         {
             if ((flags & MaterialFlags.Water) != 0) return SurfaceKind.Water;
             if ((flags & MaterialFlags.Ice) != 0) return SurfaceKind.Ice;

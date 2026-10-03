@@ -31,6 +31,8 @@ namespace Confluence.Client.Arena
         private readonly List<SurfaceKind> _surfaces = new List<SurfaceKind>();
         private readonly List<GameObject> _props = new List<GameObject>();
         private readonly List<GameObject> _wards = new List<GameObject>();
+        private readonly List<int> _dynamicIds = new List<int>();
+        private readonly HashSet<int> _liveDynamic = new HashSet<int>();
         private ArenaMaterialLibrary _materials;
         private bool _ownsMaterials;
 
@@ -143,6 +145,71 @@ namespace Confluence.Client.Arena
             }
         }
 
+        /// <summary>
+        /// Mirrors a Sim collision world's dynamic solid state after <see cref="SetCombatTime"/>: layout solids the
+        /// duel destroyed are hidden (durability, spec L171), and temporary solids (spell walls) are shown as boxes in
+        /// their material pattern while they exist. Returns the number of temporary solids shown.
+        /// </summary>
+        public int SyncSolids(Confluence.Sim.World.CollisionWorld world)
+        {
+            if (world == null || SolidsRoot == null)
+            {
+                return 0;
+            }
+
+            _liveDynamic.Clear();
+            IReadOnlyList<Confluence.Sim.World.CollisionSolid> solids = world.Solids;
+            for (int i = 0; i < solids.Count; i++)
+            {
+                Confluence.Sim.World.CollisionSolid solid = solids[i];
+                if (!solid.Dynamic)
+                {
+                    if (!solid.Active && _solidObjects.TryGetValue(solid.Id, out GameObject layoutObject) && layoutObject.activeSelf)
+                    {
+                        layoutObject.SetActive(false);
+                    }
+
+                    continue;
+                }
+
+                if (!solid.Active)
+                {
+                    continue;
+                }
+
+                _liveDynamic.Add(solid.Id);
+                if (!_solidObjects.ContainsKey(solid.Id))
+                {
+                    SurfaceKind kind = Surfaces.FromFlags(solid.Flags, SurfaceKind.Stone);
+                    Mesh mesh = Track(solid.IsRamp ? ArenaMeshes.Ramp(solid.Ramp, "Temporary ramp " + solid.Id) : ArenaMeshes.Box(solid.Box, "Temporary solid " + solid.Id));
+                    CreateMeshObject("Temporary solid " + solid.Id + " " + solid.SourceId, SolidsRoot, mesh, _materials.Solid(kind), out GameObject go);
+                    CoreSpace.Pose(solid.Box, out Vector3 position, out Quaternion rotation);
+                    go.transform.SetPositionAndRotation(position, rotation);
+                    _solidObjects[solid.Id] = go;
+                    _dynamicIds.Add(solid.Id);
+                }
+            }
+
+            for (int i = _dynamicIds.Count - 1; i >= 0; i--)
+            {
+                int id = _dynamicIds[i];
+                if (_liveDynamic.Contains(id))
+                {
+                    continue;
+                }
+
+                if (_solidObjects.TryGetValue(id, out GameObject gone))
+                {
+                    ArenaMaterialLibrary.DestroyObject(gone);
+                    _solidObjects.Remove(id);
+                }
+
+                _dynamicIds.RemoveAt(i);
+            }
+
+            return _dynamicIds.Count;
+        }
+
         public void Clear()
         {
             for (int i = transform.childCount - 1; i >= 0; i--)
@@ -150,6 +217,7 @@ namespace Confluence.Client.Arena
                 ArenaMaterialLibrary.DestroyObject(transform.GetChild(i).gameObject);
             }
 
+            _dynamicIds.Clear();
             _solidObjects.Clear();
             _retiring.Clear();
             _surfaces.Clear();

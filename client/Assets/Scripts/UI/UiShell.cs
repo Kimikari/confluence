@@ -12,6 +12,8 @@ namespace Confluence.Client.UI
     {
         public const string ThemeResource = "UI/ConfluenceTheme";
         public const string StyleResource = "UI/Confluence";
+        public const int ReferenceWidth = 1920;
+        public const int ReferenceHeight = 1080;
 
         private UIDocument _document;
         private PanelSettings _panelSettings;
@@ -58,6 +60,18 @@ namespace Confluence.Client.UI
 
         public void CloseOverlay() => OverlayLayer.Clear();
 
+        /// <summary>
+        /// Scales every panel (scalable HUD and text, spec L371): the layout stays authored at 1920x1080 and the
+        /// reference resolution shrinks as the scale grows.
+        /// </summary>
+        public void SetScale(float scale)
+        {
+            float s = Mathf.Clamp(scale, 0.5f, 2f);
+            _panelSettings.referenceResolution = new Vector2Int(Mathf.RoundToInt(ReferenceWidth / s), Mathf.RoundToInt(ReferenceHeight / s));
+        }
+
+        public float Scale => _panelSettings.referenceResolution.x > 0 ? ReferenceWidth / (float)_panelSettings.referenceResolution.x : 1f;
+
         public void SetHud(VisualElement hud)
         {
             HudLayer.Clear();
@@ -79,7 +93,7 @@ namespace Confluence.Client.UI
 
             // Scalable HUD and menus (spec L371): layout is authored at 1920x1080 and scales with the window.
             settings.scaleMode = PanelScaleMode.ScaleWithScreenSize;
-            settings.referenceResolution = new Vector2Int(1920, 1080);
+            settings.referenceResolution = new Vector2Int(ReferenceWidth, ReferenceHeight);
             settings.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;
             settings.match = 0.5f;
             settings.sortingOrder = 0;

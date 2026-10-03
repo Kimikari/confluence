@@ -27,6 +27,10 @@ namespace Confluence.Client.UI
                 v => s.MouseSensitivity = v));
             panel.Add(Ui.Toggle("Invert vertical look", s.InvertY, v => s.InvertY = v));
 
+            panel.Add(Ui.Label("Interface", "cf-codex-key"));
+            panel.Add(Ui.SliderInt("Interface and text scale (%)", Mathf.RoundToInt(ClientSettings.UiScaleMin * 100f), Mathf.RoundToInt(ClientSettings.UiScaleMax * 100f),
+                Mathf.RoundToInt(s.UiScale * 100f), v => s.UiScale = v / 100f));
+
             panel.Add(Ui.Label("Audio", "cf-codex-key"));
             panel.Add(Volume("Master volume", s.MasterVolume, v => s.MasterVolume = v));
             panel.Add(Volume("Music volume", s.MusicVolume, v => s.MusicVolume = v));

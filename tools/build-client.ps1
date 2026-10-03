@@ -10,8 +10,11 @@
      settings, bootstrap scene). Only needed after changing the configurator; its output is committed.
   3. -Tests: runs the EditMode tests (Assets/Tests/Editor) and fails if any test fails.
   4. Builds the player via BuildScript.BuildWindowsPlayer (development, Mono, x64) into out/client/.
-  5. -Smoke: runs the player with -arenaPreview -screenshot out/client-shot.png -quitAfter 8 (windowed
-     1280x720) and fails unless it exits 0 and wrote the screenshot.
+  5. -Smoke: runs the player once per smoke view (windowed 1280x720), each writing out/smoke/<view>.png and
+     out/smoke/<view>.log, and fails unless every run exits 0 (no errors logged) and wrote its screenshot:
+     arena (generated arena preview), sandbox (Laboratory first-person duel with the demonstration pilot),
+     shop, draft (Laboratory round 1 screens), hud (duel fast-forwarded into the final 15 s), reveal and results.
+     -SmokeOnly <names> runs a subset. out/client-shot.png is a copy of the arena view (older tooling reads it).
 
   Every Unity step writes its own log under out/ and is failed on a non-zero exit code, compiler errors, or a
   missing success marker in the log.
@@ -27,7 +30,8 @@ param(
     [switch]$SkipSync,
     [switch]$Configure,
     [switch]$Tests,
-    [switch]$Smoke
+    [switch]$Smoke,
+    [string[]]$SmokeOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -117,18 +121,38 @@ Invoke-Unity 'build' @('-quit', '-executeMethod', 'Confluence.Client.EditorTools
 if (-not (Test-Path -LiteralPath $Output)) { throw "Build reported success but $Output is missing." }
 Write-Host "Player: $Output"
 
-# ---- 5. Smoke run ------------------------------------------------------------------------------------------
+# ---- 5. Smoke runs -----------------------------------------------------------------------------------------
+# Each view: name, player switches, and real seconds before quitting (screens that generate an arena hold the
+# screenshot until it is released, see App/SmokeTestDriver.cs). Duel views freeze after the fast-forward
+# (-labFreeze) so the frame is the same on every run: 3.84 s is the dummy's guarded hit during the strike.
+$smokeViews = @(
+    @{ Name = 'arena'; Args = @('-arenaPreview', '-previewView', 'overview', '-arenaSeed', '7919', '-arenaDiameter', '32', '-arenaBiome', 'BIO-001'); Quit = 8 },
+    @{ Name = 'sandbox'; Args = @('-laboratory', '-labScreen', 'duel', '-labDemo', '-labDuelTime', '3.84', '-labFreeze'); Quit = 9 },
+    @{ Name = 'shop'; Args = @('-laboratory', '-labScreen', 'shop', '-labDemo'); Quit = 8 },
+    @{ Name = 'draft'; Args = @('-laboratory', '-labScreen', 'draft', '-labDemo'); Quit = 8 },
+    @{ Name = 'hud'; Args = @('-laboratory', '-labScreen', 'duel', '-labDemo', '-labDuelTime', '78', '-labFreeze'); Quit = 9 },
+    @{ Name = 'reveal'; Args = @('-laboratory', '-labScreen', 'reveal'); Quit = 8 },
+    @{ Name = 'results'; Args = @('-laboratory', '-labScreen', 'results', '-labDemo'); Quit = 8 }
+)
 if ($Smoke) {
-    $shot = Join-Path $outDir 'client-shot.png'
-    $playerLog = Join-Path $outDir 'client-smoke.log'
-    foreach ($f in @($shot, $playerLog)) { if (Test-Path -LiteralPath $f) { Remove-Item -LiteralPath $f -Force } }
-    $all = @('-arenaPreview', '-screenshot', $shot, '-quitAfter', '8', '-screen-width', '1280', '-screen-height', '720',
-        '-screen-fullscreen', '0', '-logFile', $playerLog)
-    Write-Host "Smoke run -> $shot"
-    $process = Start-Process -FilePath $Output -ArgumentList (Join-Arguments $all) -Wait -PassThru
-    if ($process.ExitCode -ne 0) { throw "Smoke run exited with code $($process.ExitCode) (errors were logged). See $playerLog" }
-    if (-not (Test-Path -LiteralPath $shot)) { throw "Smoke run wrote no screenshot. See $playerLog" }
-    Write-Host "  screenshot: $shot"
+    # -File passes "a,b" as one string: accept commas as well as a PowerShell array.
+    $SmokeOnly = @($SmokeOnly | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
+    $smokeDir = Join-Path $outDir 'smoke'
+    New-Item -ItemType Directory -Force -Path $smokeDir | Out-Null
+    foreach ($view in $smokeViews) {
+        if ($SmokeOnly -and -not ($SmokeOnly -contains $view.Name)) { continue }
+        $shot = Join-Path $smokeDir ($view.Name + '.png')
+        $playerLog = Join-Path $smokeDir ($view.Name + '.log')
+        foreach ($f in @($shot, $playerLog)) { if (Test-Path -LiteralPath $f) { Remove-Item -LiteralPath $f -Force } }
+        $all = $view.Args + @('-screenshot', $shot, '-quitAfter', [string]$view.Quit, '-screen-width', '1280', '-screen-height', '720',
+            '-screen-fullscreen', '0', '-logFile', $playerLog)
+        Write-Host "Smoke $($view.Name) -> $shot"
+        $process = Start-Process -FilePath $Output -ArgumentList (Join-Arguments $all) -Wait -PassThru
+        if ($process.ExitCode -ne 0) { throw "Smoke $($view.Name) exited with code $($process.ExitCode) (errors were logged). See $playerLog" }
+        if (-not (Test-Path -LiteralPath $shot)) { throw "Smoke $($view.Name) wrote no screenshot. See $playerLog" }
+        if ($view.Name -eq 'arena') { Copy-Item -LiteralPath $shot -Destination (Join-Path $outDir 'client-shot.png') -Force }
+        Write-Host "  screenshot: $shot"
+    }
 }
 
 Write-Host 'build-client: done.'

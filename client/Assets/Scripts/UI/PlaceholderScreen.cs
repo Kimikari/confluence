@@ -70,7 +70,7 @@ namespace Confluence.Client.UI
                 case AppState.Results:
                     return "8 seconds: health, major interactions, damage channels, winner, and Resolve change (spec L49, L359-L361).";
                 case AppState.Training:
-                    return "Onboarding, wizard lessons, the reaction garden, and bots arrive later (spec L377-L381). The arena preview below walks the client sample layout.";
+                    return "Onboarding, wizard lessons, the reaction garden, and bots arrive later (spec L377-L381). The Laboratory spars with a training dummy and plays local shop and draft rounds; the arena preview inspects generated arenas.";
                 default:
                     return string.Empty;
             }
@@ -81,7 +81,8 @@ namespace Confluence.Client.UI
             switch (to)
             {
                 case AppState.MainMenu: return from == AppState.Training ? "Back to main menu" : "Leave to main menu";
-                case AppState.ArenaPreview: return "Arena preview (sample layout)";
+                case AppState.ArenaPreview: return "Arena preview (generated arenas)";
+                case AppState.Laboratory: return "Laboratory (offline)";
                 case AppState.Lobby: return from == AppState.Results ? "Match over: lobby" : "Lobby";
                 case AppState.Shop: return from == AppState.Results ? "Next round: shop" : "Shop";
                 case AppState.Draft: return "Augment draft";

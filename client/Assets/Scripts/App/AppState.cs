@@ -42,5 +42,8 @@ namespace Confluence.Client.App
 
         /// <summary>Free walk/fly and top-down preview of an arena layout (debug and training).</summary>
         ArenaPreview,
+
+        /// <summary>Offline Laboratory sandbox: a local duel against a training dummy and local shop/draft rounds (spec L69).</summary>
+        Laboratory,
     }
 }

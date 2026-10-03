@@ -172,6 +172,19 @@ namespace Confluence.Client.Arena
             });
         }
 
+        /// <summary>Unlit translucent flat color (guard arcs, melee swings, field volumes); alpha comes from the color.</summary>
+        public Material Glow(Color color)
+        {
+            int key = Key(9, ((Color32)color).GetHashCode());
+            return Cached(key, () =>
+            {
+                Material m = Copy(_unlitBase, "Glow");
+                m.SetTexture(BaseMapId, Texture2D.whiteTexture);
+                m.SetColor(BaseColorId, color);
+                return m;
+            });
+        }
+
         public void Dispose()
         {
             for (int i = _owned.Count - 1; i >= 0; i--)
