@@ -6,38 +6,36 @@ Stage 1b task "sim-world-effects". Owner paths: `src/Confluence.Sim/World/Materi
 `src/Confluence.Sim/{Casting,Spells,Content,Input}/**` and Confluence.Casting.
 
 ## Status / next steps
-- Done: everything in the task. `dotnet test tests/Confluence.Sim.Tests` 233 passed (157 before; 76 new), Reactions 89,
-  whole solution builds with 0 warnings. Verified records: EQP-051, EQP-096, EQP-066, AUG-145, AUG-169, AUG-175,
-  BIO-001, BIO-011 (all `[ContentBehavior]` in Confluence.Sim with `[Verifies]` tests in a real `DuelWorld`).
-- Merge binding (see "Binding to Confluence.Sim.Content" below): one copy of `IEffectHost`, `ISimEffect`,
-  `IAugmentBehavior`, `IEquipmentBehavior`, `IBiomeRuleBehavior`; one `DuelWorld.RecordEvent`; the `DuelEventType`
-  additions of both branches; `WorldDuels.cs` (tests) needs the `InputButtons` alias once the flags move to Casting.
-- After merge, the spell runtime should: price and pay casts with `Effects.TryCommitCast` (or keep `TryCommitMana` and
-  let the ledger record it), refund with `Effects.RefundCast`, call `Effects.RaiseCastReleased`, queue world requests
-  on `ReactionMaterials` (typed) or `QueueDeposit`, and call `ReactionMaterials.RecordSource(castEventId, spellId)` so
-  reaction damage carries the spell id. `QueueDeposit` should also read the other branch's new `WorldDeposit` fields
-  (`Footprint`/`HasFootprint`, `LifetimeTicks`, `FieldId`); today generic deposits use the radius circle and are instant
-  residue.
+- Done (Stage 1b, merged 2026-10-03): everything in the task. Verified records: EQP-051, EQP-096, EQP-066, AUG-145,
+  AUG-169, AUG-175, BIO-001, BIO-011 (all `[ContentBehavior]` in Confluence.Sim with `[Verifies]` tests in a real
+  `DuelWorld`; the six proof records are also verified end to end through Hosting's `LoadoutMapper`).
+- Merged with the spell runtime (see "Binding to Confluence.Sim.Content"): the spell runtime pays commitments through
+  `Effects.TryCommitPricedCast` (next-cast bonuses priced by `PriceCast`), raises `CastReleased`, and effect refunds
+  of a commitment share the cast machine's refund ledger; `QueueDeposit` reads the declared footprint, lifetime,
+  field id and the heavy-projectile ring; projectile impacts reach Reactions through `IWorldMaterials.QueueImpact`
+  (struck ice and brittle cover shatter, combustible solids take impact heat).
 - Open: reaction snapshots do not include the Sim-side links (cloud fields, source ids, cleared-cloud feat keys) —
   re-derive or serialize them before Net restores a `ReactionWorld`; prop conductors/prisms (metal and reflective
   props) are registered by prop behaviors (IPropBehavior, later); props never fall or rotate; nothing consumes dash
   charges yet (the stat is capped at 2); `ReactionWorld.StateHash()` captures a full snapshot per call (fine for tests
-  and periodic checks, too heavy for a per-tick server hash if that is ever wanted).
+  and periodic checks, too heavy for a per-tick server hash if that is ever wanted); only projectile deliveries report
+  impacts (cone, arc, wave and ray impacts on ice or brittle cover are not reported yet).
 
 ## Layout
 - `World/Materials/ReactionMaterials.cs` — `IWorldMaterials` + `IMaterialsBinding` over `ReactionWorld`; the default
   materials of every `DuelWorld`. `SurfaceMapping.cs` (Reactions surface -> motor surface), `MaterialRules.cs` (open
-  numbers, reaction tags, FEAT-006/011 families), `Biomes/BiomeRuleBehaviors.cs` (BIO-001, BIO-011).
+  numbers, reaction tags, FEAT-006/011 families). The biome behaviors (BIO-001, BIO-011) moved to
+  `Content/Biomes/BiomeRuleBehaviors.cs` at the merge.
 - `Props/` — `PropBody`, `PropSystem` (step 6), `PropEvent`, `PropRules`.
 - `Stats/StatBlock.cs` — raw/effective values and caps (`Players.StatSheet` derives from it so existing callers keep
   working; `StatKind`, `StatModifier`, `StatLine` stay in `Players/StatSheet.cs`).
-- `Effects/` — `ContentContracts` (behavior interfaces), `ContentBehaviorIndex` (assembly scan), `EffectTrigger`
-  (+ `TriggerEvent`, `EffectFilter`), `EffectConditions`, `EffectActions`, `Effect` (+ `ConditionalModifier`),
-  `CastPricing`, `EffectHost` (per player), `EffectSystem` (per duel), `EffectEvent`; `Effects/Content/` the six proof
-  records.
+- `Effects/` — `EffectTrigger` (+ `TriggerEvent`, `EffectFilter`), `EffectConditions`, `EffectActions`, `Effect`
+  (+ `ConditionalModifier`), `CastPricing`, `EffectHost` (per player, implements `Content.IEffectHost`),
+  `EffectSystem` (per duel), `EffectEvent`. The proof records live in `Content/Augments/SilverAugments.cs` and
+  `Content/Equipment/TierOneEquipment.cs`.
 
 ## DuelWorld wiring (shared file, additive)
-- Options: `Content` (IEffectContentSource, default `ContentBehaviorIndex.Default`), `Catalogue` (props, biomes).
+- Options: `Content` (`ContentRegistry`, default `ContentRegistry.Default`), `Catalogue` (props, biomes).
   Default materials: `new ReactionMaterials()`.
 - Constructor: players -> `PropSystem.FromLayout` -> `EffectSystem` + `AttachLoadouts` (modifiers before the alcove
   restores pools) -> alcove placement -> `IMaterialsBinding.Attach` -> `Effects.BeginRound()` (round-start triggers)
@@ -51,15 +49,15 @@ Stage 1b task "sim-world-effects". Owner paths: `src/Confluence.Sim/World/Materi
   tick never emitted its Expired event; expiry now uses its own list.
 - Also shared: `CollisionWorld.MoveSolid` + `CollisionSolid.MoveTo` (moving props); `DuelEventType.Prop/Effect`.
 
-## Binding to Confluence.Sim.Content (merge)
-The casting/spells branch defines `Confluence.Sim.Content.{IEffectHost, ISimEffect, IAugmentBehavior,
-IEquipmentBehavior, IBiomeRuleBehavior}` and a `ContentRegistry` whose scan requires EQP-/AUG-/BIO- classes to implement
-those. `Confluence.Sim.Effects.ContentContracts` declares the same five interfaces with identical members. Keep one set:
-delete the five from `Content/ContentBehaviors.cs` and add `using Confluence.Sim.Effects;` there and in
-`ContentRegistry.cs` (or the reverse: delete them here and add `using Confluence.Sim.Content;` to `Effects/*.cs`,
-`Effects/Content/*.cs`, `World/Materials/**`). `EffectHost` implements the contract; `Effect` and
-`ConditionalModifier` implement `ISimEffect`. `ContentRegistry` can implement `IEffectContentSource` directly (same
-`TryGetAugment/TryGetEquipment/TryGetBiomeRule` names) and replace `ContentBehaviorIndex` as the default content.
+## Binding to Confluence.Sim.Content (resolved at the merge)
+- One set of behavior contracts in `Content/ContentBehaviors.cs`: `ISpellBehavior`, `ISpellTransform`,
+  `IWizardKitBehavior`, `IAugmentBehavior`, `IEquipmentBehavior`, `IBiomeRuleBehavior`, `IPropBehavior`, plus the
+  attachment surface `IEffectHost` and `ISimEffect`. `Effects.EffectHost` implements `IEffectHost`; `Effect` and
+  `ConditionalModifier` implement `ISimEffect`. `Effects/ContentContracts.cs` was deleted.
+- One registry: `Content.ContentRegistry` (reflection scan; `Default`, `Empty`, `FromBehaviors` for explicit test
+  instances). `ContentBehaviorIndex` and `IEffectContentSource` were deleted; `DuelWorldOptions.Content` and
+  `EffectSystem.AttachLoadouts` take the registry, which also attaches the wizard passive
+  (`IWizardKitBehavior.AttachPassive`) before equipment and augments.
 
 ## Interpretations (for DECISIONS consolidation; spec line refs)
 Reactions in the duel
@@ -135,7 +133,10 @@ Effects (L126, L433, L573-L582)
 - Reserve shields only from RoundStart effects (L114, L579); triggered shields are clamped to 8 s by the shield pool.
 - Cast price (L124): stat cost reduction + pending bonus reductions together at most 30% of the base cost; drawback
   increases add after the floor. A paid cast consumes every active matching next-cast bonus. Refunds: at most 25% of
-  the recorded payment, once per cast (L90), keyed by the payment's resource event id.
+  the recorded payment (L90, L124), keyed by the payment's resource event id; for a spell commitment the cast machine's
+  refund ledger decides (one shared 25% cap with interrupt refunds, each refund effect once per cast). The machine
+  prices commitments: `PlayerCaster.ModifiersFor` turns `PriceCast` into one reduction fraction (floored at 70% with
+  mastery efficiency) plus a flat `CastModifiers.CostIncrease` added after the floor.
 - Next-hit bonuses multiply the raw parts (with the damage stats) and add flat damage to the first part; consumed by the
   first matching original hit; secondary damage neither uses nor consumes them.
 - Rank 2 of a shared augment replaces the rank 1 amount; drawbacks apply at both ranks.

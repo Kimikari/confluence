@@ -25,7 +25,7 @@ Owner paths: `src/Confluence.Hosting/**`, `tests/Confluence.Hosting.Tests/**`. S
   rate-limit hook, dispatch to the economy objects / duel runner), `CommandResult` + `CommandCode`,
   `ICommandRateLimiter` (`TickRateLimiter`, `UnlimitedCommands`).
 - `Duels/` — `SimDuelRunner : IDuelRunner`, `RunningDuel`, `DuelSeat`, `IInputSource` (`RemoteInputSource`,
-  `IdleInputSource`), `ISimWorldFactory` (`SimWorldFactory.Default`), `DuelOutcomeMapper`, `DuelReport`/
+  `IdleInputSource`), `ISimWorldFactory` (`SimWorldFactory` over a catalogue), `DuelOutcomeMapper`, `DuelReport`/
   `DuelSideReport` (feats, decisive sequence, consumables, damage), `ReplayManifest` + `InputTrack`, `DuelReplayer`,
   `HostedDuelLoadouts`.
 - `Messages/HostMessages.cs` — `HostOutbox` and messages: `MatchEventMessage`, `ArenaPreviewMessage`,
@@ -39,17 +39,20 @@ Owner paths: `src/Confluence.Hosting/**`, `tests/Confluence.Hosting.Tests/**`. S
 - Match owns the round diameter (decision from the task): the provider passes Match's diameter as
   `Arena.Generation.ArenaRequest.Diameter` and Match's recorded pass seed (`ArenaRequest.ArenaSeed`, Arena stream by
   round/attempt or the Custom seed rotation) as the generator's `MatchSeed`; `ArenaSchedule.DiameterForRound` is never
-  consulted. The test `Match_Owns_The_Round_Diameter_In_Both_Modes` shows the two derivations disagree on some rounds.
+  consulted. Since the Stage 1b arena fix the two derivations agree on every round
+  (`Match_Owns_The_Round_Diameter_In_Both_Modes`).
 - One arena per pass, shared by every pair (L34); each duel gets `HostedArena.CreateCopy()` so runtime changes never
   leak between pairs. Arena id is `arena:r<round>.a<attempt>:<seed hex>`.
-- Arena availability: no biome or prop has a `[ContentBehavior]` class yet, so the policy falls back to an explicit set
-  (`MatchHostSettings.ConfiguredBiomes/ConfiguredProps`, default every catalogue record, D-069) and logs it. As soon as
-  any record of a type is registered, only registered records of that type are used.
+- Arena availability: a record type without any `[ContentBehavior]` class falls back to an explicit set
+  (`MatchHostSettings.ConfiguredBiomes/ConfiguredProps`, default every catalogue record, D-069) and logs it; as soon as
+  any record of a type is registered, only registered records of that type are used. After the Stage 1b merge BIO-001
+  and BIO-011 are registered, so standard arenas use exactly those two biomes; props still use the configured set.
 - Lobby allow-list (L71) restricts only the record types it names; unnamed types stay unrestricted.
 - Floors (D-010, D-082): `Start()` refuses with `RefusedEconomyFloors` when the implemented pools break the
   ten-per-rarity draft floor or cannot fill the shop. `LaboratoryOverrides.BypassEconomyFloors` starts anyway (gaps
-  logged and announced via `HostNoticeMessage`). Today no EQP/AUG has a behavior class, so standard rules always refuse;
-  match tests use `bypass-economy-floors` + `pools-whole-catalogue` (`HostFixture.WholeCatalogue`).
+  logged and announced via `HostNoticeMessage`). Today only the six proof records (EQP-051/066/096, AUG-145/169/175)
+  have behavior classes, so standard rules still refuse; match tests use `bypass-economy-floors` +
+  `pools-whole-catalogue` (`HostFixture.WholeCatalogue`).
 - Economy streams: shops on the Offer stream and drafts on the Draft stream keyed by scheduled round and lobby slot
   (Economy's own constructors, L435, D-084). Match supplies income + winner bonus (`ShopOpening.Income`), credited on
   `OpenShop`. The draft freezes the loadout while open (Economy's `AugmentDraft`, L227); `CloseDraft` times out an
@@ -95,8 +98,12 @@ Owner paths: `src/Confluence.Hosting/**`, `tests/Confluence.Hosting.Tests/**`. S
 - Arena prefetch uses the thread pool, but the cache key holds every generator input and released arenas never depend
   on what was prefetched, so results are deterministic regardless of timing.
 
-## Coupling points for the Stage 1b merge
-- Sim: `SimWorldFactory` (world creation, seams; swap in the casting/materials adapters here), `LoadoutMapper`
+## Coupling points with the Sim
+- `SimWorldFactory(Catalogue, ContentRegistry)` builds the full authoritative duel: `SpellRuntime.FromCatalogue`, the
+  Sim's default `ReactionMaterials`, catalogue props and biomes, registered passives/equipment/augments.
+  `MatchHost.WorldFactory` is the one every duel of a match uses; `DuelReplayer` takes it (the generator overload
+  defaults to a new factory over the generator's catalogue; the layout overload requires one).
+- Sim: `LoadoutMapper`
   (`DuelPlayerSetup` fields), `DuelOutcomeMapper` (Sim `DuelResult`/`DuelEndReason`), `RunningDuel.Step`
   (`ResourceEvent.ConsumableUsed`), `BotInputSource` (`DuelWorld.CanAcquire`, `TickEvents`, `MeleeEvent`,
   `GuardEvent`, `MovementEvent`, `DuelPlayer.Motor/Guard/Melee/Resources`), `ReplayManifest.CloneSetup`
@@ -106,13 +113,17 @@ Owner paths: `src/Confluence.Hosting/**`, `tests/Confluence.Hosting.Tests/**`. S
 - Economy: `HostedEconomy` and `CommandGateway` dispatch.
 
 ## Status / next steps
-- Done: everything in the Stage 1b hosting task; 34 tests (8-bot Conclave end to end, Duel BO7, serial/parallel
-  determinism, replay hash, command validation/idempotency/rerolls/draft end, arena sharing and diameter cross-check,
-  floors refusal and Laboratory bypass fingerprint, loadout mapping, disconnects, bot perception and cast scripts).
-- Bots cast through the real grammar inputs, but spells do nothing until the Sim spell runtime lands; duels currently
-  end by melee/boundary deaths or time. Re-tune bot range and aggression once spells deal damage.
-- When EQP/AUG/BIO/PRP behavior classes land, standard matches start without overrides; `HostContentPolicy` switches
-  per type automatically. Consider a floor-passing standard-rules end-to-end test then.
+- Done: everything in the Stage 1b hosting task, merged 2026-10-03 with the spell runtime and the world effects. 36
+  tests (8-bot Conclave end to end with spells and reactions live, Duel BO7, serial/parallel determinism, replay hash,
+  command validation/idempotency/rerolls/draft end, arena sharing and diameter cross-check, floors refusal and
+  Laboratory bypass fingerprint, loadout mapping, disconnects, bot perception and cast scripts, the six proof records
+  in a mapped duel, generated prop collision boxes as Sim solids).
+- Bots now fight with real spells (WIZ-002 Fireball and Cinder Sweep deal damage; WIZ-010 has no implemented spell yet).
+  Re-tune bot range and aggression for spell play in Stage 2 (Fireball range 30 m, Cinder Sweep 4 m cone).
+- `InputTrack` keeps `PlayerInput.Tapped` and `GrammarEvents` (a command with grammar events never joins a run, its
+  list is copied). Re-check `SameControls` and `CloneSetup` whenever `PlayerInput` or `DuelPlayerSetup` gain fields.
+- When enough EQP/AUG/PRP behavior classes land, standard matches start without overrides; `HostContentPolicy`
+  switches per type automatically. Add a floor-passing standard-rules end-to-end test then.
 - Net integration: drain `HostOutbox` after each `Tick`, route by `Audience`, feed `SubmitInput` from the receive
   buffer, map `CommandResult` codes to wire codes. Snapshot writing hooks onto `DuelStepped`.
 - Debug-build test time is dominated by arena generation (0.3-8 s per layout); fixtures pick small-diameter seeds and

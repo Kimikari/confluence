@@ -4,8 +4,8 @@ Owner paths: `src/Confluence.Sim/**`, `tests/Confluence.Sim.Tests/**`. Spells, r
 through seams; this stage has no dependency on `Confluence.Reactions` or `Confluence.Casting` types.
 
 ## Layout
-- `Input/PlayerInput.cs` — `InputButtons` flags and the `PlayerInput` command (one small file; the casting stage
-  defines its own flags and the next stage unifies them).
+- `Input/PlayerInput.cs` — the `PlayerInput` command. Its buttons use the one shared flag enum
+  `Confluence.Casting.InputButtons` (unified in Stage 1b; Sim files alias it).
 - `SimRules.cs` — numbers the spec leaves open that only the Sim needs (each cites the spec line it interprets).
 - `Hashing/StateHasher.cs` — order-dependent 64-bit hash of authoritative state.
 - `World/` — `CollisionWorld` (static layout solids + dynamic temporary solids with durability), queries
@@ -44,8 +44,8 @@ through seams; this stage has no dependency on `Confluence.Reactions` or `Conflu
 - `IWorldMaterials` (DuelWorldOptions.Materials): `QueueDeposit`, `Step(IMaterialsContext)` at step 5
   (`RequestContactDamage`, `RecordReaction`, `RecordCloudCleared`), `ObscuringPathLength` (>= 2 m blocks
   acquisition, L167), `QuerySurface` (ice drift, sticky slow), `Hash`. Default `NullWorldMaterials`.
-- `InputButtons`/`PlayerInput` live in `Input/PlayerInput.cs` only; unify with the casting stage's flags there.
-  `SwapFocus` is a Sim addition (L106 equip/swap). `ViewTick` drives lag compensation.
+- `PlayerInput` lives in `Input/PlayerInput.cs`; the flags are `Confluence.Casting.InputButtons` (bits 0-18 fixed,
+  `SwapFocus` = bit 18 for the L106 equip swap). `ViewTick` drives lag compensation.
 
 ## Interpretations (for DECISIONS consolidation; spec line refs)
 - Motor numbers left open live in `SimRules.Motor` (L80, L175, L312): 30.5 degree walkable tolerance, ground snap =
@@ -84,7 +84,8 @@ through seams; this stage has no dependency on `Confluence.Reactions` or `Conflu
   FEAT-023 a player dispelling their own hostile statuses; FEAT-019 stun/silence/displacement that interrupts.
 
 ## Status / next steps
-- Done: all ten components, 157 tests passing (`dotnet test tests/Confluence.Sim.Tests`).
+- Done: all ten components (157 tests at Stage 1). Stage 1b added the spell runtime (`docs/notes/sim-spells.md`) and
+  the world, props, stats and effects (`docs/notes/sim-world.md`); after the merge the project has 344 tests.
 - Feats not yet fed by any producer (counters and hooks exist): FEAT-002, 006, 009, 011, 013, 014, 019, 020, 021,
   022, 023 (see `FeatTracker.AwaitingLaterStages`); FEAT-015 needs summon creators.
 - Next stage: implement `ISpellRuntime` over Confluence.Casting, `IWorldMaterials` over Confluence.Reactions,

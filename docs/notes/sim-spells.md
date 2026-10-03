@@ -5,15 +5,20 @@ Owner paths: `src/Confluence.Sim/Casting/**`, `src/Confluence.Sim/Spells/**`, `s
 `tests/Confluence.Sim.Tests/{Casting,Spells,Content}/**`.
 
 ## Status / next steps
-- Done: one input-flag enum; Sim casting integration (`PlayerCaster`, `CastFrameBuilder`, `CombatEventFeed`,
-  `CastDuelEvent`); `SpellRuntime : ISpellRuntime`; spell forms with transformations, structural deltas, caps and
-  prose parameters; 14 delivery primitives; content registry and behavior interfaces; SPL-009 Fireball and SPL-010
-  Cinder Sweep with `[ContentBehavior]` and `[Verifies]` tests through WIZ-002's real grammar.
-- Tests: `dotnet test tests/Confluence.Sim.Tests` 265 passed (157 sim-core + 108 new);
-  `dotnet test tests/Confluence.Casting.Tests` 166 passed (141 + 25 input, action-lock and digest tests).
+- Done (Stage 1b, merged 2026-10-03): one input-flag enum; Sim casting integration (`PlayerCaster`,
+  `CastFrameBuilder`, `CombatEventFeed`, `CastDuelEvent`); `SpellRuntime : ISpellRuntime`; spell forms with
+  transformations, structural deltas, caps and prose parameters; 14 delivery primitives; content registry and behavior
+  interfaces; SPL-009 Fireball and SPL-010 Cinder Sweep with `[ContentBehavior]` and `[Verifies]` tests through
+  WIZ-002's real grammar, including the merged-stage test where a Fireball's steam on a water patch blocks acquisition.
+- Merge wiring: commitments are paid through the effect framework (`ICastHost.TryPayCommitment` ->
+  `EffectSystem.TryCommitPricedCast`), pending next-cast bonuses price them (`ModifiersFor`, `CastModifiers.CostIncrease`),
+  releases raise `CastReleased`, effect refunds share the machine's `RefundLedger` (`PlayerCaster.TryRefundPayment`),
+  projectile impacts reach Reactions (`SpellContext.ReportImpact` -> `IWorldMaterials.QueueImpact`), and a wizard
+  without an executable grammar or a guided route gets no loadout (no caster) instead of throwing.
 - Next: the remaining WIZ-002 / WIZ-010 spells on these primitives; WIZ-002 signature (Kiln Vent) and passive
-  (Tempered Hands) once the effects framework implements `IEffectHost`; record-specific scripts (recast follow-ups
-  such as SPL-008, conditional riders); `TerrainCollision` combat events; reflection hooks from Reactions prisms.
+  (Tempered Hands) as an `IWizardKitBehavior` (the effect host now attaches passives); record-specific scripts (recast
+  follow-ups such as SPL-008, conditional riders); `TerrainCollision` combat events; reflection hooks from Reactions
+  prisms; impact reports for cone, arc, wave and ray deliveries.
 
 ## Layout
 - `Input/PlayerInput.cs` — the per-tick command. Buttons use `Confluence.Casting.InputButtons` (the only flag enum;
@@ -28,9 +33,11 @@ Owner paths: `src/Confluence.Sim/Casting/**`, `src/Confluence.Sim/Spells/**`, `s
   `CatalogueLoadouts`), `SpellScript`.
 - `Spells/Deliveries/` — Projectile, Ray (+ `IRayReflector`), Cone, Arc, Field, Shield, Buff, Movement (dash, leap,
   teleport), Deployable, Summon, Wave, Tether. `Spells/SpellRules.cs` holds spec-open defaults; `SpellEvents.cs`.
-- `Content/` — `ContentRegistry` (reflection scan, `Availability` as `IContentAvailability`), behavior interfaces
-  (`ISpellBehavior`, `ISpellTransform`, `IWizardKitBehavior`, `IAugmentBehavior`, `IEquipmentBehavior`,
-  `IBiomeRuleBehavior`, `IPropBehavior`, minimal `IEffectHost`/`ISimEffect`), `SpellBehaviors/` (SPL-009, SPL-010).
+- `Content/` — `ContentRegistry` (the one registry: reflection scan, `Empty`, `FromBehaviors`, `Availability` as
+  `IContentAvailability`), behavior interfaces (`ISpellBehavior`, `ISpellTransform`, `IWizardKitBehavior`,
+  `IAugmentBehavior`, `IEquipmentBehavior`, `IBiomeRuleBehavior`, `IPropBehavior`, and the attachment surface
+  `IEffectHost`/`ISimEffect` implemented by `Effects.EffectHost`), `SpellBehaviors/` (SPL-009, SPL-010),
+  `Augments/`, `Equipment/` and `Biomes/` (the proof records and BIO-001/BIO-011 from the world-effects stage).
 
 ## Where it runs in the tick
 - Step 3 (`UpdateCasting`, per player after guard/swap/melee): permissions to the host; recall interrupts; combat
@@ -45,9 +52,12 @@ Owner paths: `src/Confluence.Sim/Casting/**`, `src/Confluence.Sim/Spells/**`, `s
 - Lifetime recast windows (no explicit window) close when the cast's last entity ends (`EndRecastWindow`, L94).
 
 ## Casting host (`PlayerCaster : ICastHost`)
-- `TryPayMana` -> `DuelWorld.TryCommitMana` (all or nothing, combat only, FEAT-013, `ResourceEvent`); the paid cost
-  is `MasteryClamp.PaidCost` with `StatSheet.CostReduction` (30% cap, 70% floor, L124). `RefundMana` ->
-  `DuelWorld.RefundMana`; refunds are capped per cast by the machine's `RefundLedger` (25%, once per key).
+- `TryPayCommitment` -> `EffectSystem.TryCommitPricedCast` -> `DuelWorld.TryCommitMana` (all or nothing, combat only,
+  FEAT-013, `ResourceEvent`; next-cast bonuses consumed, payment recorded). The paid cost is `MasteryClamp.PaidCost`
+  with the stat and pending reductions of `EffectSystem.PriceCast` as one fraction (30% cap with mastery efficiency,
+  70% floor, L124) plus `CostIncrease` after the floor. `TryPayMana` (recast surcharges) pays directly. `RefundMana` ->
+  `DuelWorld.RefundMana`; refunds are capped per cast by the machine's `RefundLedger` (25%, once per key), and effect
+  refunds of a commitment go through it too (`TryRefundPayment`).
 - Cooldowns per spell id start at commitment: `StatSheet.EffectiveCooldownSec` (25% CDR cap, 0.5 s floor, L124).
 - `IsSilenced` = silence; `IsHardControlled` = stun or hostile displacement (root only stops movement);
   `IsWarded` = alcove phase; `IsActionLocked` from `CastPermissions.Reason` (dead, duel ended, recall, guard
@@ -116,8 +126,10 @@ Owner paths: `src/Confluence.Sim/Casting/**`, `src/Confluence.Sim/Spells/**`, `s
 - L104 / L535: spell direct hits are guardable by default (projectiles and offensive melee spells such as SPL-010);
   splash and field contact are not. A record can clear `GuardEligible` (sound without a physical projectile).
 - L525 exclusivity applies across the whole cast (all its projectiles and pulses), not per projectile.
-- L163: an explicit "Heat N at impact" deposits N in the impact cell only; the heavy-projectile default does not add
-  the adjacent ring when the record states the strength. Deposits at a body hit use the projectile's contact point.
+- L163: an explicit "Heat N at impact" deposits N in the impact cell only, unless the behavior declares the record a
+  heavy direct projectile (`DepositSpec.HeavyImpact`), which keeps the default ring of one unit within 1 m. SPL-009 is
+  heavy (merge decision: its "bounded steam patch" needs the ring; a single 0.5 m column can never block acquisition).
+  Deposits at a body hit use the projectile's contact point.
 - L96: the telegraph event is emitted at cue start with the target predicted from the live aim; the machine holds
   the commit so release is at least 0.25 s after the cue starts. The destination of an AtRelease teleport stays
   live during the cue.
@@ -151,8 +163,8 @@ Owner paths: `src/Confluence.Sim/Casting/**`, `src/Confluence.Sim/Spells/**`, `s
   gained the `InputButtons` alias.
 
 ## Gaps
-- No `TerrainCollision` combat event yet (WIZ-014); no `IEffectHost` implementation (effects stage), so wizard
-  passives, augments and equipment do not attach; signatures resolve only when an `IWizardKitBehavior` exists.
+- No `TerrainCollision` combat event yet (WIZ-014); signatures and passives resolve only when an
+  `IWizardKitBehavior` exists (none yet).
 - Directional shields follow current facing; "fixed after casting" shields (SPL-131, SPL-195) need a fixed-yaw
   option. Summons have no move commands, chasing or decoy logic; deployables have no "arms after an impact"
   trigger (SPL-276) or player-chosen movement (SPL-024).
