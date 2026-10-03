@@ -13,8 +13,8 @@
   5. -Smoke: runs the player once per smoke view (windowed 1280x720), each writing out/smoke/<view>.png and
      out/smoke/<view>.log, and fails unless every run exits 0 (no errors logged) and wrote its screenshot:
      arena (generated arena preview), sandbox (Laboratory first-person duel with the demonstration pilot),
-     shop, draft (Laboratory round 1 screens), hud (duel fast-forwarded into the final 15 s). -SmokeOnly
-     <names> runs a subset. out/client-shot.png is a copy of the arena view (older tooling reads it).
+     shop, draft (Laboratory round 1 screens), hud (duel fast-forwarded into the final 15 s), reveal and results.
+     -SmokeOnly <names> runs a subset. out/client-shot.png is a copy of the arena view (older tooling reads it).
 
   Every Unity step writes its own log under out/ and is failed on a non-zero exit code, compiler errors, or a
   missing success marker in the log.
@@ -129,9 +129,13 @@ $smokeViews = @(
     @{ Name = 'sandbox'; Args = @('-laboratory', '-labScreen', 'duel', '-labDemo', '-labDuelTime', '3'); Quit = 9 },
     @{ Name = 'shop'; Args = @('-laboratory', '-labScreen', 'shop', '-labDemo'); Quit = 8 },
     @{ Name = 'draft'; Args = @('-laboratory', '-labScreen', 'draft', '-labDemo'); Quit = 8 },
-    @{ Name = 'hud'; Args = @('-laboratory', '-labScreen', 'duel', '-labDemo', '-labDuelTime', '78'); Quit = 9 }
+    @{ Name = 'hud'; Args = @('-laboratory', '-labScreen', 'duel', '-labDemo', '-labDuelTime', '78'); Quit = 9 },
+    @{ Name = 'reveal'; Args = @('-laboratory', '-labScreen', 'reveal'); Quit = 8 },
+    @{ Name = 'results'; Args = @('-laboratory', '-labScreen', 'results', '-labDemo'); Quit = 8 }
 )
 if ($Smoke) {
+    # -File passes "a,b" as one string: accept commas as well as a PowerShell array.
+    $SmokeOnly = @($SmokeOnly | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
     $smokeDir = Join-Path $outDir 'smoke'
     New-Item -ItemType Directory -Force -Path $smokeDir | Out-Null
     foreach ($view in $smokeViews) {

@@ -51,13 +51,18 @@ namespace Confluence.Client.UI
             info.Add(Ui.Muted("Tab overview | F walk/fly | WASD move | Space jump/up | Ctrl crouch/down | Alt dodge | Shift sprint/fast | "
                 + "Q/E or right-drag rotate, wheel zoom | P pause clock, [ ] scrub 5 s, Backspace reset | G generator | Esc leave"));
             SetPickingIgnore(info);
-            Root.Add(info);
 
+            // Info and generator stack in one left column so a long environment rule never overlaps the panel.
+            VisualElement column = Ui.Element("cf-hud-column");
+            column.pickingMode = PickingMode.Ignore;
+            column.Add(info);
             Generator = generator;
             if (generator != null)
             {
-                Root.Add(generator.Root);
+                column.Add(generator.Root);
             }
+
+            Root.Add(column);
 
             _legend = Ui.Element("cf-hud", "cf-hud--legend");
             _legend.pickingMode = PickingMode.Ignore;

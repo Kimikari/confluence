@@ -65,6 +65,20 @@ namespace Confluence.Client.Presentation
 
         public OwnedEntityViews Entities => _entities;
 
+        public DamageNumbers Numbers => _numbers;
+
+        public FighterView Fighter(int index) => _fighters[index];
+
+        /// <summary>One line of state for smoke logs: clock, health, hits, numbers on screen, guard state.</summary>
+        public string Describe()
+        {
+            DuelPlayer me = World.Player(LocalPlayer);
+            DuelPlayer other = World.Player(1 - LocalPlayer);
+            return "t=" + World.CombatSeconds.ToString("0.0") + " s, phase " + World.Phase + ", health " + me.Resources.Health.ToString("0") + "/"
+                + other.Resources.Health.ToString("0") + ", distance " + Core.Geometry.Vec3.DistanceXZ(me.Position, other.Position).ToString("0.00")
+                + " m, damage numbers " + DamageNumbersShown + " (" + _numbers.ActiveCount + " on screen), opponent guard shown " + _fighters[1 - LocalPlayer].GuardShown;
+        }
+
         /// <summary>Raised once when the duel resolves (spec L49).</summary>
         public event Action<DuelResult> Ended;
 
@@ -105,6 +119,7 @@ namespace Confluence.Client.Presentation
             for (int i = 0; i < ticks && !World.IsOver; i++)
             {
                 StepTick();
+                _numbers.Age(Confluence.Core.Time.Ticks.Dt);
             }
 
             SnapPresentation();

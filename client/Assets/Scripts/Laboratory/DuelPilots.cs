@@ -4,6 +4,7 @@ using Confluence.Core.Rules;
 using Confluence.Core.Time;
 using Confluence.Sim.Duel;
 using Confluence.Sim.Input;
+using Confluence.Sim.Movement;
 using Confluence.Sim.Players;
 
 namespace Confluence.Client.Laboratory
@@ -122,6 +123,12 @@ namespace Confluence.Client.Laboratory
 
         public int Strikes { get; private set; }
 
+        /// <summary>Distance the pilot backs off to once its strikes are used.</summary>
+        public float RetreatDistance { get; set; } = 3f;
+
+        /// <summary>Meters short of strike range at which the pilot stops walking in.</summary>
+        public const float StoppingMargin = 0.3f;
+
         public PlayerInput Next(DuelWorld world, int self)
         {
             DuelPlayer me = world.Player(self);
@@ -134,16 +141,30 @@ namespace Confluence.Client.Laboratory
                 return input;
             }
 
+            // Reach is measured from the attacker's center line to the target capsule (spec L100), so the pilot strikes
+            // from just inside reach plus most of the target's radius; after its strikes it backs off to watch.
             float distance = PilotMath.HorizontalDistance(me.Position, target.Position);
-            float reach = GlobalRules.Melee.FocusReach;
-            if (distance > reach * 0.9f)
+            float strikeRange = GlobalRules.Melee.FocusReach + CharacterMotor.Radius * 0.6f;
+            if (Strikes >= MaxStrikes)
             {
-                input.MoveY = 1f;
+                input.MoveY = distance < RetreatDistance ? -1f : 0f;
             }
-            else if (Strikes < MaxStrikes && !me.Melee.Busy && !me.IsHeld(InputButtons.Melee) && me.Resources.Stamina >= GlobalRules.Melee.FocusStamina)
+            else if (distance > strikeRange + StoppingMargin)
             {
-                input.Buttons |= InputButtons.Melee;
-                Strikes++;
+                input.MoveY = 1f; // stop a little early: walking momentum carries most of the rest
+            }
+            else if (distance > strikeRange)
+            {
+                input.MoveY = 0.3f; // creep the last few centimeters
+            }
+            else
+            {
+                input.MoveY = distance < strikeRange - 0.6f ? -1f : 0f; // keep spacing
+                if (!me.Melee.Busy && !me.IsHeld(InputButtons.Melee) && me.Resources.Stamina >= GlobalRules.Melee.FocusStamina)
+                {
+                    input.Buttons |= InputButtons.Melee;
+                    Strikes++;
+                }
             }
 
             return input;

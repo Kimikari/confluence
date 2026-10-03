@@ -18,7 +18,8 @@ namespace Confluence.Client.Presentation
     public sealed class DamageNumbers
     {
         public const float LifetimeSec = 1.1f;
-        public const float RiseMetersPerSec = 0.9f;
+        public const float RiseMetersPerSec = 0.45f;
+        public const float SpawnHeight = 1.35f;
 
         private readonly VisualElement _layer;
         private readonly List<Number> _active = new List<Number>();
@@ -62,7 +63,7 @@ namespace Confluence.Client.Presentation
             label.style.position = Position.Absolute;
             _layer.Add(label);
             float spread = (_active.Count % 3 - 1) * 0.25f;
-            _active.Add(new Number { Label = label, World = CoreSpace.ToUnity(at) + new Vector3(spread, 2.05f, 0f), Age = 0f });
+            _active.Add(new Number { Label = label, World = CoreSpace.ToUnity(at) + new Vector3(spread, SpawnHeight, 0f), Age = 0f });
         }
 
         /// <summary>Moves numbers up, fades them, and projects them through the camera; behind-camera numbers hide.</summary>
@@ -80,15 +81,30 @@ namespace Confluence.Client.Presentation
                 }
 
                 Vector3 world = n.World + Vector3.up * (RiseMetersPerSec * n.Age);
+                // Viewport (0-1, origin bottom-left) to the full-screen layer's own size (origin top-left).
                 Vector3 view = camera.WorldToViewportPoint(world);
-                bool visible = view.z > 0f;
+                Rect area = _layer.layout;
+                bool visible = view.z > 0f && area.width > 0f && area.height > 0f;
                 n.Label.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
                 if (visible)
                 {
-                    Vector2 panel = RuntimePanelUtils.CameraTransformWorldToPanel(_layer.panel, world, camera);
-                    n.Label.style.left = panel.x - 40f;
-                    n.Label.style.top = panel.y - 16f;
+                    n.Label.style.left = Mathf.Clamp(view.x * area.width - 60f, 0f, area.width - 200f);
+                    n.Label.style.top = Mathf.Clamp((1f - view.y) * area.height - 20f, 130f, area.height - 260f);
                     n.Label.style.opacity = 1f - Mathf.Clamp01((n.Age - LifetimeSec * 0.6f) / (LifetimeSec * 0.4f));
+                }
+            }
+        }
+
+        /// <summary>Ages numbers by simulated time without drawing (fast-forward), dropping expired ones.</summary>
+        public void Age(float dt)
+        {
+            for (int i = _active.Count - 1; i >= 0; i--)
+            {
+                _active[i].Age += dt;
+                if (_active[i].Age >= LifetimeSec)
+                {
+                    _active[i].Label.RemoveFromHierarchy();
+                    _active.RemoveAt(i);
                 }
             }
         }

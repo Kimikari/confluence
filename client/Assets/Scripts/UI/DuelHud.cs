@@ -90,11 +90,11 @@ namespace Confluence.Client.UI
             Root.Add(spells);
 
             VisualElement actions = Ui.Element("cf-duel-actions");
+            _combat = Ui.Label(string.Empty, "cf-duel-combat");
+            actions.Add(_combat);
             _signature = new ActionCell(actions);
             _active = new ActionCell(actions);
             _consumable = new ActionCell(actions);
-            _combat = Ui.Label(string.Empty, "cf-duel-combat");
-            actions.Add(_combat);
             Root.Add(actions);
 
             Root.Add(Ui.Element("cf-crosshair"));

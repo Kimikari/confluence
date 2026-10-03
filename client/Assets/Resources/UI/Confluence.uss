@@ -265,9 +265,25 @@
 /* ---- Arena preview generator panel ---- */
 
 .cf-hud--generator {
-    top: 300px;
     max-height: 700px;
     width: 600px;
+}
+
+.cf-hud-column {
+    position: absolute;
+    left: 16px;
+    top: 16px;
+    bottom: 16px;
+    width: 600px;
+}
+
+.cf-hud-column > .cf-hud {
+    position: relative;
+    left: 0;
+    top: 0;
+    width: 600px;
+    margin-bottom: 8px;
+    flex-shrink: 1;
 }
 
 .cf-hud--generator .cf-field > Label {
@@ -418,7 +434,11 @@
     min-height: 0;
 }
 
-.cf-match-side--narrow {
+.cf-match-body > .cf-match-side {
+    flex-grow: 0;
+}
+
+.cf-match-body > .cf-match-side--narrow {
     width: 470px;
 }
 
@@ -989,6 +1009,10 @@
 
 .cf-duel-combat {
     margin-top: 6px;
+    background-color: rgba(10, 12, 18, 0.65);
+    padding: 2px 8px;
+    border-radius: 3px;
+    align-self: flex-start;
     font-size: 15px;
     color: rgb(232, 228, 216);
     -unity-text-outline-width: 1px;
@@ -1006,8 +1030,8 @@
 
 .cf-damage-number {
     position: absolute;
-    width: 200px;
-    font-size: 30px;
+    width: 240px;
+    font-size: 38px;
     -unity-font-style: bold;
     color: rgb(255, 236, 160);
     -unity-text-outline-width: 2px;

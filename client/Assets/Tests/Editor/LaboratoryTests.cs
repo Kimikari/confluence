@@ -575,6 +575,20 @@ namespace Confluence.Client.Tests
             Assert.AreEqual(hits, duel.DamageNumbersShown, "numbers only for confirmed hits");
             Assert.IsTrue(duel.World.EventLog.OfType<GuardEvent>().Any(g => g.Player == 1), "the dummy guards");
             Assert.Less(duel.HudModel.Stamina, 100f, "melee and movement spent stamina");
+
+            // The guard arc and the melee sweep follow the authoritative state tick by tick.
+            bool sawGuard = false;
+            bool sawSwing = false;
+            for (int i = 0; i < Ticks.FromSeconds(6f) && !(sawGuard && sawSwing); i++)
+            {
+                duel.FastForward(1);
+                sawGuard |= duel.World.Player(1).Guard.Active && duel.Fighter(1).GuardShown;
+                sawSwing |= duel.World.Player(0).Melee.Busy && duel.Fighter(0).SwingShown;
+                Assert.AreEqual(duel.World.Player(1).Guard.Active, duel.Fighter(1).GuardShown);
+            }
+
+            Assert.IsTrue(sawGuard, "the dummy's guard arc is drawn while it guards");
+            Assert.IsTrue(sawSwing, "the player's committed sweep is drawn during windup and strike");
         }
 
         [Test]

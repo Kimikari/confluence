@@ -73,6 +73,7 @@ namespace Confluence.Client.Laboratory
         private bool _menuOpen;
         private bool _inspectOpen;
         private bool _captureCursor;
+        private float _demoLog;
 
         public LabView View { get; private set; }
         public LaboratorySession Session => _session;
@@ -428,6 +429,16 @@ namespace Confluence.Client.Laboratory
         private void Update()
         {
             _generation.Poll();
+            if (_duel != null && _context.Options.LabDemo)
+            {
+                _demoLog -= Time.unscaledDeltaTime;
+                if (_demoLog <= 0f)
+                {
+                    _demoLog = 1f;
+                    Debug.Log("[Laboratory] Demo duel: " + _duel.Describe());
+                }
+            }
+
             if (_endDelay >= 0f)
             {
                 _endDelay -= Time.unscaledDeltaTime;
