@@ -4,6 +4,7 @@ using Confluence.Core.Arena;
 using Confluence.Core.Geometry;
 using Confluence.Core.Rules;
 using Confluence.Sim.Hashing;
+using Confluence.Sim.Props;
 
 namespace Confluence.Sim.World
 {
@@ -66,9 +67,9 @@ namespace Confluence.Sim.World
 
             foreach (PropPlacement placement in layout.Props)
             {
-                if (Props.PropSystem.HasBody(placement))
+                if (PropSystem.HasBody(placement))
                 {
-                    world.AddTemporarySolid(Props.PropSystem.BodySpec(placement, 0f), 0);
+                    world.AddTemporarySolid(PropSystem.BodySpec(placement, 0f), 0);
                 }
             }
 

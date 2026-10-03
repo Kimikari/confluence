@@ -207,16 +207,23 @@ environment, the offline Laboratory (sandbox duel with a reactive guard dummy an
 rounds), M1 screens on view-model interfaces (shop, draft, build, reveal, HUD, results), duel presentation, a
 renderer for Reactions cells and volumes, interface scale, EditMode tests and seven deterministic smoke screenshots.
 
+Stage 1b merge (2026-10-03): the Laboratory duel draws the Sim's own reaction world (`ReactionMaterials` is the
+`DuelWorld` default; `LaboratoryController.StartDuel` sets `OfflineDuel.Reactions` from it), is built with the
+catalogue (prop mass and durability, biome record), and `ArenaRenderer.SyncProps` moves and hides prop placeholders
+with the Sim's prop bodies (`SyncSolids` skips prop solids so they are not drawn twice). Walk mode and the sparring
+layout collide with prop bodies (`CollisionWorld.FromLayoutWithProps`). The client uses the unified
+`Confluence.Casting.InputButtons`.
+
 Next:
-1. Sim-Reactions adapter (Stage 1b item 3): when the Sim's `IWorldMaterials` runs on a `ReactionWorld`, set
-   `OfflineDuel.Reactions` from it in `LaboratoryController.StartDuel` (one line) so duel cells and volumes appear.
+1. Spells in the Laboratory duel: plug `SpellRuntime.FromCatalogue` into `LaboratoryController.StartDuel` once
+   deliveries can be drawn (item 2), or Hosting's `SimWorldFactory`.
 2. Spell presentation: `DuelHudModel.SlotReader` (`ISpellSlotReader`) for cooldowns/charges once the Sim spell runtime
    exposes them; projectile/beam renderers against its delivery state; per-spell field visuals.
 3. Network adapters: implement the view-model interfaces over Confluence.Net session state (shop and draft requests,
    server HUD snapshots, remote-entity interpolation, reaction snapshots for `ReactionViews`); client prediction with
    `LocalMotor` + reconciliation.
-4. Replace `LoadoutDuelSetup` with Confluence.Hosting's loadout mapping when it lands; bots (Stage 6) replace the
-   training dummy pilots.
+4. Replace `LoadoutDuelSetup` with Confluence.Hosting's `LoadoutMapper` (synced as Confluence.Hosting.dll); Hosting
+   bots (`BotInputSource`) can replace the training dummy pilots.
 5. Narrated decisive sequence (L359), damage-direction indicator (L349), comparison view and pinning in the shop
    (L353), remapping and the rest of L371 accessibility (Stage 7).
 6. A PanelSettings asset in the build would silence Unity's "ICU data not available" warning (text segmentation

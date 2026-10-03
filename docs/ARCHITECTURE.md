@@ -20,14 +20,18 @@ src/Confluence.Arena        -> Core. Seeded generator: size schedule, biome/modu
 src/Confluence.Economy      -> Core. Loadout + slots, equipment shop, predicate evaluator, structural spell profile,
                             dormancy resolver, augment draft sampler/rerolls/ranks/replacement, feat ledger
 src/Confluence.Sim          -> Core, Reactions, Casting. DuelWorld: collision, character motor (shared with client
-                            prediction), resources, damage pipeline, statuses, guard/melee/dodge, spell runtime,
-                            content behaviors (Spells/, Transforms/, Augments/, Equipment/, Wizards/), triggers and
-                            proc budgets, boundary, duel result, feat events, lag-compensation history
+                            prediction), resources, stat block, damage pipeline, statuses, guard/melee/dodge, casting
+                            (Casting/: PlayerCaster over CastMachine), spell runtime (Spells/: forms, deliveries),
+                            world materials over ReactionWorld (World/Materials/), props (Props/), effect framework
+                            (Effects/: triggers, conditions, budgets, cast pricing), content registry and behaviors
+                            (Content/: SpellBehaviors/, Augments/, Equipment/, Biomes/; later Transforms/, Wizards/),
+                            boundary, duel result, feat events, lag-compensation history
 src/Confluence.Match        -> Core, Economy, Arena. Conclave/Duel round flow, phase timers, pairing, byes, Resolve,
                             bracket, income, placements. Runs duels through IDuelRunner (Sim adapter wired by server)
 src/Confluence.Hosting      -> Core, Reactions, Casting, Arena, Economy, Sim, Match. Authoritative match host without
-                            transport: IDuelRunner over Sim, IMatchEconomy over Economy, IArenaProvider over Arena,
-                            loadout -> duel setup mapping, bots. Shared by the server and offline client modes
+                            transport: IDuelRunner over Sim (SimWorldFactory: spells, reactions, props, effects),
+                            IMatchEconomy over Economy, IArenaProvider over Arena, commands, loadout -> duel setup
+                            mapping, replays, bots. Shared by the server and offline client modes
 src/Confluence.Net          -> all libs (incl. Hosting) + LiteNetLib. Protocol, serialization, server host, client session
                             (prediction, reconciliation, interpolation)
 src/Confluence.Server       net10.0 console: authoritative match server
@@ -51,11 +55,14 @@ Libraries target `netstandard2.1` with `LangVersion 9` so Unity compiles against
 
 `Catalogue.Load(path)` parses the supplied JSON into immutable definitions (`WizardDef`, `SpellDef`, `EquipmentDef`, `AugmentDef`, `BiomeDef`, `ModuleDef`, `PropDef`, `BuildDef`). Eligibility JSON parses into a typed `Predicate` AST covering every leaf in the predicate grammar. `CatalogueValidator` checks counts, ID intervals, ownership (WIZ-n owns SPL-(8n-7)…SPL-8n), dangling references, tiers, slots, rarity, and predicate references. It also confirms that every condition has an acquisition witness (one wizard and legal loadout) and fits the real draft schedule of both modes (DECISIONS D-030, D-032).
 
-Descriptive prose becomes executable behavior in `Confluence.Sim` through registries keyed by catalogue ID:
+Descriptive prose becomes executable behavior in `Confluence.Sim` through one registry keyed by catalogue ID, `Sim.Content.ContentRegistry` (a scan of `[ContentBehavior]` classes; each id prefix requires its behavior interface). The spell runtime resolves spells and transformations from it; the effect framework attaches wizard passives, equipment and shared augments to each player's `IEffectHost` (`Sim.Effects.EffectHost`) at duel construction; the reaction materials install the arena biome's rule from it:
 
-- **Spells** — a `SpellBehavior` builds a typed `SpellForm` from the base `SpellDef` (mana, cooldown, cast time, range come from the catalogue; prose parameters such as projectile speed, splash radius, and world units are written explicitly with a comment quoting the source text). Custom logic such as detonation recasts goes in an `ISpellScript`.
+- **Spells** — an `ISpellBehavior` builds a typed `SpellForm` from the base `SpellDef` (mana, cooldown, cast time, range come from the catalogue; prose parameters such as projectile speed, splash radius, and world units are written explicitly with a comment quoting the source text). Custom logic such as detonation recasts goes in a `SpellScript`; deliveries (projectile, ray, cone, arc, field, shield, buff, movement, deployable, summon, wave, tether) are the shared primitives.
 - **Transformations** — an `ISpellTransform` edits the `SpellForm` for rank 1/2 in the spec's application order: base → delivery/trajectory → payload/reaction → equipment → mastery → global caps and proc budgets. Structural tag changes (for example projectile → trap) are declared once in `Core.Content.StructuralDeltas` and read by both Economy eligibility and Sim.
-- **Shared augments, equipment, signatures, passives** — typed effects with trigger, condition, magnitude, channel, target filter, budget group, stacking rule, and permitted secondary events (spec §14 data model).
+- **Shared augments, equipment, signatures, passives** — typed effects (`Sim.Effects.Effect`, `ConditionalModifier`, stat modifiers) with trigger, condition, magnitude, channel, target filter, budget group, stacking rule, and permitted secondary events (spec §14 data model). Effects dispatch once per tick at the end of step 7; reaction, prop, boundary and other secondary damage raises no triggers (L126).
+- **Biome rules and props** — `IBiomeRuleBehavior` installs a biome's environment rule into the duel's `ReactionWorld`; prop bodies come from the generator's stored collision boxes (`PropPlacement.CollisionBox`) with catalogue mass and durability, and `IPropBehavior` will add prop-specific interactions.
+
+Casting costs: the cast machine prices a commitment from the listed cost, the stat cost reduction and pending "next cast" reductions of the effect framework, and mastery efficiency (all reductions together leave at least 70%), then adds drawback increases; the payment goes through the effect framework, which consumes those bonuses and records it. Every refund of a cast (interrupt-refund tag or an effect) draws on the cast machine's ledger, at most 25% of the payment.
 
 A record is **implemented** when its registry entry exists and is wired into gameplay. It is **verified** when a test tagged `[Verifies("ID")]` exercises its specific behavior. `docs/CONTENT_LEDGER.md` is generated from the registries and test attributes; never edit statuses by hand. Draft and shop pools include only implemented records (`IContentAvailability`). The server refuses to start a match whose available pools break a design floor, such as ten legal augments per rarity.
 
@@ -64,10 +71,10 @@ A record is **implemented** when its registry entry exists and is wired into gam
 1. Validate and apply inputs (rate limits, resource checks).
 2. Character movement, dashes, and displacement (clamped to the legal boundary).
 3. Guard, melee, dodge, and cast phase progression; releases spawn deliveries.
-4. Deliveries advance; hits resolve direct impacts through the damage pipeline; world deposits are queued.
-5. Reactions in fixed order: direct impacts → heat-water / heat-ice / frost-water consumption → electricity connectivity → wind movement → decay.
-6. Fields, summons, props, and volumes update (contact effects, lifetimes, oldest-owned retirement).
-7. Statuses and DoT, resource regeneration, shield expiry.
+4. Deliveries advance; hits resolve direct impacts through the damage pipeline; world deposits and direct impacts on the ground or solids are queued for the reaction world.
+5. Reactions in fixed order: direct impacts → heat-water / heat-ice / frost-water consumption → electricity connectivity → wind movement → decay. Contact damage returns through the damage pipeline as environment damage (no procs); prop impulses move props.
+6. Fields, summons, props, and volumes update (contact effects, lifetimes, oldest-owned retirement; clouds count as fields).
+7. Statuses and DoT, resource regeneration, shield expiry; then the effect framework dispatches the tick's triggers.
 8. Boundary damage (bypasses all mitigation; never triggers items or augments).
 9. Death, draw, and timer resolution. Simultaneous lethal outcomes in one step are draws.
 

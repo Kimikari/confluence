@@ -18,13 +18,14 @@
     "tests/Confluence.Casting.Tests/bin/Debug/net10.0/Confluence.Casting.Tests.dll",
     "tests/Confluence.Core.Tests/bin/Debug/net10.0/Confluence.Core.Tests.dll",
     "tests/Confluence.Economy.Tests/bin/Debug/net10.0/Confluence.Economy.Tests.dll",
+    "tests/Confluence.Hosting.Tests/bin/Debug/net10.0/Confluence.Hosting.Tests.dll",
     "tests/Confluence.Match.Tests/bin/Debug/net10.0/Confluence.Match.Tests.dll",
     "tests/Confluence.Net.Tests/bin/Debug/net10.0/Confluence.Net.Tests.dll",
     "tests/Confluence.Reactions.Tests/bin/Debug/net10.0/Confluence.Reactions.Tests.dll",
     "tests/Confluence.Sim.Tests/bin/Debug/net10.0/Confluence.Sim.Tests.dll"
   ],
-  "trx_files": 8,
-  "verifying_test_methods": 144,
+  "trx_files": 9,
+  "verifying_test_methods": 171,
   "out_of_scope_ids": [],
   "unknown_ids": [],
   "summary": {
@@ -38,35 +39,35 @@
     },
     "spells": {
       "total": 288,
-      "unstarted": 288,
+      "unstarted": 286,
       "implemented": 0,
       "implemented-tests-not-run": 0,
       "implemented-tests-failing": 0,
-      "verified": 0
+      "verified": 2
     },
     "equipment": {
       "total": 120,
-      "unstarted": 120,
+      "unstarted": 117,
       "implemented": 0,
       "implemented-tests-not-run": 0,
       "implemented-tests-failing": 0,
-      "verified": 0
+      "verified": 3
     },
     "augments": {
       "total": 864,
-      "unstarted": 864,
+      "unstarted": 861,
       "implemented": 0,
       "implemented-tests-not-run": 0,
       "implemented-tests-failing": 0,
-      "verified": 0
+      "verified": 3
     },
     "biomes": {
       "total": 24,
-      "unstarted": 24,
+      "unstarted": 22,
       "implemented": 0,
       "implemented-tests-not-run": 0,
       "implemented-tests-failing": 0,
-      "verified": 0
+      "verified": 2
     },
     "modules": {
       "total": 72,
@@ -94,11 +95,11 @@
     },
     "all": {
       "total": 1500,
-      "unstarted": 1428,
+      "unstarted": 1418,
       "implemented": 0,
       "implemented-tests-not-run": 0,
       "implemented-tests-failing": 0,
-      "verified": 72
+      "verified": 82
     }
   },
   "records": [
@@ -608,19 +609,105 @@
       "id": "SPL-009",
       "type": "spell",
       "name": "Fireball",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.SpellBehaviors.Fireball"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.FireballTests.A_Crest_Release_Adds_12_Percent_To_The_Direct_Hit_Only",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.FireballTests.A_Direct_Hit_Deals_48_Thermal_Damage_And_No_Splash_To_The_Same_Target",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.FireballTests.A_Frontal_Guard_Halves_The_Direct_Hit",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.FireballTests.A_Near_Miss_Splashes_28_Within_1_8_Meters_And_Heat_2_Lands_At_The_Impact",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.FireballTests.A_Target_Beyond_1_8_Meters_Of_The_Impact_Takes_No_Splash",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.FireballTests.It_Costs_18_Mana_At_Commitment_And_Then_Cools_Down_For_5_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.FireballTests.It_Flies_At_24_Meters_Per_Second_After_Its_Windup",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.FireballTests.Its_30_Meter_Range_Ends_The_Flight",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Integration.SpellReactionIntegrationTests.Fireball_Into_A_Water_Patch_Forms_Steam_That_Blocks_Acquisition_Through_Two_Meters_Of_Path",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "SPL-010",
       "type": "spell",
       "name": "Cinder Sweep",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.SpellBehaviors.CinderSweep"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.CinderSweepTests.A_Crest_Release_Adds_12_Percent_Damage",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.CinderSweepTests.A_Frontal_Guard_Halves_The_Sweep",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.CinderSweepTests.Cover_Is_Checked_For_Each_Target",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.CinderSweepTests.Heat_1_Is_Deposited_Along_The_Cone",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.CinderSweepTests.It_Costs_15_Mana_And_Cools_Down_For_5_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.CinderSweepTests.It_Deals_36_Thermal_Damage_Inside_Its_90_Degree_4_Meter_Cone",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.CinderSweepTests.The_Caster_Moves_15_Percent_Slower_During_Its_Windup",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "SPL-011",
@@ -3528,9 +3615,22 @@
       "id": "EQP-051",
       "type": "equipment",
       "name": "Training Cuirass",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Equipment.TrainingCuirass"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.IntegrationTests.The_Six_Proof_Records_Shape_A_Real_Duel_Started_From_Mapped_Economy_Loadouts",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Effects.Content.ProofContentTests.Training_Cuirass_Adds_15_Maximum_Health_And_Costs_1_More_Stamina_Per_Sprint_Second",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "EQP-052",
@@ -3648,9 +3748,22 @@
       "id": "EQP-066",
       "type": "equipment",
       "name": "Apprentice Mantle",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Equipment.ApprenticeMantle"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.IntegrationTests.The_Six_Proof_Records_Shape_A_Real_Duel_Started_From_Mapped_Economy_Loadouts",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Effects.Content.ProofContentTests.Apprentice_Mantle_Adds_8_Percent_Mana_Regeneration_Within_The_14_Per_Second_Cap_And_Removes_8_Health",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "EQP-067",
@@ -3888,9 +4001,22 @@
       "id": "EQP-096",
       "type": "equipment",
       "name": "Pocket Reservoir",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Equipment.PocketReservoir"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.IntegrationTests.The_Six_Proof_Records_Shape_A_Real_Duel_Started_From_Mapped_Economy_Loadouts",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Effects.Content.ProofContentTests.Pocket_Reservoir_Adds_8_Maximum_Mana_And_Removes_4_Maximum_Stamina",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "EQP-097",
@@ -5440,9 +5566,22 @@
       "id": "AUG-145",
       "type": "augment",
       "name": "Large Vessel",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.LargeVessel"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.IntegrationTests.The_Six_Proof_Records_Shape_A_Real_Duel_Started_From_Mapped_Economy_Loadouts",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Effects.Content.ProofContentTests.Large_Vessel_Raises_Maximum_Mana_By_Rank_And_Lowers_Maximum_Stamina_By_4",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-146",
@@ -5649,9 +5788,27 @@
       "id": "AUG-169",
       "type": "augment",
       "name": "Healthy Habit",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.HealthyHabit"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.IntegrationTests.The_Six_Proof_Records_Shape_A_Real_Duel_Started_From_Mapped_Economy_Loadouts",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Effects.Content.ProofContentTests.Healthy_Habit_Raises_Maximum_Health_By_Rank_And_Lowers_Maximum_Mana_By_3",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Effects.Content.ProofContentTests.Healthy_Habit_Stays_Inside_The_450_Maximum_Health_Cap",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-170",
@@ -5697,9 +5854,27 @@
       "id": "AUG-175",
       "type": "augment",
       "name": "Opening Ward",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.OpeningWard"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.IntegrationTests.The_Six_Proof_Records_Shape_A_Real_Duel_Started_From_Mapped_Economy_Loadouts",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Effects.Content.ProofContentTests.Opening_Ward_Issues_A_Reserve_Shield_At_Round_Start_That_Lasts_Until_Broken_And_Removes_5_Health",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Effects.Content.ProofContentTests.Opening_Ward_Shares_The_100_Shield_Cap_With_Other_Reserve_Shields",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-176",
@@ -12528,12 +12703,19 @@
       "id": "BIO-001",
       "type": "biome",
       "name": "Raincourt",
-      "status": "unstarted",
-      "implemented_by": [],
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Biomes.RaincourtRainRule"
+      ],
       "verifying_tests": [
         {
           "test": "Confluence.Reactions.Tests.EnvironmentTests.Raincourt_Rain_Adds_One_Water_Unit_To_Each_Gutter_Bed_Every_Eight_Seconds_Up_To_Four",
           "assembly": "Confluence.Reactions.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.World.Materials.BiomeRuleTests.Raincourt_Rain_Refills_The_Gutter_Beds_Every_Eight_Seconds_Up_To_Four_And_Never_Wets_Players_Itself",
+          "assembly": "Confluence.Sim.Tests",
           "outcome": "passed"
         }
       ]
@@ -12626,12 +12808,19 @@
       "id": "BIO-011",
       "type": "biome",
       "name": "Windmill Yard",
-      "status": "unstarted",
-      "implemented_by": [],
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Biomes.WindmillYardGustRule"
+      ],
       "verifying_tests": [
         {
           "test": "Confluence.Reactions.Tests.EnvironmentTests.Windmill_Yard_Gusts_Move_Clouds_Up_To_Two_Meters_At_Strength_One",
           "assembly": "Confluence.Reactions.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.World.Materials.BiomeRuleTests.Windmill_Yard_Gusts_Move_Clouds_Up_To_Two_Meters_But_Never_Players_Or_Props",
+          "assembly": "Confluence.Sim.Tests",
           "outcome": "passed"
         }
       ]
