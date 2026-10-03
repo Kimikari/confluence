@@ -197,7 +197,14 @@ namespace Confluence.Hosting.Bots
             IReadOnlyList<DuelEvent> events = world.TickEvents; // the previous step's events
             for (int i = 0; i < events.Count; i++)
             {
-                if (!(events[i] is MeleeEvent melee) || melee.Player != other || melee.Change != MeleeChange.Started) continue;
+                DuelEvent e = events[i];
+                if (e.Player == self)
+                {
+                    CountOwn(e);
+                    continue;
+                }
+
+                if (!(e is MeleeEvent melee) || melee.Player != other || melee.Change != MeleeChange.Started) continue;
                 if (!_history[tick % HistorySize].Seen) continue; // an unseen windup cannot be reacted to
                 int react = tick + _rng.NextInt(Profile.ReactionMinTicks, Profile.ReactionMaxTicks + 1);
                 if (_rng.Chance(Profile.GuardChance))
@@ -211,6 +218,28 @@ namespace Confluence.Hosting.Bots
                     _dodgeAt = react;
                     Stats.DodgesPlanned++;
                 }
+            }
+        }
+
+        /// <summary>Counts what the bot's own inputs actually did in the Sim (diagnostics only).</summary>
+        private void CountOwn(DuelEvent e)
+        {
+            switch (e)
+            {
+                case GuardEvent guard when guard.Change == GuardChange.Started:
+                    Stats.Guards++;
+                    break;
+                case MovementEvent move when move.Change == MovementChange.Dodged:
+                    break;
+                case MovementEvent move when move.Change == MovementChange.Jumped:
+                    Stats.Jumps++;
+                    break;
+                case MeleeEvent melee when melee.Change == MeleeChange.Started:
+                    Stats.MeleeStrikes++;
+                    break;
+                case MeleeEvent melee when melee.Change == MeleeChange.Hit:
+                    Stats.MeleeHits++;
+                    break;
             }
         }
 
@@ -274,7 +303,6 @@ namespace Confluence.Hosting.Bots
             {
                 buttons |= InputButtons.Guard;
                 if (_cast != null) EndCast(tick); // guarding releases the cast in progress
-                if (!me.Guard.Active) Stats.Guards++;
             }
             else if (tick >= _guardUntil)
             {
@@ -287,7 +315,6 @@ namespace Confluence.Hosting.Bots
                 Vec2 away = (me.Position.XZ() - opponent.XZ()).Normalized();
                 move = new Vec2(-away.Y, away.X) * _strafeSign; // sidestep the strike line
                 _dodgeAt = int.MaxValue;
-                Stats.Dodges++;
             }
 
             bool inReach = seen.Seen && distance <= melee.Reach + GlobalRules.Movement.CapsuleRadius - 0.1f;
@@ -499,6 +526,9 @@ namespace Confluence.Hosting.Bots
         public int TicksWithSight;
         public int GuardsPlanned;
         public int Guards;
+        public int Jumps;
+        public int MeleeStrikes;
+        public int MeleeHits;
         public int DodgesPlanned;
         public int Dodges;
         public int MeleePresses;

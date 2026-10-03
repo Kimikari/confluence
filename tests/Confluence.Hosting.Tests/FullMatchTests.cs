@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Confluence.Core.Arena;
 using Confluence.Core.Rules;
+using Confluence.Hosting.Bots;
 using Confluence.Hosting.Duels;
 using Confluence.Hosting.Messages;
 using Confluence.Match;
@@ -28,6 +29,19 @@ namespace Confluence.Hosting.Tests
             host.DuelStarted += d => layoutsByDuel.Add(d.DuelId, d.World.Layout);
             var messages = new List<HostMessage>();
             host.Outbox.Queued += messages.Add;
+            var bots = new BotDuelStats();
+            host.Duels.Finished += r =>
+            {
+                foreach (DuelSideReport side in r.Sides)
+                {
+                    BotDuelStats s = ((BotInputSource)host.InputSourceOf(side.Player)).Stats;
+                    bots.TicksWithSight += s.TicksWithSight;
+                    bots.MeleePresses += s.MeleePresses;
+                    bots.Casts += s.Casts;
+                    bots.Guards += s.Guards;
+                    bots.Dodges += s.Dodges;
+                }
+            };
 
             HostStartResult start = host.Start();
             Assert.True(start.Started);
@@ -48,6 +62,12 @@ namespace Confluence.Hosting.Tests
             Assert.Equal(resolved.Count, host.Duels.Reports.Count);
             Assert.All(host.Duels.Reports, r => Assert.True(r.Replay.IsComplete));
             Assert.All(resolved, e => Assert.True(e.Outcome.ResolvedCombatTick <= flow.Timings.CombatMaxTicks));
+
+            // The bots really fought: they saw each other, struck in reach, guarded seen strikes, and ran cast scripts (L381).
+            Assert.True(bots.TicksWithSight > 0);
+            Assert.True(bots.MeleePresses > 0);
+            Assert.True(bots.Guards > 0);
+            Assert.True(bots.Casts > 0);
 
             // Shops every round for every active player; drafts exactly on the Conclave draft rounds (L216-L225).
             var pairings = events.OfType<PairingsAnnouncedEvent>().Where(p => p.PassKind == PassKind.Original).ToList();
