@@ -57,6 +57,10 @@ Design notes for every subsystem live in `docs/notes/<subsystem>.md`; interpreta
 - Integration tests added: Sim `Integration/SpellReactionIntegrationTests` (Fireball through WIZ-002's grammar into a Water Pool-like patch forms steam that blocks acquisition through 2 m of path, `[Verifies("SPL-009")]`; Fireball shards on map ice are proc-free environment damage; effect refunds share the cast's 25% cap), Sim `PropSystemTests` preview-collision test, Hosting `IntegrationTests` (the six proof records shape a duel built from mapped Economy loadouts, with `[Verifies]`; generated prop collision boxes become Sim solids), the 8-bot Conclave now asserts SPL-009/SPL-010 commits and damage, heat in every duel's reaction world and the installed biome rule, and a client EditMode test for prop placeholders.
 - Consolidated the reports into DECISIONS D-127…D-182; updated ARCHITECTURE (Sim layout, content model, cast pricing, tick order) and the subsystem notes.
 
+### 2026-10-03 — Stage 2 + 3 launch
+- Accepted merge decision D-138 (Fireball deposits the heavy-projectile ring so its steam patch can reach the 2 m sight-blocking path).
+- Workflow `.claude/workflows/stage2.js` (local): implement -> adversarial verify -> fix pipeline for bram-kit, halen-kit, augments-a, augments-b, equipment, props-biomes, net-protocol (worktrees under `.claude/worktrees/`), then merge-and-integrate. Resume with `args.inPlace` (implement in an existing worktree), `args.impl` (skip to verify), `args.fixed` (skip to merge), `args.only`.
+
 ## What runs
 - `node tools/spec.mjs toc`, `node tools/cat.mjs stats`.
 - `dotnet build Confluence.sln`, `dotnet test Confluence.sln`, `powershell -ExecutionPolicy Bypass -File tools/ledger.ps1`.
