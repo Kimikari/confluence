@@ -859,6 +859,8 @@ namespace Confluence.Net.Game.Server
             switch (e)
             {
                 case PhaseChangedEvent phase:
+                    Log("t" + phase.Tick + " phase " + phase.Phase + " round " + phase.Round + (phase.BracketRound > 0 ? " bracket " + phase.BracketRound : "") +
+                        (phase.Attempt > 0 ? " attempt " + phase.Attempt : "") + (phase.EndTick >= 0 ? " until t" + phase.EndTick : ""));
                     BroadcastSeats(GameProtocol.Phase, new PhaseMessage
                     {
                         Phase = phase.Phase,

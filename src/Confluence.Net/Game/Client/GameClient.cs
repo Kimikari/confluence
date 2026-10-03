@@ -101,7 +101,15 @@ namespace Confluence.Net.Game.Client
             Transport.Messages.On(GameProtocol.DuelEvents, (c, m) => OnEvents(m));
             Transport.Messages.On(GameProtocol.DuelReport, (c, m) => OnReport(m));
             Transport.Messages.On(GameProtocol.SpectatorFrame, (c, m) => OnSpectatorFrame(m));
+            Transport.MessageRejected += outcome =>
+            {
+                RejectedMessages++;
+                if (RejectedMessages <= 20) Log("dropped " + outcome.Result + " " + (outcome.Type != null ? outcome.Type.Name : "#" + outcome.MessageId) + (outcome.Error != null ? ": " + outcome.Error.Message : ""));
+            };
         }
+
+        /// <summary>Received messages dropped as malformed or illegal (diagnostics; a correct server never causes one).</summary>
+        public int RejectedMessages { get; private set; }
 
         public ClientTransport Transport { get; }
 

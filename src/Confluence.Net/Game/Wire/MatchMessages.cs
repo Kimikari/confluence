@@ -32,7 +32,7 @@ namespace Confluence.Net.Game.Wire
         public void Deserialize(NetReader r)
         {
             Phase = (MatchPhase)r.ReadByteInRange(0, (byte)MatchPhase.Finished);
-            Round = r.ReadVarIntInRange(0, 1000) ;
+            Round = r.ReadCountValue(0, 1000);
             BracketRound = (int)r.ReadVarUInt();
             Attempt = (int)r.ReadVarUInt();
             StartTick = (int)r.ReadVarUInt();
@@ -196,9 +196,9 @@ namespace Confluence.Net.Game.Wire
         public void Deserialize(NetReader r)
         {
             ArenaId = r.ReadId();
-            Round = r.ReadVarIntInRange(1, 1000);
+            Round = r.ReadCountValue(1, 1000);
             RecipeSeed = r.ReadULong();
-            Diameter = r.ReadVarIntInRange(8, 256);
+            Diameter = r.ReadCountValue(8, 256);
             BiomeId = r.ReadId();
             AvailablePropIds = r.ReadIdList();
             LayoutHash = r.ReadULong();

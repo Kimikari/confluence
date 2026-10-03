@@ -110,6 +110,14 @@ namespace Confluence.Net.Game.Wire
             return (T)Enum.ToObject(typeof(T), b);
         }
 
+        /// <summary>An unsigned varint (written with WriteVarUInt) inside [min, max].</summary>
+        public static int ReadCountValue(this NetReader reader, int min, int max)
+        {
+            uint v = reader.ReadVarUInt();
+            if (v < (uint)min || v > (uint)max) throw new NetReadException(NetReadError.InvalidValue, "value " + v + " outside [" + min + ", " + max + "]");
+            return (int)v;
+        }
+
         /// <summary>A player seat (0..7) or -1 for none.</summary>
         public static void WriteSeat(this NetWriter writer, int seat) => writer.WriteVarInt(seat < 0 ? -1 : seat);
 
