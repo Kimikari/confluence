@@ -160,6 +160,9 @@ namespace Confluence.Net.Requests
 
     public delegate Reply<TResponse> RequestHandler<TSender, TRequest, TResponse>(TSender sender, TRequest request);
 
+    /// <summary>A request handler that also receives the client-assigned request id.</summary>
+    public delegate Reply<TResponse> RequestHandlerWithId<TSender, TRequest, TResponse>(TSender sender, uint requestId, TRequest request);
+
     /// <summary>Result delivered to the client's callback.</summary>
     public struct RequestResult<T>
     {

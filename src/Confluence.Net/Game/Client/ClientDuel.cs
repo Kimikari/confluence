@@ -1,0 +1,401 @@
+using System;
+using System.Collections.Generic;
+using Confluence.Casting;
+using Confluence.Core.Arena;
+using Confluence.Core.Content;
+using Confluence.Core.Geometry;
+using Confluence.Core.Time;
+using Confluence.Net.Game.Snapshots;
+using Confluence.Net.Game.Wire;
+using Confluence.Net.Serialization;
+using Confluence.Net.Sync;
+using Confluence.Reactions.Grid;
+using Confluence.Sim.Content;
+using Confluence.Sim.Duel;
+using Confluence.Sim.Input;
+using Confluence.Sim.Movement;
+
+namespace Confluence.Net.Game.Client
+{
+    /// <summary>
+    /// The client's live view of its own duel: authoritative snapshots (delta-decoded against acknowledged baselines),
+    /// remote entities interpolated about 100 ms behind the server (spec L419-L421), the local player's movement predicted
+    /// with the Sim motor and reconciled after every snapshot (unacknowledged inputs replayed, corrections smoothed), the
+    /// predicted grammar overlay, and the duel's reliable event stream. Rendering (Unity) and bots read it; it never
+    /// decides an outcome.
+    /// </summary>
+    public sealed class ClientDuel
+    {
+        public const int MaxSentHistory = 256;
+        private const int DecodedHistory = 128;
+
+        /// <summary>Corrections larger than this snap instead of being smoothed (a teleport, a knockback).</summary>
+        public const float SnapDistance = 3f;
+
+        /// <summary>Visual correction offset half-life in seconds.</summary>
+        public const float CorrectionHalfLifeSec = 0.05f;
+
+        private readonly Dictionary<int, DuelFrame> _decoded = new Dictionary<int, DuelFrame>();
+        private readonly Queue<int> _decodedOrder = new Queue<int>();
+        private readonly SnapshotBuffer<DuelFrame> _remote = new SnapshotBuffer<DuelFrame>(48);
+        private readonly InputSendBuffer<PlayerInput> _inputs = new InputSendBuffer<PlayerInput>(NetRules.InputRedundancy, MaxSentHistory);
+        private readonly PlayerInput[] _sent = new PlayerInput[MaxSentHistory];
+        private readonly int[] _sentTick = new int[MaxSentHistory];
+        private readonly uint[] _sentSeq = new uint[MaxSentHistory];
+        private readonly Catalogue _catalogue;
+        private float _predictedStamina;
+        private InputButtons _lastSentButtons;
+
+        internal ClientDuel(DuelStartMessage start, Catalogue catalogue, ContentRegistry registry)
+        {
+            Start = start ?? throw new ArgumentNullException(nameof(start));
+            _catalogue = catalogue;
+            Grammar = new GrammarPredictor(catalogue, registry, start.Sides[start.YourSide], start.YourSide);
+        }
+
+        public DuelStartMessage Start { get; }
+        public int DuelId => Start.DuelId;
+        public int Side => Start.YourSide;
+        public int OpponentSide => 1 - Start.YourSide;
+        public DuelSideWire Own => Start.Sides[Side];
+        public DuelSideWire Opponent => Start.Sides[OpponentSide];
+
+        /// <summary>The regenerated public layout, or null while it is still being generated.</summary>
+        public ArenaLayout Layout { get; private set; }
+
+        public CellGrid Grid { get; private set; }
+
+        public MotorPredictor Predictor { get; private set; }
+
+        public GrammarPredictor Grammar { get; }
+
+        // ---- Authoritative ------------------------------------------------------------------------------------------
+
+        /// <summary>The newest decoded snapshot (per-viewer projection).</summary>
+        public DuelFrame Latest { get; private set; }
+
+        /// <summary>The newest private state (own exact motor, resources, cooldowns, grammar).</summary>
+        public PrivateEntry LatestPrivate { get; private set; }
+
+        public int LatestTick => Latest != null ? Latest.Tick : -1;
+
+        /// <summary>Last input sequence the server processed at <see cref="LatestTick"/>.</summary>
+        public uint LatestAck { get; private set; }
+
+        public DuelPhase Phase => Latest != null ? Latest.Phase : DuelPhase.Alcove;
+
+        public bool Ended { get; internal set; }
+
+        public DuelReportMessage Report { get; internal set; }
+
+        // ---- Prediction -----------------------------------------------------------------------------------------
+
+        /// <summary>The duel tick of the newest command produced locally.</summary>
+        public int LocalTick { get; internal set; }
+
+        public bool HasPrediction { get; private set; }
+
+        /// <summary>Predicted own motor state after the newest local command.</summary>
+        public MotorState Predicted { get; private set; }
+
+        /// <summary>Visual offset that eases a reconciliation correction out (never affects the simulation).</summary>
+        public Vec3 CorrectionOffset { get; private set; }
+
+        /// <summary>Where to draw the local player: the prediction plus the decaying correction offset.</summary>
+        public Vec3 RenderPosition => HasPrediction ? Predicted.Position + CorrectionOffset : OwnAuthoritativePosition;
+
+        public Vec3 OwnAuthoritativePosition => LatestPrivate != null ? LatestPrivate.Motor.Position : (Latest?.Players[Side].PositionMeters ?? Vec3.Zero);
+
+        public int Reconciliations { get; private set; }
+
+        /// <summary>Distance the prediction moved at the last reconciliation.</summary>
+        public float LastCorrection { get; private set; }
+
+        public float MaxCorrection { get; private set; }
+
+        /// <summary>Reconciliations whose correction exceeded 1 cm.</summary>
+        public int Corrections { get; private set; }
+
+        public int Snaps { get; private set; }
+
+        // ---- Interpolation ----------------------------------------------------------------------------------------
+
+        /// <summary>The duel tick remote entities are drawn at (about 100 ms behind the server estimate).</summary>
+        public double RenderTick { get; private set; }
+
+        /// <summary>The opponent as interpolated at <see cref="RenderTick"/>, or null before the first snapshot.</summary>
+        public PlayerEntry InterpolatedOpponent { get; private set; }
+
+        public Vec3 OpponentRenderPosition { get; private set; }
+
+        public float OpponentRenderYaw { get; private set; }
+
+        public SampleKind LastSampleKind { get; private set; }
+
+        // ---- Events and counters ----------------------------------------------------------------------------------
+
+        public List<WireDuelEvent> Events { get; } = new List<WireDuelEvent>();
+
+        public event Action<ClientDuel, WireDuelEvent> EventReceived;
+
+        public int SnapshotsReceived { get; private set; }
+        public int DeltaSnapshots { get; private set; }
+        public int MalformedSnapshots { get; private set; }
+        public int MissingBaselines { get; private set; }
+        public int StaleSnapshots { get; private set; }
+
+        /// <summary>Damage events this player dealt to the opponent (authoritative hit confirmations, spec L349).</summary>
+        public int HitsConfirmed { get; private set; }
+
+        public float DamageDealt { get; private set; }
+
+        public float DamageTaken { get; private set; }
+
+        public InputSendBuffer<PlayerInput> Inputs => _inputs;
+
+        /// <summary>Newest decoded snapshot tick, the server's delta baseline acknowledgement.</summary>
+        public int AckTick => Latest != null ? Latest.Tick : -1;
+
+        // ---- Layout -----------------------------------------------------------------------------------------------
+
+        internal void AttachLayout(ArenaLayout layout)
+        {
+            if (Layout != null || layout == null) return;
+            Layout = layout;
+            Grid = CellGrid.ForArena(layout);
+            Predictor = new MotorPredictor(layout, Start.AlcoveTicks, Own.Alcove);
+            if (Latest != null) Predictor.ApplySolids(Latest.Solids);
+            if (LatestPrivate != null) Reconcile();
+        }
+
+        // ---- Snapshots --------------------------------------------------------------------------------------------
+
+        internal void OnSnapshot(SnapshotHeader header, byte[] body)
+        {
+            DuelFrame baseline = null;
+            if (header.HasBaseline && !_decoded.TryGetValue(header.BaselineTick, out baseline))
+            {
+                MissingBaselines++;
+                return;
+            }
+
+            DuelFrame frame;
+            PrivateEntry own;
+            try
+            {
+                var reader = new NetReader(body, 0, body.Length);
+                frame = SnapshotCodec.DecodeBody(reader, header, baseline, out own);
+                reader.ExpectEnd();
+            }
+            catch (NetReadException)
+            {
+                MalformedSnapshots++;
+                return;
+            }
+
+            if (frame.DuelId != DuelId)
+            {
+                StaleSnapshots++;
+                return;
+            }
+
+            SnapshotsReceived++;
+            if (header.HasBaseline) DeltaSnapshots++;
+            if (!_decoded.ContainsKey(frame.Tick))
+            {
+                _decoded[frame.Tick] = frame;
+                _decodedOrder.Enqueue(frame.Tick);
+                while (_decodedOrder.Count > DecodedHistory) _decoded.Remove(_decodedOrder.Dequeue());
+            }
+
+            _remote.Add(frame.Tick, frame);
+            if (Latest != null && frame.Tick <= Latest.Tick) return; // an older reliable keyframe overtaken by newer ones
+
+            Latest = frame;
+            Predictor?.ApplySolids(frame.Solids);
+            if (own != null)
+            {
+                LatestPrivate = own;
+                LatestAck = header.LastProcessedInput;
+                Grammar.SetContext(own, frame.Players[Side], frame.Tick, frame.Phase == DuelPhase.Alcove);
+                Grammar.Reconcile(LocalTickOf(header.LastProcessedInput), (CastPhase)own.MachinePhase);
+                Reconcile();
+            }
+        }
+
+        /// <summary>Re-applies every unacknowledged input over the newest authoritative motor state (spec L419).</summary>
+        private void Reconcile()
+        {
+            _inputs.Acknowledge(LatestAck);
+            if (Predictor == null || LatestPrivate == null) return;
+            MotorState state = LatestPrivate.Motor;
+            float stamina = LatestPrivate.Stamina;
+            InputButtons previous = PreviousButtonsBefore(LatestAck + 1);
+            int tick = Latest.Tick;
+            foreach (InputCommand<PlayerInput> command in _inputs.Unacknowledged)
+            {
+                if (command.Sequence <= LatestAck) continue;
+                tick++;
+                state = Predictor.Step(state, command.Input, previous, tick, LatestPrivate, ref stamina);
+                previous = command.Input.Buttons;
+            }
+
+            Reconciliations++;
+            if (HasPrediction)
+            {
+                Vec3 delta = Predicted.Position - state.Position;
+                float distance = delta.Length();
+                LastCorrection = distance;
+                if (distance > MaxCorrection) MaxCorrection = distance;
+                if (distance > 0.01f) Corrections++;
+                if (distance > SnapDistance)
+                {
+                    CorrectionOffset = Vec3.Zero;
+                    Snaps++;
+                }
+                else
+                {
+                    CorrectionOffset += delta;
+                }
+            }
+
+            Predicted = state;
+            _predictedStamina = stamina;
+            HasPrediction = true;
+        }
+
+        // ---- Inputs -----------------------------------------------------------------------------------------------
+
+        /// <summary>Records and predicts the canonical command for <paramref name="tick"/>; returns its sequence.</summary>
+        internal uint Produce(int tick, PlayerInput input)
+        {
+            input.Tick = tick;
+            input = PlayerInputCodec.Canonicalize(input);
+            input.Tick = tick;
+            uint sequence = _inputs.Push(input);
+            input.Sequence = sequence;
+            int slot = (int)(sequence % MaxSentHistory);
+            _sent[slot] = input;
+            _sentTick[slot] = tick;
+            _sentSeq[slot] = sequence;
+            LocalTick = tick;
+
+            if (Predictor != null && HasPrediction)
+            {
+                MotorState state = Predicted;
+                float stamina = _predictedStamina;
+                state = Predictor.Step(state, input, _lastSentButtons, tick, LatestPrivate, ref stamina);
+                Predicted = state;
+                _predictedStamina = stamina;
+            }
+
+            Grammar.Step(tick, input, HasPrediction ? Predicted : (LatestPrivate != null ? LatestPrivate.Motor : default));
+            _lastSentButtons = input.Buttons;
+            return sequence;
+        }
+
+        /// <summary>Fills an input packet with the newest command and its redundant predecessors.</summary>
+        internal void FillPacket(DuelInputMessage message)
+        {
+            message.DuelId = DuelId;
+            message.AckSnapshotTick = AckTick;
+            _inputs.FillPacket(message.Commands);
+        }
+
+        private InputButtons PreviousButtonsBefore(uint sequence)
+        {
+            if (sequence <= 1) return InputButtons.None;
+            uint previous = sequence - 1;
+            int slot = (int)(previous % MaxSentHistory);
+            return _sentSeq[slot] == previous ? _sent[slot].Buttons : InputButtons.None;
+        }
+
+        private int LocalTickOf(uint sequence)
+        {
+            if (sequence == 0) return 0;
+            int slot = (int)(sequence % MaxSentHistory);
+            return _sentSeq[slot] == sequence ? _sentTick[slot] : 0;
+        }
+
+        // ---- Rendering ----------------------------------------------------------------------------------------------
+
+        /// <summary>Advances interpolation to <paramref name="renderTick"/> (duel ticks) and eases the correction offset.</summary>
+        internal void UpdateRender(double renderTick, float dtSeconds)
+        {
+            RenderTick = renderTick;
+            if (dtSeconds > 0f && CorrectionOffset != Vec3.Zero)
+            {
+                float keep = (float)Math.Pow(0.5, dtSeconds / CorrectionHalfLifeSec);
+                CorrectionOffset = CorrectionOffset * keep;
+                if (CorrectionOffset.Length() < 1e-4f) CorrectionOffset = Vec3.Zero;
+            }
+
+            SnapshotSample<DuelFrame> sample = _remote.Sample(renderTick);
+            LastSampleKind = sample.Kind;
+            if (sample.Kind == SampleKind.Empty) return;
+            PlayerEntry a = sample.From.Players[OpponentSide];
+            PlayerEntry b = sample.To.Players[OpponentSide];
+            float t = sample.Kind == SampleKind.Interpolated ? sample.Alpha : 0f;
+            InterpolatedOpponent = t < 0.5f ? a : b;
+            OpponentRenderPosition = Vec3.Lerp(a.PositionMeters, b.PositionMeters, t);
+            OpponentRenderYaw = a.YawDeg + CMath.DeltaAngle(a.YawDeg, b.YawDeg) * t;
+            _remote.DiscardBefore((int)Math.Floor(renderTick) - Ticks.PerSecond);
+        }
+
+        /// <summary>The interpolated position of a spell entity at the render tick, when it is in the bracketing frames.</summary>
+        public bool TryGetEntityRenderPosition(int entityId, out Vec3 position)
+        {
+            position = Vec3.Zero;
+            SnapshotSample<DuelFrame> sample = _remote.Sample(RenderTick);
+            if (sample.Kind == SampleKind.Empty) return false;
+            EntityEntry a = sample.From.Entities.Find(e => e.Key == entityId);
+            EntityEntry b = sample.To.Entities.Find(e => e.Key == entityId);
+            if (a == null && b == null) return false;
+            if (a == null || b == null)
+            {
+                position = (a ?? b).PositionMeters;
+                return true;
+            }
+
+            position = Vec3.Lerp(a.PositionMeters, b.PositionMeters, sample.Kind == SampleKind.Interpolated ? sample.Alpha : 0f);
+            return true;
+        }
+
+        // ---- Events -----------------------------------------------------------------------------------------------
+
+        internal void OnEvents(DuelEventsMessage message)
+        {
+            foreach (WireDuelEvent e in message.Events)
+            {
+                Events.Add(e);
+                if (e.Type == WireEventType.Damage)
+                {
+                    float dealt = e.Amount + e.Amount2;
+                    if (e.Player == Side && e.Target == OpponentSide)
+                    {
+                        HitsConfirmed++;
+                        DamageDealt += dealt;
+                    }
+                    else if (e.Target == Side)
+                    {
+                        DamageTaken += dealt;
+                    }
+                }
+
+                if (e.Type == WireEventType.DuelEnd) Ended = true;
+                EventReceived?.Invoke(this, e);
+            }
+        }
+
+        /// <summary>Remaining combat seconds at the newest snapshot (spec L47: at most 90 s), or the alcove countdown.</summary>
+        public float TimerSeconds
+        {
+            get
+            {
+                if (Latest == null) return 0f;
+                if (Latest.Phase == DuelPhase.Alcove) return Math.Max(0, Start.AlcoveTicks - Latest.Tick) / (float)Ticks.PerSecond;
+                return Math.Max(0, Start.CombatTicks - Latest.CombatTick) / (float)Ticks.PerSecond;
+            }
+        }
+    }
+}

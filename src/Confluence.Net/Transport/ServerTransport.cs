@@ -112,6 +112,19 @@ namespace Confluence.Net.Transport
         /// <summary>When false only reconnects are accepted (for example after the match started).</summary>
         public bool AcceptNewPlayers { get; set; } = true;
 
+        /// <summary>
+        /// Simulation ticks per wall-clock second announced in the welcome (the client's clock estimate runs at this
+        /// pace). 60 in real time; a labeled accelerated test server announces its faster pace.
+        /// </summary>
+        public int WelcomeTickRate { get; set; } = NetRules.TickRate;
+
+        /// <summary>Largest unreliable or sequenced payload that fits one datagram for this player right now (0 when not connected).</summary>
+        public int MaxUnreliablePayload(PlayerSession session)
+        {
+            if (session == null || !_peerOfPlayer.TryGetValue(session.PlayerId, out NetPeer peer)) return 0;
+            return peer.GetMaxSinglePacketSize(DeliveryMethod.Sequenced);
+        }
+
         public bool IsRunning => _net.IsRunning;
 
         public int Port => _net.LocalPort;
@@ -186,6 +199,22 @@ namespace Confluence.Net.Transport
         }
 
         public void Dispose() => Stop();
+
+        /// <summary>
+        /// Clean shutdown: every connected player receives a server-shutdown notice (their client shows why the session
+        /// ended and does not try to resume), queued traffic is flushed, then the socket closes.
+        /// </summary>
+        public void Shutdown(string detail)
+        {
+            if (!_net.IsRunning) return;
+            var connected = new List<PlayerSession>();
+            foreach (PlayerSession s in Sessions.All)
+                if (s.IsConnected) connected.Add(s);
+            Flush();
+            foreach (PlayerSession s in connected) Close(s, DisconnectNoticeReason.ServerShutdown, detail ?? "server shutdown", false);
+            Flush();
+            Stop();
+        }
 
         // ---- Sending ---------------------------------------------------------------------------
 
@@ -407,6 +436,7 @@ namespace Confluence.Net.Transport
                 Resumed = resumed,
                 ReconnectWindowMs = Sessions.ReconnectWindowMs,
                 ServerTick = TickClock.CurrentTick,
+                TickRate = WelcomeTickRate,
             };
             Send(session, ProtocolMessages.Welcome, welcome);
             SessionConnected?.Invoke(session, resumed);

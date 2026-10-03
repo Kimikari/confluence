@@ -127,7 +127,8 @@ namespace Confluence.Net.Transport
 
         public RequestClient<ClientTransport> Requests { get; }
 
-        public ClockSync Clock { get; }
+        /// <summary>Server clock estimate; recreated at the pace a welcome announces (60 ticks/s in real time).</summary>
+        public ClockSync Clock { get; private set; }
 
         public TransportCounters Counters { get; } = new TransportCounters();
 
@@ -353,6 +354,7 @@ namespace Confluence.Net.Transport
             State = ClientState.Connected;
 
             long now = _clock.NowMs;
+            if (welcome.TickRate != Clock.TickRate) Clock = new ClockSync(welcome.TickRate);
             Clock.Reset();
             Clock.Seed(welcome.ServerTick, now, _peer != null ? _peer.Ping : 0);
             _pingsSent = 0;
