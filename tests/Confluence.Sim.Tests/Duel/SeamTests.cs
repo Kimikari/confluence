@@ -212,6 +212,10 @@ namespace Confluence.Sim.Tests.Duel
 
             public void QueueDeposit(in WorldDeposit deposit) => Deposits.Add(deposit);
 
+            public void QueueImpact(in WorldImpact impact)
+            {
+            }
+
             public void Step(IMaterialsContext context)
             {
                 _log?.Add("materials");

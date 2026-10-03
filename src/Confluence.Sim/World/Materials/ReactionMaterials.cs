@@ -238,6 +238,33 @@ namespace Confluence.Sim.World.Materials
             }
         }
 
+        /// <summary>
+        /// A delivery's direct impact (spec L145-L147, L153): a ground impact reaches the struck cell's ice; a wall or
+        /// cover impact reaches brittle and combustible layout solids. Walkable solids count as the ground.
+        /// </summary>
+        public void QueueImpact(in WorldImpact impact)
+        {
+            ReactionWorld world = RequireWorld();
+            RecordSource(impact.OriginEventId, impact.SourceId);
+            int solidId = impact.SolidId;
+            CollisionSolid struck = solidId >= 0 ? Duel?.Collision.Find(solidId) : null;
+            if (struck == null || CollisionWorld.IsWalkableKind(struck.Kind) || Duel.Props.IsPropSolid(solidId))
+            {
+                solidId = -1; // the ground cell under the impact (props are not reaction solids)
+            }
+
+            world.Impact(new DirectImpact
+            {
+                Point = impact.Point,
+                Direction = impact.Direction,
+                DirectDamage = Math.Max(0f, impact.DirectDamage),
+                SolidId = solidId,
+                HeatStrength = Math.Max(0, impact.HeatStrength),
+                Owner = impact.SourcePlayer >= 0 && impact.SourcePlayer < DuelWorld.PlayerCount ? impact.SourcePlayer : ReactionRules.MapOwner,
+                SourceEventId = impact.OriginEventId,
+            });
+        }
+
         // A force footprint pushes every loose prop whose body center lies inside it, along the force direction or
         // away from the force center (spec L155).
         private void PushPropsIn(Vec3 center, float radius, Vec3 direction, int owner, int sourceEventId)

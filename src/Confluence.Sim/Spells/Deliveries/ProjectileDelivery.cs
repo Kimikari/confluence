@@ -189,6 +189,7 @@ namespace Confluence.Sim.Spells
             {
                 ctx.Emit(SpellEventKind.ProjectileImpact, Cast, point, dir, Id, solidId: hit.SolidId);
                 ctx.DamageSolid(Cast, payload, hit.SolidId);
+                ctx.ReportImpact(Cast, payload, point, dir, hit.SolidId, _damageScale); // ice, brittle and combustible cover (L145-L147)
             }
 
             Burst(ctx, point, normal, dir);

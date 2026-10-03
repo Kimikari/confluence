@@ -177,6 +177,7 @@ namespace Confluence.Hosting.Tests
         private sealed class Fog : IWorldMaterials
         {
             public void QueueDeposit(in WorldDeposit deposit) { }
+            public void QueueImpact(in WorldImpact impact) { }
             public void Step(IMaterialsContext context) { }
             public float ObscuringPathLength(Vec3 from, Vec3 to) => 100f;
             public SurfaceInfo QuerySurface(Vec3 feet) => SurfaceInfo.Normal;

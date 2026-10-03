@@ -77,6 +77,32 @@ namespace Confluence.Sim.World
         public float AdjacentRadius;
     }
 
+    /// <summary>
+    /// A delivery's direct impact on the world (spec L145-L147, L153, L165 "incoming direct impacts" first): the
+    /// reactions stage breaks or wears struck ice and brittle cover (shards at 20+ direct damage) and ignites
+    /// combustible solids that receive enough heat. Queued during step 4, applied at step 5.
+    /// </summary>
+    public struct WorldImpact
+    {
+        public Vec3 Point;
+
+        /// <summary>Travel direction; a shard cone opens along its ground projection.</summary>
+        public Vec3 Direction;
+
+        /// <summary>The impact's direct damage (after mastery and bounce scaling, before the target's mitigation).</summary>
+        public float DirectDamage;
+
+        /// <summary>Layout solid struck (brittle or combustible cover), or -1 for the ground under the impact.</summary>
+        public int SolidId;
+
+        /// <summary>Heat the impact carries into a struck solid (its impact heat deposit).</summary>
+        public int HeatStrength;
+
+        public int SourcePlayer;
+        public string SourceId;
+        public int OriginEventId;
+    }
+
     /// <summary>Kind of ground surface under a character (spec L175).</summary>
     public enum SurfaceKind
     {
@@ -148,6 +174,9 @@ namespace Confluence.Sim.World
     {
         void QueueDeposit(in WorldDeposit deposit);
 
+        /// <summary>Queues a direct impact on the ground or a struck solid (spec L145-L147, L153).</summary>
+        void QueueImpact(in WorldImpact impact);
+
         /// <summary>Processes reactions in the fixed order (spec L165) and requests contact damage.</summary>
         void Step(IMaterialsContext context);
 
@@ -164,6 +193,10 @@ namespace Confluence.Sim.World
     public sealed class NullWorldMaterials : IWorldMaterials
     {
         public void QueueDeposit(in WorldDeposit deposit)
+        {
+        }
+
+        public void QueueImpact(in WorldImpact impact)
         {
         }
 

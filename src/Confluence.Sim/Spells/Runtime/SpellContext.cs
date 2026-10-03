@@ -348,6 +348,34 @@ namespace Confluence.Sim.Spells
             }
         }
 
+        /// <summary>
+        /// Reports a delivery's direct impact on a solid or the ground to the reactions stage (spec L145-L147, L153):
+        /// struck ice and brittle cover wear or shatter by the impact's direct damage, and combustible solids receive the
+        /// impact heat. Bodies and players are not reaction solids.
+        /// </summary>
+        public void ReportImpact(CastRecord cast, PayloadSpec payload, Vec3 point, Vec3 direction, int solidId, float scale = 1f)
+        {
+            if (payload == null) return;
+            int heat = 0;
+            for (int i = 0; i < payload.Deposits.Count; i++)
+            {
+                DepositSpec d = payload.Deposits[i];
+                if (d.Kind == DepositKind.Heat && d.Placement == DepositPlacement.Impact) heat = Math.Max(heat, d.Strength);
+            }
+
+            World.Materials.QueueImpact(new WorldImpact
+            {
+                Point = point,
+                Direction = direction,
+                DirectDamage = DamageFor(cast, payload, CastHitKinds.Direct) * scale,
+                SolidId = solidId,
+                HeatStrength = heat,
+                SourcePlayer = cast.Caster,
+                SourceId = cast.SpellId,
+                OriginEventId = cast.OriginEventId,
+            });
+        }
+
         /// <summary>Durability damage to a destructible solid struck by a direct impact (spec L171).</summary>
         public void DamageSolid(CastRecord cast, PayloadSpec payload, int solidId)
         {

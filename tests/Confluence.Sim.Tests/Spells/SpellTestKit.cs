@@ -47,14 +47,18 @@ namespace Confluence.Sim.Tests.Spells
             context.Elapsed >= _commitAfter ? GrammarStep.Commit(Result) : GrammarStep.Continue;
     }
 
-    /// <summary>Records every deposit the spell runtime queues through the materials seam.</summary>
+    /// <summary>Records every deposit and impact the spell runtime queues through the materials seam.</summary>
     internal sealed class RecordingMaterials : IWorldMaterials
     {
         public List<WorldDeposit> Deposits { get; } = new List<WorldDeposit>();
 
         public float Obscuring { get; set; }
 
+        public List<WorldImpact> Impacts { get; } = new List<WorldImpact>();
+
         public void QueueDeposit(in WorldDeposit deposit) => Deposits.Add(deposit);
+
+        public void QueueImpact(in WorldImpact impact) => Impacts.Add(impact);
 
         public void Step(IMaterialsContext context)
         {
