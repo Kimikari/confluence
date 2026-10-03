@@ -120,6 +120,13 @@ namespace Confluence.Net.Game.Wire
         public string LaboratoryLabel { get; set; } = string.Empty;
 
         public bool CountsForRating { get; set; }
+
+        /// <summary>
+        /// The server's settings fingerprint (ruleset, mode, seats, bots, overrides, Conclave settings, spectator delay,
+        /// pace, allowed wizards, implemented content), visible before joining (spec L71).
+        /// </summary>
+        public string SettingsFingerprint { get; set; } = string.Empty;
+
         public string Notice { get; set; } = string.Empty;
         public List<LobbySeatWire> Seats { get; } = new List<LobbySeatWire>();
         public List<WizardChoiceWire> Wizards { get; } = new List<WizardChoiceWire>();
@@ -131,6 +138,7 @@ namespace Confluence.Net.Game.Wire
             w.WriteByte((byte)Status);
             w.WriteText(LaboratoryLabel);
             w.WriteBool(CountsForRating);
+            w.WriteId(SettingsFingerprint);
             w.WriteText(Notice);
             w.WriteVarUInt((uint)Seats.Count);
             foreach (LobbySeatWire s in Seats)
@@ -158,6 +166,7 @@ namespace Confluence.Net.Game.Wire
             Status = (LobbyStatus)r.ReadByteInRange(0, (byte)LobbyStatus.Refused);
             LaboratoryLabel = r.ReadText();
             CountsForRating = r.ReadBool();
+            SettingsFingerprint = r.ReadId() ?? string.Empty;
             Notice = r.ReadText();
             int seats = r.ReadCount(WireLimits.MaxPlayers, 4);
             for (int i = 0; i < seats; i++)

@@ -92,12 +92,13 @@ namespace Confluence.Net.Tests.Game
         {
             RoundTrip(new JoinLobbyRequest { WizardId = "WIZ-010", Route = InputRoute.Guided });
             RoundTrip(new JoinLobbyResponse { Seat = 3, Detail = "joined" });
-            var lobby = new LobbyStateMessage { Mode = MatchMode.Conclave, PlayerCount = 4, Status = LobbyStatus.Waiting, LaboratoryLabel = "laboratory:x", Notice = "n" };
+            var lobby = new LobbyStateMessage { Mode = MatchMode.Conclave, PlayerCount = 4, Status = LobbyStatus.Waiting, LaboratoryLabel = "laboratory:x", SettingsFingerprint = "0123456789ABCDEF", Notice = "n" };
             lobby.Seats.Add(new LobbySeatWire { Seat = 0, Name = "Ash", WizardId = "WIZ-002", Joined = true, Connected = true });
             lobby.Seats.Add(new LobbySeatWire { Seat = 3, Name = "Bot 4", IsBot = true, Joined = true });
             lobby.Wizards.Add(new WizardChoiceWire { WizardId = "WIZ-002", Name = "Bram Cinder", Routes = InputRoute.Standard, KitImplemented = true });
             LobbyStateMessage l = RoundTrip(lobby);
             Assert.Equal("Bram Cinder", l.Wizards[0].Name);
+            Assert.Equal("0123456789ABCDEF", l.SettingsFingerprint);
             Assert.True(l.Seats[1].IsBot);
 
             var settings = new MatchSettingsMessage { YourSeat = 1, Mode = MatchMode.Duel, HostFingerprint = "AB", ShopTicks = 2100, DraftTicks = 1800, AlcoveTicks = 300, CombatTicks = 5400, ResultsTicks = 480, TicksPerWallSecond = 240, Accelerated = true };

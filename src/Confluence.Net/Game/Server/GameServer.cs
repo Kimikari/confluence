@@ -5,6 +5,7 @@ using System.Net;
 using Confluence.Arena.Generation;
 using Confluence.Casting.Grammars;
 using Confluence.Core.Content;
+using Confluence.Core.Random;
 using Confluence.Core.Rules;
 using Confluence.Core.Time;
 using Confluence.Hosting;
@@ -123,6 +124,7 @@ namespace Confluence.Net.Game.Server
             _arenaCache = arenaCache ?? new ArenaCache();
             Implemented = ImplementedContent.FromShippedAssemblies();
             BuildWizardList();
+            SettingsFingerprint = ComputeSettingsFingerprint();
 
             var identity = new ServerIdentity(ruleset) { MaxSessions = settings.PlayerCount - settings.Bots + 8 };
             Transport = new ServerTransport(identity, settings.Transport ?? GameTransport.Defaults(), _clock, tokens);
@@ -170,6 +172,9 @@ namespace Confluence.Net.Game.Server
         public LobbyStatus Status { get; private set; }
 
         public ImplementedContent Implemented { get; }
+
+        /// <summary>The settings fingerprint sent in every lobby state, before joining (spec L71).</summary>
+        public string SettingsFingerprint { get; }
 
         public GameServerSettings Settings => _settings;
 
@@ -277,6 +282,38 @@ namespace Confluence.Net.Game.Server
             }
         }
 
+        /// <summary>
+        /// The settings fingerprint shown before joining (spec L71): every server setting that changes the rules a
+        /// joining player accepts. Unchanged settings always give the same text; the match host's own fingerprint is
+        /// added to <see cref="MatchSettingsMessage"/> once the match exists.
+        /// </summary>
+        private string ComputeSettingsFingerprint()
+        {
+            var text = new System.Text.StringBuilder("confluence.server.settings.v1");
+            text.Append(";ruleset=").Append(_ruleset.ToHex());
+            text.Append(";mode=").Append(_settings.Mode);
+            text.Append(";seats=").Append(_settings.PlayerCount.ToString(CultureInfo.InvariantCulture));
+            text.Append(";bots=").Append(_settings.Bots.ToString(CultureInfo.InvariantCulture)).Append('/').Append(_settings.BotCompetence);
+            text.Append(";lab=").Append(_settings.Laboratory ? new LaboratoryOverrides(true, true).CanonicalText() : LaboratoryOverrides.None.CanonicalText());
+            if (_settings.Mode == MatchMode.Conclave) text.Append(";conclave=").Append(ConclaveSettingsFor().Fingerprint);
+            text.Append(";spectator=").Append(SpectatorDelayTicks.ToString(CultureInfo.InvariantCulture));
+            text.Append(";pace=").Append(_settings.TicksPerWallSecond.ToString(CultureInfo.InvariantCulture));
+            text.Append(";wizards=");
+            foreach (WizardChoiceWire w in _wizards) text.Append(w.WizardId).Append(w.KitImplemented ? "+" : "-").Append(',');
+            text.Append(";content=").Append(SeedHash.Of(string.Join(",", Implemented.Ids)).ToString("X16", CultureInfo.InvariantCulture));
+            return SeedHash.Of(text.ToString()).ToString("X16", CultureInfo.InvariantCulture);
+        }
+
+        private ConclaveSettings ConclaveSettingsFor()
+        {
+            return _settings.PlayerCount == GlobalRules.Match.LobbySize && _settings.SpectatorDelaySec <= GlobalRules.Match.SpectatorDelayMinSec
+                ? ConclaveSettings.Unranked
+                : ConclaveSettings.Custom(_settings.PlayerCount, spectatorDelaySec: Math.Max(GlobalRules.Match.SpectatorDelayMinSec, _settings.SpectatorDelaySec));
+        }
+
+        /// <summary>The spectator delay in ticks: the configured delay, never below 15 s (spec L391).</summary>
+        private int SpectatorDelayTicks => Ticks.FromSeconds(Math.Max(GlobalRules.Match.SpectatorDelayMinSec, _settings.SpectatorDelaySec));
+
         private List<string> AllowedWizardIds()
         {
             var ids = new List<string>();
@@ -348,10 +385,7 @@ namespace Confluence.Net.Game.Server
             {
                 Mode = _settings.Mode,
                 MatchSeed = _settings.Seed,
-                Conclave = _settings.Mode == MatchMode.Conclave
-                    ? (_settings.PlayerCount == GlobalRules.Match.LobbySize ? ConclaveSettings.Unranked
-                        : ConclaveSettings.Custom(_settings.PlayerCount, spectatorDelaySec: Math.Max(GlobalRules.Match.SpectatorDelayMinSec, _settings.SpectatorDelaySec)))
-                    : ConclaveSettings.Unranked,
+                Conclave = _settings.Mode == MatchMode.Conclave ? ConclaveSettingsFor() : ConclaveSettings.Unranked,
                 WizardIds = wizards,
                 PlayerIds = ids,
                 Overrides = overrides,
@@ -456,6 +490,7 @@ namespace Confluence.Net.Game.Server
                 Status = Status,
                 LaboratoryLabel = _settings.Laboratory ? new LaboratoryOverrides(true, true).CanonicalText() : string.Empty,
                 CountsForRating = Host != null ? Host.CountsForRating : false,
+                SettingsFingerprint = SettingsFingerprint,
                 Notice = _notice,
             };
             foreach (Seat s in _seats)
@@ -637,7 +672,7 @@ namespace Confluence.Net.Game.Server
 
         private void OnDuelStarted(RunningDuel duel)
         {
-            var live = new LiveDuel(duel, Ticks.FromSeconds(Math.Max(GlobalRules.Match.SpectatorDelayMinSec, _settings.SpectatorDelaySec)));
+            var live = new LiveDuel(duel, SpectatorDelayTicks);
             live.StartMatchTick = Host.CurrentTick - duel.World.Tick;
             for (int side = 0; side < 2; side++)
             {
