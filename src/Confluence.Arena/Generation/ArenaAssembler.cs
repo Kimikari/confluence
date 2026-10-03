@@ -185,7 +185,7 @@ namespace Confluence.Arena.Generation
         private const float FillerMinHalfDiagonal = 0.6f;
 
         /// <summary>Route-zone lane breakers and filler rocks tried per arena (each costs a navigation rebuild).</summary>
-        private const int LaneRouteChecks = 24;
+        private const int LaneRouteChecks = 12;
 
         private const int FillRouteChecks = 8;
         private const float FillerMaxHalfDiagonal = 3.0f;
