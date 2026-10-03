@@ -76,6 +76,18 @@ namespace Confluence.Sim.Effects
         {
         }
 
+        /// <summary>
+        /// Mana reductions of the owner's cast that depend on its grammar result: <paramref name="masteredReduction"/>
+        /// applies only if the cast earns its mastery reward (an advanced variation), <paramref name="normalReduction"/>
+        /// only to a normal cast. The cast machine picks one at commitment; the 70% floor covers all reductions (L124).
+        /// </summary>
+        public virtual void AdjustMasteryPrice(in CastQuote quote, ref float masteredReduction, ref float normalReduction)
+        {
+        }
+
+        /// <summary>Launch speed of a projectile the owner's cast releases (after the mastery reward).</summary>
+        public virtual float AdjustProjectileSpeed(Spells.CastRecord cast, float speed) => speed;
+
         /// <summary>Windup and recovery changes of a cast the owner is committing (see <see cref="CastModifiers"/>).</summary>
         public virtual void AdjustCastTiming(in CastQuote quote, ref CastTimingAdjust timing)
         {

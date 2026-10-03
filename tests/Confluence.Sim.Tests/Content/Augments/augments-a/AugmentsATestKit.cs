@@ -80,14 +80,13 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
         /// A duel in combat from tick 1 (unless an alcove is given): player 0 as configured, player 1 a plain WIZ-002 setup
         /// with no spells unless given. The registry holds the augments of both setups plus the implemented spells.
         /// </summary>
-        public static DuelWorld Duel(DuelPlayerSetup a, DuelPlayerSetup b = null, ArenaLayout layout = null, ContentRegistry registry = null, int alcoveTicks = 0)
+        public static DuelWorld Duel(DuelPlayerSetup a, DuelPlayerSetup b = null, ArenaLayout layout = null, ContentRegistry registry = null, int alcoveTicks = 0,
+            Func<string, Confluence.Casting.Grammars.IGrammar> grammar = null)
         {
             b = b ?? TestWorlds.Setup("B");
             if (registry == null)
             {
-                var ids = new List<string>();
-                foreach (ActiveAugment aug in a.Augments.Concat(b.Augments)) ids.Add(aug.Id);
-                registry = Registry(ids.ToArray());
+                registry = Registry(AugmentIds(a, b));
             }
 
             var options = new DuelWorldOptions
@@ -95,10 +94,17 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
                 AlcoveTicks = alcoveTicks,
                 Content = registry,
                 Catalogue = Catalogue,
-                SpellRuntime = SpellRuntime.FromCatalogue(Catalogue, registry),
+                SpellRuntime = new SpellRuntime(new CatalogueLoadouts(Catalogue, registry, grammar)),
             };
             return new DuelWorld(layout ?? TestWorlds.Flat(), a, b, options);
         }
+
+        public static string[] AugmentIds(params DuelPlayerSetup[] setups) => setups.SelectMany(s => s.Augments).Select(x => x.Id).ToArray();
+
+        /// <summary>The setups' augments, the implemented spells, and test spell behaviors under real record ids.</summary>
+        public static ContentRegistry RegistryWith(DuelPlayerSetup a, params KeyValuePair<string, object>[] spells) => Registry(AugmentIds(a), spells);
+
+        public static KeyValuePair<string, object> Spell(string id, ISpellBehavior behavior) => new KeyValuePair<string, object>(id, behavior);
 
         /// <summary>WIZ-002 (or another wizard) with one augment at a rank against the plain dummy.</summary>
         public static DuelWorld With(string augmentId, int rank, string wizardId = Bram, ArenaLayout layout = null,
@@ -213,5 +219,69 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
         }
 
         public static int Ticks(float seconds) => Confluence.Core.Time.Ticks.FromSeconds(seconds);
+    }
+
+    /// <summary>
+    /// A test spell behavior for a real record id: a straight projectile with stated direct damage (mana, cooldown, windup,
+    /// range and tags still come from the record). Used where a record needs more implemented spells than the shipped
+    /// kit has yet (several different spells, a cue-sized threat, a precision weak point).
+    /// </summary>
+    internal sealed class TestBolt : ISpellBehavior
+    {
+        private readonly float _direct;
+        private readonly float _speed;
+        private readonly float _precision;
+
+        public TestBolt(float direct, float speed = 30f, float precisionMultiplier = 1f)
+        {
+            _direct = direct;
+            _speed = speed;
+            _precision = precisionMultiplier;
+        }
+
+        public IReadOnlyList<ProseParameter> Parameters => Array.Empty<ProseParameter>();
+
+        public void Build(SpellFormBuilder form)
+        {
+            form.Delivery = new ProjectileDelivery { Speed = _speed, MaxRange = Math.Max(10f, form.Range) };
+            form.Payload.Direct = _direct;
+            if (_precision > 1f)
+            {
+                form.Tags.Add("precision");
+                form.Payload.PrecisionMultiplier = _precision;
+            }
+
+            if (!form.Tags.Contains("damaging")) form.Tags.Add("damaging");
+        }
+    }
+
+    /// <summary>A test field behavior for a real record id: a circle field at the aim point with optional enter damage.</summary>
+    internal sealed class TestField : ISpellBehavior
+    {
+        private readonly float _radius;
+        private readonly float _lifetime;
+        private readonly float _enterDamage;
+        private readonly PlacementMode _placement;
+
+        public TestField(float radius = 3f, float lifetimeSec = 6f, float enterDamage = 0f, PlacementMode placement = PlacementMode.AtAimPoint)
+        {
+            _radius = radius;
+            _lifetime = lifetimeSec;
+            _enterDamage = enterDamage;
+            _placement = placement;
+        }
+
+        public IReadOnlyList<ProseParameter> Parameters => Array.Empty<ProseParameter>();
+
+        public void Build(SpellFormBuilder form)
+        {
+            var field = new FieldDelivery { Shape = FieldShape.Circle, Radius = _radius, LifetimeSec = _lifetime, Placement = _placement };
+            if (_enterDamage > 0f)
+            {
+                field.EnterPayload = new PayloadSpec { Direct = _enterDamage, Channel = form.Channel == Confluence.Core.Rules.DamageChannel.None ? Confluence.Core.Rules.DamageChannel.Physical : form.Channel };
+            }
+
+            form.Delivery = field;
+        }
     }
 }

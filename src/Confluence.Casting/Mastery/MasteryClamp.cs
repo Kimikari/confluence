@@ -21,6 +21,15 @@ namespace Confluence.Casting
         /// <summary>Equipment/augment bonus that modifies a cast rewarded with the same attribute category (spec L480).</summary>
         public float MasteryLinkedAttribute;
 
+        /// <summary>
+        /// Cost reduction (fraction of the listed cost) that applies only when this cast earns its mastery reward ("an
+        /// advanced variation costs 8% less"); it joins the other reductions under the 70% floor (spec L124, L480).
+        /// </summary>
+        public float MasteredCostReduction;
+
+        /// <summary>Cost reduction (fraction) that applies only to a normal, unrewarded cast ("a normal paid spell").</summary>
+        public float NormalCostReduction;
+
         // ----- cast timing from equipment and augments (spec L92, L96, L480) -----------------------------------
 
         /// <summary>Fraction of the intrinsic windup removed for any cast ("preparation decreases 5%"); negative lengthens.</summary>

@@ -25,6 +25,25 @@ namespace Confluence.Sim.Effects
         /// <summary>Strike begin: the player's common melee profile after its hooks.</summary>
         public MeleeProfile AdjustStrike(int player, MeleeProfile profile) => _hosts[player].AdjustStrikeHooks(profile);
 
+        /// <summary>Mana reductions (in mana) that apply only to a mastered or only to a normal cast (EffectHook.AdjustMasteryPrice).</summary>
+        public void MasteryPrice(int player, in CastQuote quote, out float mastered, out float normal)
+        {
+            mastered = 0f;
+            normal = 0f;
+            _hosts[player].AdjustMasteryPriceHooks(quote, ref mastered, ref normal);
+        }
+
+        /// <summary>A released projectile's launch speed after the caster's hooks.</summary>
+        public float AdjustProjectileSpeed(Spells.CastRecord cast, float speed)
+        {
+            if (cast == null || cast.Caster < 0 || cast.Caster >= DuelWorld.PlayerCount)
+            {
+                return speed;
+            }
+
+            return _hosts[cast.Caster].AdjustProjectileSpeedHooks(cast, speed);
+        }
+
         /// <summary>Windup and recovery changes the player's hooks request for a cast being committed.</summary>
         public CastTimingAdjust CastTiming(int player, in CastQuote quote)
         {

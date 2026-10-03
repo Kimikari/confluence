@@ -66,6 +66,28 @@ namespace Confluence.Sim.Effects
             }
         }
 
+        internal void AdjustMasteryPriceHooks(in CastQuote quote, ref float mastered, ref float normal)
+        {
+            for (int i = 0; i < _hooks.Count; i++)
+            {
+                float m = 0f;
+                float n = 0f;
+                _hooks[i].AdjustMasteryPrice(quote, ref m, ref n);
+                mastered += Math.Max(0f, m);
+                normal += Math.Max(0f, n);
+            }
+        }
+
+        internal float AdjustProjectileSpeedHooks(Spells.CastRecord cast, float speed)
+        {
+            for (int i = 0; i < _hooks.Count; i++)
+            {
+                speed = Math.Max(0f, _hooks[i].AdjustProjectileSpeed(cast, speed));
+            }
+
+            return speed;
+        }
+
         internal void AdjustCastTimingHooks(in CastQuote quote, ref CastTimingAdjust timing)
         {
             for (int i = 0; i < _hooks.Count; i++)

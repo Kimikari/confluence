@@ -84,6 +84,7 @@ namespace Confluence.Sim.Spells
             Vec3 origin = ctx.AimOrigin(cast.Caster);
             Vec3 dir = AimDirection(ctx, cast);
             float speed = Speed * cast.ProjectileSpeedMultiplier; // a projectile-speed mastery reward (spec L480)
+            speed = ctx.World.Effects.AdjustProjectileSpeed(cast, speed); // release-time content hooks (Effects/EffectHooks.cs)
             for (int i = 0; i < Count; i++)
             {
                 float offset = Count > 1 ? -SpreadDeg * 0.5f + SpreadDeg * i / (Count - 1) : 0f;
