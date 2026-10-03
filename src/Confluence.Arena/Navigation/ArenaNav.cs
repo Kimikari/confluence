@@ -57,6 +57,10 @@ namespace Confluence.Arena.Navigation
         private const float HeadroomFloor = 0.05f;
         private const float SupportTolerance = 0.45f;
         private const int CrossingBisections = 6;
+
+        /// <summary>Relative margin on the bisection cut-off in <see cref="EdgeCrossing"/> (far above float rounding).</summary>
+        private const float CrossingCutoffMargin = 1e-3f;
+
         private const float MirrorHeightTolerance = 1e-3f;
 
         /// <summary>A collider and its layout image are treated as exact images when they agree this closely.</summary>
@@ -995,6 +999,19 @@ namespace Confluence.Arena.Navigation
                 int ci = c % _n;
                 int cj = c / _n;
                 Vec2 p = new Vec2(_nodeX[a], _nodeZ[a]);
+                if (!StandableNear(p, _nodeHeight[a], out float _))
+                {
+                    // The node's own surface gives way at its center (a higher surface without headroom within reach).
+                    if (0f < _clearance[a])
+                    {
+                        _clearance[a] = 0f;
+                        srcX[a] = p.X;
+                        srcZ[a] = p.Y;
+                    }
+
+                    continue;
+                }
+
                 for (int dir = 0; dir < 8; dir++)
                 {
                     if ((open & (1 << dir)) != 0)
@@ -1003,7 +1020,11 @@ namespace Confluence.Arena.Navigation
                     }
 
                     Vec2 target = new Vec2(p.X + DirX[dir] * _cs, p.Y + DirZ[dir] * _cs);
-                    Vec2 crossing = EdgeCrossing(a, p, target, ci + DirX[dir], cj + DirZ[dir]);
+                    if (!EdgeCrossing(a, p, target, ci + DirX[dir], cj + DirZ[dir], _clearance[a], out Vec2 crossing))
+                    {
+                        continue;
+                    }
+
                     float d2 = Vec2.DistanceSquared(p, crossing);
                     if (d2 < _clearance[a])
                     {
@@ -1014,18 +1035,42 @@ namespace Confluence.Arena.Navigation
                 }
             }
 
-            var heap = new NodeHeap(nodeCount, _rank);
+            // Two queues with one order (key, then rank): the seeded nodes sorted once, and a heap for the improvements
+            // found while propagating. Taking the smaller head each time pops exactly the sequence one heap would.
+            var seeded = new ulong[nodeCount];
+            int seededCount = 0;
             for (int a = 0; a < nodeCount; a++)
             {
                 if (!float.IsPositiveInfinity(_clearance[a]))
                 {
-                    heap.Push(_clearance[a], a);
+                    seeded[seededCount++] = PackKey(_clearance[a], _rank[a]);
                 }
             }
 
-            while (heap.Count > 0)
+            Array.Sort(seeded, 0, seededCount);
+            var nodeOfRank = new int[nodeCount];
+            for (int a = 0; a < nodeCount; a++)
             {
-                int a = heap.Pop(out float key);
+                nodeOfRank[_rank[a]] = a;
+            }
+
+            var heap = new NodeHeap(nodeCount / 4, _rank);
+            int next = 0;
+            while (next < seededCount || heap.Count > 0)
+            {
+                int a;
+                float key;
+                if (heap.Count == 0 || (next < seededCount && seeded[next] < PackKey(heap.PeekKey, _rank[heap.PeekNode])))
+                {
+                    key = BitConverter.Int32BitsToSingle((int)(seeded[next] >> 32));
+                    a = nodeOfRank[(int)(seeded[next] & 0xFFFFFFFFUL)];
+                    next++;
+                }
+                else
+                {
+                    a = heap.Pop(out key);
+                }
+
                 if (key > _clearance[a])
                 {
                     continue;
@@ -1059,6 +1104,9 @@ namespace Confluence.Arena.Navigation
                 _clearance[a] = MathF.Sqrt(_clearance[a]);
             }
         }
+
+        /// <summary>Sort key of a (non-negative squared distance, rank) pair: the float bits order like the values.</summary>
+        private static ulong PackKey(float key, int rank) => ((ulong)(uint)BitConverter.SingleToInt32Bits(key) << 32) | (uint)rank;
 
         /// <summary>
         /// Exact horizontal distance from each node to the part of every nearby footprint that obstructs a capsule
@@ -1262,24 +1310,26 @@ namespace Confluence.Arena.Navigation
             return bits | diagonals;
         }
 
-        // Where the standable surface of node a ends on the way from p to q (bisection on standability).
-        private Vec2 EdgeCrossing(int a, Vec2 p, Vec2 q, int qi, int qj)
+        /// <summary>
+        /// Where the standable surface of node a, standable at its center p, ends on the way to q (bisection on
+        /// standability). False once the bisection shows the crossing lies no nearer than bestSq (squared distance), so
+        /// it cannot lower the node's clearance; the margin keeps that cut-off clear of float rounding, so the
+        /// clearances are exactly those of the full bisection.
+        /// </summary>
+        private bool EdgeCrossing(int a, Vec2 p, Vec2 q, int qi, int qj, float bestSq, out Vec2 crossing)
         {
             float h = _nodeHeight[a];
-            if (StandableNear(p, h, out float _) == false)
-            {
-                return p;
-            }
-
-            float lo = 0f;
-            float hi = 1f;
             if (qi >= 0 && qj >= 0 && qi < _n && qj < _n && StandableNear(q, h, out float _))
             {
                 // The far column is standable at the center but not walk-connected (a step or slope too steep): the
                 // break lies between the two centers.
-                return Vec2.Lerp(p, q, 0.5f);
+                crossing = Vec2.Lerp(p, q, 0.5f);
+                return true;
             }
 
+            float lengthSq = Vec2.DistanceSquared(p, q);
+            float lo = 0f;
+            float hi = 1f;
             for (int it = 0; it < CrossingBisections; it++)
             {
                 float mid = 0.5f * (lo + hi);
@@ -1288,6 +1338,11 @@ namespace Confluence.Arena.Navigation
                 {
                     lo = mid;
                     h = hm;
+                    if (lo * lo * lengthSq > bestSq * (1f + CrossingCutoffMargin))
+                    {
+                        crossing = default(Vec2);
+                        return false;
+                    }
                 }
                 else
                 {
@@ -1295,7 +1350,8 @@ namespace Confluence.Arena.Navigation
                 }
             }
 
-            return Vec2.LerpUnclamped(p, q, 0.5f * (lo + hi));
+            crossing = Vec2.LerpUnclamped(p, q, 0.5f * (lo + hi));
+            return true;
         }
 
         /// <summary>True if a surface within the support tolerance of hRef exists at p with standing headroom.</summary>

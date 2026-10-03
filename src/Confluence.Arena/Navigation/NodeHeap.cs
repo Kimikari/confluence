@@ -25,6 +25,12 @@ namespace Confluence.Arena.Navigation
 
         public int Count => _count;
 
+        /// <summary>Key of the smallest entry (the heap must not be empty).</summary>
+        public float PeekKey => _keys[0];
+
+        /// <summary>Node of the smallest entry (the heap must not be empty).</summary>
+        public int PeekNode => _nodes[0];
+
         public void Clear() => _count = 0;
 
         public void Push(float key, int node)
