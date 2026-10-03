@@ -129,5 +129,32 @@ namespace Confluence.Sim.Tests.Integration
             Assert.Empty(dealt.Fired); // splash is not a direct hit, and the shards are not hits at all
             Assert.Empty(SpellTestKit.Events<HealEvent>(w));
         }
+
+        [Fact]
+        public void Effect_Refunds_Of_A_Real_Cast_Share_The_Cast_Machine_Refund_Cap()
+        {
+            DuelWorld w = ContentTestKit.BramVersusDummy();
+            CastFireballAt(w, new Vec3(0f, 0f, 3f));
+            CastDuelEvent commit = ContentTestKit.LastCommit(w);
+            ResourceEvent payment = SpellTestKit.Events<ResourceEvent>(w).Single(r => r.Change == ResourceChange.ManaSpent);
+            Assert.Equal("SPL-009", payment.SourceId);
+            Assert.Equal(18f, payment.Amount, 3);
+            float mana = w.Player(0).Resources.Mana;
+
+            // Spec L90, L124: refunds of one cast total at most 25% of its payment (4.5 of 18), whoever grants them, and a
+            // refund effect fires at most once per cast.
+            Assert.Equal(2f, w.Effects.RefundCast(0, payment.Id, 2f, "AUG-TEST-A"), 3);
+            Assert.Equal(0f, w.Effects.RefundCast(0, payment.Id, 2f, "AUG-TEST-A"), 3); // once per cast
+            Assert.Equal(18f * 0.25f - 2f, w.Player(0).Caster.Machine.RefundRemaining(commit.Cast.CastId), 3);
+            CastDuelEvent refunded = SpellTestKit.CastEvents(w, Confluence.Casting.CastEventKind.Refunded).Single();
+            Assert.Equal(2f, refunded.Cast.Mana, 3); // the refund is a cast event in the duel stream
+
+            // The machine's own refunds (the interrupt-refund tag) and other effects draw on the same remaining 2.5.
+            var events = new System.Collections.Generic.List<Confluence.Casting.CastEvent>();
+            Assert.Equal(1.5f, w.Player(0).Caster.Machine.TryRefund(commit.Cast.CastId, "INTERRUPT", 1.5f, w.Tick, events), 3);
+            Assert.Equal(1f, w.Effects.RefundCast(0, payment.Id, 3f, "AUG-TEST-B"), 3);
+            Assert.Equal(0f, w.Effects.RefundCast(0, payment.Id, 3f, "AUG-TEST-C"), 3);
+            Assert.Equal(mana + 4.5f, w.Player(0).Resources.Mana, 3);
+        }
     }
 }

@@ -25,6 +25,9 @@ namespace Confluence.Sim.Casting
         private readonly DuelWorld _world;
         private readonly DuelPlayer _player;
         private readonly SortedDictionary<string, int> _readyTick = new SortedDictionary<string, int>(StringComparer.Ordinal);
+        private readonly SortedDictionary<int, CastEventId> _castByPayment = new SortedDictionary<int, CastEventId>();
+        private readonly List<CastEvent> _refundEvents = new List<CastEvent>();
+        private readonly Action<PlayerCaster, List<CastEvent>> _record;
         private CastPermissions _permissions;
 
         // Previous-tick facts for server-generated combat events.
@@ -32,10 +35,11 @@ namespace Confluence.Sim.Casting
         private bool _previousGrounded = true;
         private MeleePhase _previousMeleePhase;
 
-        internal PlayerCaster(DuelWorld world, DuelPlayer player, SpellLoadout loadout)
+        internal PlayerCaster(DuelWorld world, DuelPlayer player, SpellLoadout loadout, Action<PlayerCaster, List<CastEvent>> record = null)
         {
             _world = world;
             _player = player;
+            _record = record;
             Loadout = loadout ?? throw new ArgumentNullException(nameof(loadout));
             var castables = new CastableSpell[loadout.Spells.Count];
             for (int i = 0; i < castables.Length; i++)
@@ -76,7 +80,36 @@ namespace Confluence.Sim.Casting
         public bool TryPayCommitment(CastableSpell spell, float amount)
         {
             if (spell == null) return TryPayMana(amount);
-            return _world.Effects.TryCommitPricedCast(_player.Index, QuoteFor(spell), amount, out _);
+            if (!_world.Effects.TryCommitPricedCast(_player.Index, QuoteFor(spell), amount, out CastReceipt receipt)) return false;
+            if (receipt.PaymentEventId != 0 && Machine.CurrentCastId.IsValid)
+            {
+                // Effect refunds of this payment share the machine's per-cast refund ledger (see TryRefundPayment).
+                _castByPayment[receipt.PaymentEventId] = Machine.CurrentCastId;
+                while (_castByPayment.Count > CastingRules.RefundLedgerHistory) _castByPayment.Remove(First(_castByPayment));
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// An effect refund for a commitment this caster paid (spec L90, L124): it goes through the cast machine's refund
+        /// ledger, so interrupt refunds and every refund effect of one cast share the single 25% cap and each effect key
+        /// fires once per cast. Returns false when the payment was not a cast commitment of this caster.
+        /// </summary>
+        public bool TryRefundPayment(int paymentEventId, string effectKey, float requested, out float granted)
+        {
+            granted = 0f;
+            if (!_castByPayment.TryGetValue(paymentEventId, out CastEventId castId)) return false;
+            _refundEvents.Clear();
+            granted = Machine.TryRefund(castId, effectKey ?? "effect", requested, _world.Tick, _refundEvents);
+            _record?.Invoke(this, _refundEvents); // the Refunded cast event joins the duel's event stream
+            return true;
+        }
+
+        private static int First(SortedDictionary<int, CastEventId> map)
+        {
+            foreach (KeyValuePair<int, CastEventId> entry in map) return entry.Key;
+            return 0;
         }
 
         public void RefundMana(float amount) => _world.RefundMana(_player.Index, amount, PaymentSource());
@@ -206,6 +239,14 @@ namespace Confluence.Sim.Casting
             {
                 h.Add(entry.Key);
                 h.Add(entry.Value);
+            }
+
+            h.Add(_castByPayment.Count);
+            foreach (KeyValuePair<int, CastEventId> entry in _castByPayment)
+            {
+                h.Add(entry.Key);
+                h.Add(entry.Value.Player);
+                h.Add(entry.Value.Sequence);
             }
         }
     }

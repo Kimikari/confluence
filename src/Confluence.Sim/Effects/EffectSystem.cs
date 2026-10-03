@@ -299,6 +299,15 @@ namespace Confluence.Sim.Effects
                 return 0f;
             }
 
+            // A spell commitment shares its cast machine's ledger (spec L90, L124): every refund of the cast, interrupt
+            // refunds included, draws on one 25% cap, and each refund effect fires at most once per cast.
+            if (World.Player(player).Caster != null
+                && World.Player(player).Caster.TryRefundPayment(paymentEventId, sourceId, requested, out float granted))
+            {
+                record.RefundedAmount += granted;
+                return granted;
+            }
+
             float amount = World.Player(player).Stats.CapRefund(record.Paid, requested);
             record.Refunded = true;
             record.RefundedAmount = World.RefundMana(player, amount, sourceId);

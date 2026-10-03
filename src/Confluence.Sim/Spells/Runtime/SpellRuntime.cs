@@ -78,7 +78,7 @@ namespace Confluence.Sim.Spells
                 SpellLoadout loadout = _loadouts.Build(world, i);
                 if (loadout == null) continue;
                 DuelPlayer p = world.Player(i);
-                _casters[i] = new PlayerCaster(world, p, loadout);
+                _casters[i] = new PlayerCaster(world, p, loadout, Process);
                 p.Caster = _casters[i];
             }
 
