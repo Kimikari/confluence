@@ -60,6 +60,7 @@ Design notes for every subsystem live in `docs/notes/<subsystem>.md`; interpreta
 ### 2026-10-03 — Stage 2 + 3 launch
 - Accepted merge decision D-138 (Fireball deposits the heavy-projectile ring so its steam patch can reach the 2 m sight-blocking path).
 - Workflow `.claude/workflows/stage2.js` (local): implement -> adversarial verify -> fix pipeline for bram-kit, halen-kit, augments-a, augments-b, equipment, props-biomes, net-protocol (worktrees under `.claude/worktrees/`), then merge-and-integrate. Running in two batches (batch 1: bram-kit `wf_ac402310-4a4-1`, halen-kit `-2`, augments-a `-3`, net-protocol `-4`; batch 2: augments-b, equipment, props-biomes). Resume with `args.inPlace` (implement in an existing worktree), `args.impl` (skip to verify), `args.fixed` (skip to merge), `args.only`.
+- 2026-10-03: stopped by the user during batch 1. Unmerged work is committed on worktree branches (bram-kit `wf_ac402310-4a4-1`, halen-kit `-2`, augments-a `-3`, net-protocol `-4`); master is unchanged since Stage 1b. To continue: rerun `.claude/workflows/stage2.js` with `only` = those four labels and `inPlace` = their worktree paths, then batch 2 (augments-b, equipment, props-biomes), then the merge.
 
 ## What runs
 - `node tools/spec.mjs toc`, `node tools/cat.mjs stats`.
