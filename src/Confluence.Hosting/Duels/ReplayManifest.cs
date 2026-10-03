@@ -7,6 +7,7 @@ using Confluence.Core.Rules;
 using Confluence.Hosting.Arenas;
 using Confluence.Match;
 using Confluence.Sim.Input;
+using GrammarInputEvent = Confluence.Casting.GrammarInputEvent;
 using Confluence.Sim.Players;
 
 namespace Confluence.Hosting.Duels
@@ -43,8 +44,17 @@ namespace Confluence.Hosting.Duels
         /// <summary>Recorded steps.</summary>
         public int Length { get; private set; }
 
-        public void Append(in PlayerInput input)
+        public void Append(in PlayerInput source)
         {
+            // Grammar events are client-originated per-tick data (L365-L369): keep a private copy of the list.
+            PlayerInput input = source;
+            if (input.GrammarEvents != null)
+            {
+                var events = new GrammarInputEvent[input.GrammarEvents.Count];
+                for (int i = 0; i < events.Length; i++) events[i] = input.GrammarEvents[i];
+                input.GrammarEvents = Array.AsReadOnly(events);
+            }
+
             Length++;
             int last = _runs.Count - 1;
             if (last >= 0 && SameControls(_runs[last].Input, input))
@@ -73,10 +83,14 @@ namespace Confluence.Hosting.Duels
                 for (int k = 0; k < run.Count; k++) yield return run.At(k);
         }
 
-        /// <summary>Equal in everything except the <c>Tick</c> and <c>Sequence</c> stamps.</summary>
+        /// <summary>
+        /// Equal in everything except the <c>Tick</c> and <c>Sequence</c> stamps. A command carrying grammar events never
+        /// joins a run (the events belong to its own tick).
+        /// </summary>
         private static bool SameControls(in PlayerInput a, in PlayerInput b) =>
             a.MoveX.Equals(b.MoveX) && a.MoveY.Equals(b.MoveY) && a.YawDeg.Equals(b.YawDeg) && a.PitchDeg.Equals(b.PitchDeg) &&
-            a.Buttons == b.Buttons && a.SelectedSlot == b.SelectedSlot && a.ViewTick == b.ViewTick;
+            a.Buttons == b.Buttons && a.Tapped == b.Tapped && a.SelectedSlot == b.SelectedSlot && a.ViewTick == b.ViewTick &&
+            a.GrammarEvents == null && b.GrammarEvents == null;
     }
 
     public enum ReplayActionKind

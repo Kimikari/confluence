@@ -64,7 +64,7 @@ namespace Confluence.Hosting
         /// <summary>Command rate limits (null = <see cref="TickRateLimiter"/>).</summary>
         public ICommandRateLimiter RateLimiter { get; set; }
 
-        /// <summary>Creates duel worlds; the casting and reactions seams plug in here (null = Sim defaults).</summary>
+        /// <summary>Creates duel worlds (null = <see cref="SimWorldFactory"/> over the generator's catalogue: spells, reactions, effects).</summary>
         public ISimWorldFactory WorldFactory { get; set; }
 
         /// <summary>
@@ -153,11 +153,12 @@ namespace Confluence.Hosting
             _agents = new IEconomyAgent[players];
             for (int i = 0; i < players; i++) _inputs[i] = new RemoteInputSource();
 
+            WorldFactory = settings.WorldFactory ?? new SimWorldFactory(Catalogue);
             var runnerOptions = new DuelRunnerOptions
             {
                 RecordReplays = settings.RecordReplays,
                 RulesetFingerprint = settings.RulesetFingerprint ?? string.Empty,
-                WorldFactory = settings.WorldFactory ?? SimWorldFactory.Default,
+                WorldFactory = WorldFactory,
             };
             _runner = new SimDuelRunner(Arenas, new HostedDuelLoadouts(Economy, _playerIds), p => _inputs[p], runnerOptions);
             _runner.Stepped += d => DuelStepped?.Invoke(d);
@@ -197,6 +198,9 @@ namespace Confluence.Hosting
         public SimDuelRunner Duels => _runner;
         public CommandGateway Commands => _gateway;
         public HostOutbox Outbox { get; } = new HostOutbox();
+
+        /// <summary>The factory every duel of this match runs on (replays must use the same one).</summary>
+        public ISimWorldFactory WorldFactory { get; }
 
         /// <summary>The running match flow (Conclave or Duel).</summary>
         public MatchFlow Flow { get; }

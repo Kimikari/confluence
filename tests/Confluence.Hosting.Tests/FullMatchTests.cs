@@ -7,14 +7,20 @@ using Confluence.Hosting.Bots;
 using Confluence.Hosting.Duels;
 using Confluence.Hosting.Messages;
 using Confluence.Match;
+using Confluence.Reactions;
+using Confluence.Sim.Casting;
+using Confluence.Sim.Duel;
+using Confluence.Sim.World.Materials;
+using CastEventKind = Confluence.Casting.CastEventKind;
 using MatchDuelEndReason = Confluence.Match.DuelEndReason;
 
 namespace Confluence.Hosting.Tests
 {
     /// <summary>
     /// Whole matches played by bots through the host at fast-forward: every round, shop, draft, alcove, and duel runs
-    /// through the real adapters (Arena generator, Economy, Sim). These use the Laboratory overrides of
-    /// <see cref="HostFixture.WholeCatalogue"/> because no equipment or augment is implemented yet (D-010).
+    /// through the real adapters (Arena generator, Economy, Sim with its spell runtime, reaction world, and effects).
+    /// These use the Laboratory overrides of <see cref="HostFixture.WholeCatalogue"/> because the implemented equipment
+    /// and augment pools are still far below the floors (D-010).
     /// </summary>
     public sealed class FullMatchTests
     {
@@ -26,7 +32,12 @@ namespace Confluence.Hosting.Tests
         {
             MatchHost host = HostFixture.BotHost(HostFixture.ConclaveSettings(ConclaveSeed));
             var layoutsByDuel = new Dictionary<int, ArenaLayout>();
-            host.DuelStarted += d => layoutsByDuel.Add(d.DuelId, d.World.Layout);
+            var worlds = new List<DuelWorld>();
+            host.DuelStarted += d =>
+            {
+                layoutsByDuel.Add(d.DuelId, d.World.Layout);
+                worlds.Add(d.World);
+            };
             var messages = new List<HostMessage>();
             host.Outbox.Queued += messages.Add;
             var bots = new BotDuelStats();
@@ -68,6 +79,16 @@ namespace Confluence.Hosting.Tests
             Assert.True(bots.MeleePresses > 0);
             Assert.True(bots.Guards > 0);
             Assert.True(bots.Casts > 0);
+
+            // Spells and reactions were live in every duel: WIZ-002 bots committed and landed SPL-009 and SPL-010 through
+            // the spell runtime, their heat reached each duel's own reaction world, and the arena biome rule was installed.
+            List<DuelEvent> log = worlds.SelectMany(w => w.EventLog).ToList();
+            Assert.Contains(log.OfType<CastDuelEvent>(), c => c.Cast.Kind == CastEventKind.Committed && c.Cast.SpellId == "SPL-009");
+            Assert.Contains(log.OfType<CastDuelEvent>(), c => c.Cast.Kind == CastEventKind.Committed && c.Cast.SpellId == "SPL-010");
+            Assert.Contains(log.OfType<DamageEvent>(), d => d.SourceId == "SPL-009" && d.Dealt > 0f);
+            Assert.Contains(log.OfType<DamageEvent>(), d => d.SourceId == "SPL-010" && d.Dealt > 0f);
+            Assert.All(worlds, w => Assert.Equal(w.Layout.BiomeId, ((ReactionMaterials)w.Materials).InstalledBiomeRule));
+            Assert.True(worlds.Sum(w => ((ReactionMaterials)w.Materials).World.Ledger.Deposited(Material.Heat)) > 0);
 
             // Shops every round for every active player; drafts exactly on the Conclave draft rounds (L216-L225).
             var pairings = events.OfType<PairingsAnnouncedEvent>().Where(p => p.PassKind == PassKind.Original).ToList();

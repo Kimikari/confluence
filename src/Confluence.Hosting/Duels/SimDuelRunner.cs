@@ -23,7 +23,8 @@ namespace Confluence.Hosting.Duels
     public sealed class DuelRunnerOptions
     {
         /// <summary>Creates each duel world (and the replay's); the casting and reactions seams plug in here.</summary>
-        public ISimWorldFactory WorldFactory { get; set; } = SimWorldFactory.Default;
+        /// <summary>Required: the duel world factory (<see cref="MatchHost"/> supplies one over its catalogue).</summary>
+        public ISimWorldFactory WorldFactory { get; set; }
 
         /// <summary>Record every command for replays (L419, L427).</summary>
         public bool RecordReplays { get; set; } = true;
@@ -51,12 +52,13 @@ namespace Confluence.Hosting.Duels
         private readonly List<DuelReport> _reports = new List<DuelReport>();
         private readonly List<RunningDuel> _scratch = new List<RunningDuel>();
 
-        public SimDuelRunner(ArenaProvider arenas, IDuelLoadouts loadouts, Func<int, IInputSource> inputs, DuelRunnerOptions options = null)
+        public SimDuelRunner(ArenaProvider arenas, IDuelLoadouts loadouts, Func<int, IInputSource> inputs, DuelRunnerOptions options)
         {
             _arenas = arenas ?? throw new ArgumentNullException(nameof(arenas));
             _loadouts = loadouts ?? throw new ArgumentNullException(nameof(loadouts));
             _inputs = inputs ?? throw new ArgumentNullException(nameof(inputs));
-            Options = options ?? new DuelRunnerOptions();
+            Options = options ?? throw new ArgumentNullException(nameof(options));
+            if (Options.WorldFactory == null) throw new ArgumentException("The duel runner needs a world factory.", nameof(options));
         }
 
         public DuelRunnerOptions Options { get; }

@@ -47,7 +47,7 @@ namespace Confluence.Hosting.Duels
             if (generator == null) throw new ArgumentNullException(nameof(generator));
             Catalogue catalogue = generator.Content.Catalogue;
             GeneratedArena generated = generator.Generate(manifest.Arena.ToGeneratorRequest(catalogue));
-            return Replay(manifest, generated.Layout, factory, expectedRulesetFingerprint);
+            return Replay(manifest, generated.Layout, factory ?? new SimWorldFactory(catalogue), expectedRulesetFingerprint);
         }
 
         public static ReplayResult Replay(ReplayManifest manifest, ArenaLayout layout, ISimWorldFactory factory = null,
@@ -69,7 +69,7 @@ namespace Confluence.Hosting.Duels
                     manifest.ArenaLayoutHash.ToString("X16"));
             }
 
-            factory = factory ?? SimWorldFactory.Default;
+            if (factory == null) throw new ArgumentNullException(nameof(factory), "A replay needs the live duel's world factory.");
             DuelWorld world = factory.Create(layout.Clone(), ReplayManifest.CloneSetup(manifest.Setups[0]), ReplayManifest.CloneSetup(manifest.Setups[1]),
                 manifest.AlcoveTicks, manifest.CombatTicks, true);
             IReadOnlyList<ReplayAction> actions = manifest.Actions;

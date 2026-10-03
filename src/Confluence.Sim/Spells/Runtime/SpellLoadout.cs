@@ -95,6 +95,7 @@ namespace Confluence.Sim.Spells
             DuelPlayerSetup setup = world.Player(player).Setup;
             string wizardId = setup.WizardId;
             IGrammar grammar = _grammarFactory != null ? _grammarFactory(wizardId) : DefaultGrammar(wizardId);
+            if (grammar == null) return null; // no casting route yet: the player duels without spells (D-010 offers none)
             var forms = new List<SpellForm>();
             for (int i = 0; i < setup.EquippedSpellIds.Count && i < GlobalRules.Loadout.EquippedSpellSlots; i++)
             {
@@ -113,11 +114,15 @@ namespace Confluence.Sim.Spells
             return new SpellLoadout(grammar, forms, signature);
         }
 
-        /// <summary>The executable wizard grammar, or the guided normal route for wizards still on it (spec L470).</summary>
+        /// <summary>
+        /// The executable wizard grammar, or the guided normal route for wizards still on it (spec L470), or null when the
+        /// wizard has neither yet (a record that states no fixed normal preparation, such as WIZ-005's token syntax).
+        /// </summary>
         public static IGrammar DefaultGrammar(string wizardId)
         {
-            if (GrammarRegistry.IsExecutable(wizardId)) return GrammarRegistry.Create(wizardId);
-            return GrammarRegistry.CreateGuided(wizardId);
+            if (!GrammarRegistry.TryDescribe(wizardId, out GrammarDescriptor descriptor)) return null;
+            if (descriptor.Executable) return GrammarRegistry.Create(wizardId);
+            return descriptor.NormalPreparationTicks.HasValue ? GrammarRegistry.CreateGuided(wizardId) : null;
         }
 
         private SpellForm Resolve(DuelPlayerSetup setup, string spellId)
