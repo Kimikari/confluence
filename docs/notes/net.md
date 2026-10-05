@@ -165,6 +165,11 @@ Cosmetic (sequenced), Time (unreliable). `NetRules.ProtocolVersion` = 2.
   entry (motor, vitals, slots, machine+grammar, motor context, tuning, misc), entities (position delta, velocity,
   identity, extra), owned (position, identity, expiry, health), volumes (offset, extent, shape: a drifting steam volume
   never resends its bitmap), props (position, yaw, durability, flags, definition). Unchanged groups cost nothing.
+- Cell capture (research §2.4.5, `CellCapture`, one per live duel): refreshes only `ReactionWorld.ActiveCells` plus the
+  cells it reported last time, with a full scan on the first capture and every 30 captures. Exact because every
+  non-empty cell is active (`Cell.IsActive`) and the active list is rebuilt at the end of each Reactions step; the full
+  scan stays as `FrameCapture.CaptureCells` (the reference). Measured on real duels: 1.2-2.3 ms full scan vs 0.13-0.31 ms
+  incremental per capture (156-399 cells queried instead of 9216 on a 96x96 grid).
 - Byte budget (research §2.4.1): `MaxUnreliablePayload - 24` (about 990 B at LiteNetLib's 1024 MTU). Changed budgeted
   entries go in priority order (distance from the receiver, minus 2 m per earlier deferral, 4 m bonus for sight-blocking
   volumes, 2 m for cells with gameplay state bits); deferred ones stay different from the baseline and are offered again.
@@ -274,7 +279,20 @@ the authoritative phase keeps disagreeing), arena regeneration with hash check a
   downloaded layout; unannounced arenas are never sent.
 - `EndToEndTests`: two headless clients and an in-process server on UDP, accelerated virtual clock, Laboratory
   overrides (pools are still short): shop, draft, alcove, combat, results every round, purchases, drafts, readies,
-  reports, placements, and the L193 Crowns (600, then 500 plus 100 for winning the previous round).
+  reports, placements, and the L193 Crowns (600, then 500 plus 100 for winning the previous round; no bonus after a
+  draw or a replay round). Simultaneous lethal outcomes replay the round (attempt 1, straight to the alcove), so rounds
+  are distinct round numbers while results and reports count duels; Duel drafts only in rounds 1-6 (L225).
+- `CellCaptureTests`: incremental cell capture equals the full scan on every capture of two networked duels and of 4000
+  ticks of random Reactions operations (fields, projectiles, impacts, discharges, removals, dust; captured every tick
+  and every second tick; cells appear, change and vanish).
+- `InputEnvelopeTests`: property test, random valid movement commands (axes, extreme yaw/pitch, held and tapped
+  movement buttons, slots) keep both authoritative motors finite, inside the arena, under the dodge/sprint speed and
+  the D-024 jump rise; no violations, rejected messages, or oversized packets.
+- `EventLatencyTests` (Slow): 40 ms one-way, 10% loss, a real-time paced 20 s combat window: authoritative events
+  arrive with p50 about 3 ticks, p99 <= 40 and max <= 90 ticks (the accelerated rig cannot measure this: LiteNetLib
+  stamps reliable resends with wall time, hence `GameRig.PaceRealTime`).
+- `Transport/LossyLinkTests`: a 200-packet Events burst (over three 64-packet windows) at 10% loss drains in well
+  under 2 s (measured 0.27-0.64 s).
 - `Transport/DatagramRobustnessTests`: empty and junk datagrams never stall a connect (LiteNetLib #616), manual and
   threaded modes.
 
@@ -288,7 +306,9 @@ reliable fallback only for over-budget keyframes; partial-frame baseline round t
 and refused fixed seeds; opponent health policy (above); leak test; intents-only reflection test; flood kick and input
 limit about 2x need; decoder fuzzing (mutation-based); datagram robustness on Windows; congestion signals from
 application RTT (median, a lost pong cannot trip it) and snapshot loss; 1 ms Windows timer and tick lateness stats;
-per-session metrics JSON line; networked replay reproduces the final state hash; authoritative layout download.
+per-session metrics JSON line; networked replay reproduces the final state hash; authoritative layout download;
+cell capture proportional to reacting cells (benchmarked at 96x96); motor-envelope property test; no oversized
+packets; Events burst beyond the window and damage confirmations under 10% loss within a bound.
 
 Not done, with reasons:
 - Catalogue ordinals instead of string ids: ids now travel only when their field group changes, so the saving is small;
@@ -298,7 +318,6 @@ Not done, with reasons:
 - Received-snapshot ack bitfield and critical events repeated in snapshots: loss is measured from the cumulative
   received counter; critical events stay on the reliable ordered Events lane, which no longer carries cosmetic traffic.
 - Spectator delta stream: spectator frames stay full at 10 Hz on Bulk (they are 15 s delayed and not time-critical).
-- Cell capture proportional to dirty cells: see "Status / next steps".
 - HMAC-derived Offer/Draft/Bot/Pairing streams: Hosting derives them from the match seed (a Hosting change).
 - LiteNetLib pinned at or after d41569e0: 2.1.4 is still the latest NuGet release; the regression test passes on Windows,
   and `--threaded-transport` avoids manual-mode receive on Linux/Mono hosts.
@@ -338,9 +357,10 @@ Not done, with reasons:
 
 ## Status / next steps
 
-- Status (2026-10-05): Stage 3 complete on this branch; `dotnet test tests/Confluence.Net.Tests` passes (see the report
-  for the count). Real-time smoke: server + two headless client processes over UDP (commands in the report).
-- Next: cell capture from the Reactions active set instead of a full grid scan (about 2 ms per capture on a 96x96 grid,
-  estimated); the view pilot rarely finds its opponent on arenas larger than 24 m (both pilots took environment and
-  boundary damage without meeting in the real-time smoke); catalogue ordinals; Unity client integration (Stage 4:
-  `GameClient` + `HudView` + `ClientMatchView`, golden arena hashes in Mono).
+- Status (2026-10-05, after resume): Stage 3 complete on this branch, including the incremental cell capture and the
+  remaining research-checklist tests (motor envelope, event latency under loss, Events burst). `dotnet test
+  tests/Confluence.Net.Tests` passes (count in the report). Real-time smoke: server + two headless client processes
+  over UDP (commands in the report).
+- Next: the view pilot rarely finds its opponent on arenas larger than 24 m (pilots often end by time or boundary);
+  catalogue ordinals; received-snapshot ack bitfield; spectator delta stream; HMAC-derived hidden streams (Hosting);
+  Unity client integration (Stage 4: `GameClient` + `HudView` + `ClientMatchView`, golden arena hashes in Mono).
