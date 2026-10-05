@@ -22,10 +22,12 @@ state (L427), snapshot rate (L421, DECISIONS D-005).
 
 ## Design
 
-- **Threading.** Both transports run LiteNetLib in manual mode (`StartInManualMode`, `ManualUpdate`); all socket
-  I/O, library timers, events, and handlers happen inside `Poll()` / `Flush()` on the caller's thread.
-  `TransportSettings.ManualMode = false` switches to LiteNetLib's own update thread, but events are still only
-  raised from `PollEvents` (UnsyncedEvents = false).
+- **Threading.** `TransportSettings.ManualMode = true` (the library default, used by every virtual-clock test) runs
+  LiteNetLib in manual mode (`StartInManualMode`, `ManualUpdate`): all socket I/O, library timers, events, and handlers
+  happen inside `Poll()` / `Flush()` on the caller's thread. The production defaults (`GameTransport.Defaults()`, the
+  server and headless client CLIs) set `ManualMode = false`: LiteNetLib's own threads receive and resend, which
+  mitigates the 2.1.4 manual-mode receive bug #616 (research §2.8.1); events are still only raised from `PollEvents`
+  (UnsyncedEvents = false), so game state never leaves the caller's thread. `--manual-transport` opts back in.
 - **Lanes.** One LiteNetLib channel per `NetChannel`: Control, Match, Shop, Draft, Events (reliable ordered,
   independent so a slow shop transaction never stalls combat events), Bulk (reliable unordered), Input and
   Snapshot (sequenced), Time (unreliable). A message type is bound to one lane; arriving on another lane is a
@@ -165,6 +167,9 @@ Cosmetic (sequenced), Time (unreliable). `NetRules.ProtocolVersion` = 2.
   entry (motor, vitals, slots, machine+grammar, motor context, tuning, misc), entities (position delta, velocity,
   identity, extra), owned (position, identity, expiry, health), volumes (offset, extent, shape: a drifting steam volume
   never resends its bitmap), props (position, yaw, durability, flags, definition). Unchanged groups cost nothing.
+- Owner-attached entities (movement, buff, other) carry the origin as their position (`EntityEntry.IsOwnerAttached`);
+  the client draws them on the owner's replicated pose, so they can never locate a hidden owner.
+- The private entry's misc group carries `RecallEndTick` (protocol 3), so the predicted motor holds during the recall.
 - Cell capture (research §2.4.5, `CellCapture`, one per live duel): refreshes only `ReactionWorld.ActiveCells` plus the
   cells it reported last time, with a full scan on the first capture and every 30 captures. Exact because every
   non-empty cell is active (`Cell.IsActive`) and the active list is rebuilt at the end of each Reactions step; the full
@@ -191,6 +196,9 @@ Cosmetic (sequenced), Time (unreliable). `NetRules.ProtocolVersion` = 2.
 - Server buffer (`InputReceiveBuffer` via `NetworkInputSource`): one command per step by sequence, dedupe, loss
   substitution, repeat up to 6 ticks then neutral, hard trim at 12 ticks, sustained-surplus cut back to 4 after 0.5 s.
   Skipped commands fold their taps (and buttons held only in them) and grammar events into the next consumed command.
+  A tap is a press edge for every action, not only casts (cross-edit `DuelWorld.ApplyInput`: Pressed = newly held |
+  tapped and neither held now nor before; `MotorPredictor.PressedEdges` predicts the same), so a melee, guard, jump,
+  dodge or swap press recovered from a trimmed command executes; stand-ins clear taps, so nothing repeats.
 - Closed-loop lead (research §2.1.1): snapshots report the receiver's server queue depth and starvation count; every 8
   snapshots the client compares the smallest queue of the last 15 with the 1-tick target and produces one command less
   (deep queue) or, after starvation with an empty queue in two evaluations, one more. A 2-3 tick hiccup is gone in under
@@ -205,10 +213,16 @@ Cosmetic (sequenced), Time (unreliable). `NetRules.ProtocolVersion` = 2.
 - Rewind only the opponent's hit capsule (Sim `HitVolumeHistory`, 9 ticks); everything else is evaluated at the
   present: walls, props, fields, cells, projectiles, shooter origin and aim, the target's guard and facing arc,
   perfect-guard timing, statuses, alive and recall. Beyond the cap the rewind is clamped (the shooter must lead).
-- View claim validation: expected view = arrival tick - one-way delay (application RTT / 2) - the client's declared
-  interpolation ticks; a claim further than 2 ticks plus measured jitter is replaced by the expectation; views may step
-  back by at most 1 tick (rule applied before the hard clamp; reset at duel start and reconnect); repeated or lost
-  stand-ins get no lag compensation; hard bounds of `ClampViewTick` last.
+- View claim validation: expected view = arrival tick - one-way delay (application RTT / 2) - the accepted
+  interpolation; a claim further than 2 ticks plus measured jitter (at most 3 ticks: `MaxJitterToleranceTicks`) is
+  replaced by the expectation; views may step back by at most 1 tick (rule applied before the hard clamp; reset at duel
+  start and reconnect); repeated or lost stand-ins get no lag compensation; hard bounds of `ClampViewTick` last.
+- Accepted interpolation (§2.2.3 "bounded to a legal range"): the declaration clamped to the honest client's 3-15 ticks
+  (50-250 ms), followed per session at most 1 tick per 20 ticks of arrival time (the client's own 5% slew, so per-packet
+  declarations cannot cherry-pick a rewind), and capped at `InterpolationCeiling` = one-way + capped jitter + one
+  snapshot interval + 2 ticks (the server's own lateness estimate). On a 0 ms link a client declaring 8-9 ticks and
+  claiming the oldest view is replaced every time (rewind 5 instead of 9). Metrics add `interpolationLimited` and the
+  claimed-minus-expected histogram `viewOffsets` (-8..+8) for review of players sitting at the tolerance edge.
 - A rewind never crosses a teleport, recall or alcove placement: `HitVolumeHistory` marks a discontinuity when a volume
   moves more than 1.5 m in one tick (cross-edit, see below).
 - Measured (virtual clock, GameRig): the rewind is about one-way + interpolation + queue + 1 tick, so shots are fully
@@ -219,19 +233,38 @@ Cosmetic (sequenced), Time (unreliable). `NetRules.ProtocolVersion` = 2.
 ## Interest management and hidden information
 
 - Each client receives only its own duel's snapshots, events, cosmetic cues, duel start, and report; only its own
-  shop, draft, and private entry. Spectator frames only outside a live duel, at least 15 s old (L391); other pairs'
-  results and standings wait until the recipient's duel ends or the spectator delay passed (research §2.6.4).
-- Visibility culling (research §2.6.1): an opponent invisible beyond the 4 m silhouette (DuelWorld.IsVisibleTo, L120)
-  is sent as `PlayerBits.Hidden` with the last pose the viewer saw, frozen (no motion, action state, statuses, or
-  vitals); the live pose is sent again 1 m plus a quarter second of closing speed before the silhouette radius;
-  movement events of a hidden player carry no position. `ClientDuel.OpponentVisible` applies the 4 m rule for drawing.
+  shop, draft, and private entry. Spectator frames only outside a live duel, at least 15 s old (L391).
+- Results (research §2.6.4, L49 "fast winners can spectate other pairs through delayed information"): a duel's result
+  goes at once to its two duelists; every other seat, fighting or not, gets it when it is as old as the spectator delay
+  (>= 15 s), when no duel of the pass is live anymore (the results period; the standings then show every outcome
+  anyway), or when the match finished. One rule on the normal, deferred and reconnect paths (`GameServer.MayKnow`).
+- Standings change only when a whole pass resolves (`MatchFlow.ResolvePass`, no duel live), so they never carry a live
+  pair's fresh outcome; a live duelist still gets changed standings (connection flags) only after its duel or the delay,
+  and a reconnecting live duelist gets the standings last released to it.
+- Reconnect history: per seat the released results, its own reports, and the last released standings are kept and
+  replayed by `CatchUp`; a seat resuming after the match finished gets settings, final standings, every result, its
+  reports and the match end (`CatchUpFinished`). The client keeps one result and one report per duel id.
+- Visibility culling (research §2.6.1, spec L120): the live pose is replicated exactly when `DuelWorld.IsVisibleTo`
+  (not invisible, or within the 4 m silhouette); otherwise the opponent is `PlayerBits.Hidden` with the last pose the
+  viewer saw, frozen (no motion, action state, statuses, or vitals), and its owner-attached entities are left out. The
+  boundary applies before serialization: no coordinates beyond 4 m. The client never blends a hidden pose with a live
+  one (the silhouette appears where the first replicated frame puts it).
+- Events of a hidden opponent (`DuelEventFilter.Conceal`): cast and movement events lose position and direction; every
+  event it acts in loses its direction; any event it acts in, takes damage in, or is targeted by loses a position within
+  3 m of its live position; reaction cues its own effects cause within 3 m are dropped. Far positions (a field placed
+  earlier, an impact elsewhere) and neutral terrain reactions stay (L120 "does not suppress ... neutral terrain
+  reactions").
 - Opponent health (research §2.6.3): the exact value is never sent during a duel. Damage events carry amounts only to the
   attacker (its hit confirmation, L349) and the target; damage from anything else reaches the third party without
   amounts; heals, shields, guard rewards stay without amounts; the judgement indicator (L53) and results (L49) are the
   public health channels. Health can be bounded from one's own confirmed hits, as on any damage-number HUD.
 - Seeds (research §2.6.2): the match seed defaults to a cryptographic random value; `--seed` needs `--lab` or
-  `--allow-fixed-seed`. The arena recipe seed is sent (clients regenerate arenas) and is derived from the match seed
-  through SeedHash (not cryptographic); HMAC-derived hidden streams need a Hosting change (gap).
+  `--allow-fixed-seed`. OPEN BLOCKER before any public server: the arena seed (SeedHash of the match seed, not
+  cryptographic) is public three times (the recipe seed, the arena id `arena:rN.aM:<seed hex>`, and the layout's own
+  seed field, which the layout hash covers), and the Offer/Draft/Bot/Pairing streams derive from the same match seed with
+  the same construction; a player also sees its own offers (Rng outputs). Withholding only the recipe seed would not close
+  it, so nothing was changed here. Needed: HMAC-SHA256(matchSecret, stream label) roots for the hidden streams and an
+  arena root independent of them (Core `RngStreams` + Match `ArenaSeedFor` + Hosting `ArenaPrefetcher`/`ArenaProvider`).
 - Clients send intents only (reflection test over every client-to-server body: no positions, vectors, motor states,
   resources, outcomes).
 
@@ -239,11 +272,17 @@ Cosmetic (sequenced), Time (unreliable). `NetRules.ProtocolVersion` = 2.
 
 `Confluence.Server [--port 7777] [--bind 0.0.0.0] [--mode duel|conclave] [--players n] [--bots n] [--bot-competence c]
 [--seed n --lab|--allow-fixed-seed] [--lab] [--accelerated x] [--spectator-delay s] [--catalogue path] [--log file]
-[--threaded-transport] [--max-seconds n] [--stay]`. 60 ticks/s real time (`GameServerRunner`: catch-up at most 8 ticks,
+[--manual-transport] [--max-seconds n] [--stay]`. 60 ticks/s real time (`GameServerRunner`: catch-up at most 8 ticks,
 resync after 250 ms behind, tick lateness percentiles logged at stop), the labeled accelerated mode multiplies the pace
-(inputs then use `GameProtocol.InputLimitAt`). Reconnect within 90 s resumes the seat (catch-up of settings, phase,
-standings, arena, reveal, shop/draft, duel start; baselines restart). Ctrl+C or the time limit shut down cleanly with a
-notice. Exit code 2 when the match was refused (standard rules still fail the D-010 floors without `--lab`).
+(2-16: `NetRules.MaxTickRate` 1000 is what Welcome and match settings decode; `GameServer` refuses a faster pace;
+inputs then use `GameProtocol.InputLimitAt`). Library-thread transport by default (#616); `--threaded-transport` is
+accepted as the default. Reconnect within 90 s resumes the seat (catch-up of settings, phase, standings by the release
+rule, released results and own reports, arena, reveal, shop/draft, duel start; baselines restart), also after the match
+ended. Wizard choices freeze once the match host exists (an arena warm-up join with another wizard is refused with
+`MatchRunning`; an identical re-join is accepted). Metrics: one record per human duelist per duel (also for a duel
+still live at shutdown) and one `session-summary` line per human seat at match end or shutdown. Ctrl+C or the time
+limit shut down cleanly with a notice. Exit code 2 when the match was refused (standard rules still fail the D-010
+floors without `--lab`).
 
 ## Client session (`GameClient`)
 
@@ -255,6 +294,10 @@ research §2.3.1), reconciliation (replay of unacknowledged commands with their 
 snapshot), sub-tick presentation and magnitude-dependent correction easing (§2.3.2; the offset is for the body and
 camera only), interpolation of the opponent and entities, predicted grammar overlay (`GrammarPredictor`, rebuilt when
 the authoritative phase keeps disagreeing), arena regeneration with hash check and the exact-layout download fallback.
+Snapshots, events and reports of a duel whose `DuelStart` has not arrived yet (other lanes can overtake the Match lane,
+e.g. at a reconnect into combat) are held (at most 512, by duel id) and applied in arrival order when it arrives; an
+authoritative `Ended` snapshot ends the client duel even before the end event. The predicted motor holds while
+`RecallEndTick` says the server holds it (L175, D-109).
 
 ## Headless client (`Confluence.HeadlessClient`)
 
@@ -266,11 +309,28 @@ the authoritative phase keeps disagreeing), arena regeneration with hash check a
 - `WireMessageTests`, `SnapshotCodecTests`, `SnapshotBudgetTests`, `DecoderFuzzTests`: round trips, malformed bodies,
   prefixes, padding, field-group deltas, budget and partial-frame consistency, L421 worst case, mutation fuzzing.
 - `InputTimingTests`: trims and surplus cuts keep syllables and taps, lead control, event bounds, syllable spacing,
-  view-tick rules, teleport discontinuity.
-- `InterestManagementTests`: a 4-seat Conclave (2 headless clients + 2 bots) over UDP with every send recorded:
-  no other pair's duel messages, own shop/draft only (byte-compared to the recipient's view), spectator frames only
-  outside live duels and >= 15 s old, no early other-pair results, no third-party damage amounts, no opponent vitals;
+  view-tick rules, teleport discontinuity; a declared interpolation cannot buy the maximal rewind on a fast link (the
+  reviewer's probe), the accepted interpolation follows only at the slew and within the ceiling, jitter widens the
+  tolerance by at most 3 ticks, the view-offset histogram.
+- `InterestManagementTests`: the 8-seat lobby (6 headless clients + 2 bots, at least two client-vs-client duels per
+  round) over UDP with every send recorded: no other pair's duel messages, own shop/draft only (byte-compared to the
+  recipient's view), spectator frames only outside live duels and >= 15 s old, other pairs' results to every
+  nonparticipant only 15 s old or with no duel live, standings to live duelists without new outcomes, no event position
+  near a hidden opponent, owner-attached entities without position, no third-party damage amounts, no opponent vitals;
   client-to-server bodies carry intents only.
+- `HiddenInformationTests`: the replication boundary is exactly 4 m (4.2/4.5 m and a sprint at 4.1 m stay hidden); the
+  frozen last-seen entry and positionless movement events; owner-attached entities of a hidden owner are left out; a
+  networked duel with one player kept invisible and preparing spells (21 hidden cast events) where no frame or event the
+  viewer receives locates it (fails on the previous filter: cast aim origins and directions).
+- `ReconnectRecoveryTests`: a player away while its duel resolves gets its result and report on resume, without
+  duplicates later; a player resuming after the match ended recovers final standings, every result, its reports and the
+  placements; session summaries at match end.
+- `ClientRobustnessTests`: taps are press edges for melee, jump, dodge and guard (never a repeat of a held button); a
+  melee press inside a trimmed command strikes; the predictor's edges match and it holds during recall (and the recall
+  end tick round-trips in the private entry); events, reports and a reliable snapshot before their DuelStart are
+  applied when it arrives; an ended snapshot ends the duel once.
+- `LobbyAndPaceTests`: every accelerated pace the server accepts (x1-x16) decodes in Welcome and match settings, x17 is
+  refused by the server; a wizard change during the arena warm-up is refused and the host keeps the original kit.
 - `GameSessionTests`: a purchase resent with the same request id is charged once; rerolls rate-limited to burst 3;
   commands on the wrong request type refused; prediction converges and view claims stay honest at 40/130/230 ms RTT with
   0-5% loss; a 7 s outage resumes both seats and the match continues; a networked duel over a lossy link replays to the
@@ -293,8 +353,11 @@ the authoritative phase keeps disagreeing), arena regeneration with hash check a
   stamps reliable resends with wall time, hence `GameRig.PaceRealTime`).
 - `Transport/LossyLinkTests`: a 200-packet Events burst (over three 64-packet windows) at 10% loss drains in well
   under 2 s (measured 0.27-0.64 s).
-- `Transport/DatagramRobustnessTests`: empty and junk datagrams never stall a connect (LiteNetLib #616), manual and
-  threaded modes.
+- `Transport/DatagramRobustnessTests`: the production defaults run library threads; with them a connect behind 192
+  empty and junk datagrams is accepted within one server Poll, and a message behind 200 empty datagrams arrives in one
+  Poll; both modes still connect (LiteNetLib #616).
+- `Transport/PacketLayerRejectionTests`: with a packet layer rejecting 500 forged datagrams (length 0), the valid one
+  behind them arrives in the same Poll and `LiteNetManager._poolCount` does not grow (library threads).
 
 ## Research checklist status (docs/research/netcode.md §3)
 
@@ -302,13 +365,17 @@ Done: input slip control and starvation recovery; one-shot merge on trims; per-k
 syllable spacing; ClampViewTick tests; expected-view replacement; backward views; stand-ins without lag compensation;
 teleport/recall/placement discontinuity; rewind breakdown in metrics; snapshot budget with no over-budget deltas and
 reliable fallback only for over-budget keyframes; partial-frame baseline round trip; unchanged tuning and statuses cost
-0 bytes; drifting volumes keep their bitmap; cosmetic events off the Events lane; visibility culling; CSPRNG default seed
-and refused fixed seeds; opponent health policy (above); leak test; intents-only reflection test; flood kick and input
-limit about 2x need; decoder fuzzing (mutation-based); datagram robustness on Windows; congestion signals from
-application RTT (median, a lost pong cannot trip it) and snapshot loss; 1 ms Windows timer and tick lateness stats;
-per-session metrics JSON line; networked replay reproduces the final state hash; authoritative layout download;
-cell capture proportional to reacting cells (benchmarked at 96x96); motor-envelope property test; no oversized
-packets; Events burst beyond the window and damage confirmations under 10% loss within a bound.
+0 bytes; drifting volumes keep their bitmap; cosmetic events off the Events lane; visibility culling on every channel
+(frames, entities, events; exact 4 m boundary); CSPRNG default match seed and refused fixed seeds (the derived-stream
+item stays open, below); opponent health policy (above); leak test (8 seats, six clients, standings, results, hidden
+positions); intents-only reflection test; flood kick and input limit about 2x need; declared interpolation bounded
+(range, slew, lateness ceiling) and jitter capped; decoder fuzzing (mutation-based); LiteNetLib #616 via
+`ManualMode = false` in production with the one-Poll and packet-layer/pool tests; congestion signals from application
+RTT (median, a lost pong cannot trip it) and snapshot loss; 1 ms Windows timer and tick lateness stats; per-session
+metrics JSON line at duel end, for duels live at shutdown, and a session summary at match end and shutdown; networked
+replay reproduces the final state hash; authoritative layout download; cell capture proportional to reacting cells
+(benchmarked at 96x96); motor-envelope property test; no oversized packets; Events burst beyond the window and damage
+confirmations under 10% loss within a bound.
 
 Not done, with reasons:
 - Catalogue ordinals instead of string ids: ids now travel only when their field group changes, so the saving is small;
@@ -318,9 +385,14 @@ Not done, with reasons:
 - Received-snapshot ack bitfield and critical events repeated in snapshots: loss is measured from the cumulative
   received counter; critical events stay on the reliable ordered Events lane, which no longer carries cosmetic traffic.
 - Spectator delta stream: spectator frames stay full at 10 Hz on Bulk (they are 15 s delayed and not time-critical).
-- HMAC-derived Offer/Draft/Bot/Pairing streams: Hosting derives them from the match seed (a Hosting change).
-- LiteNetLib pinned at or after d41569e0: 2.1.4 is still the latest NuGet release; the regression test passes on Windows,
-  and `--threaded-transport` avoids manual-mode receive on Linux/Mono hosts.
+- HMAC-derived Offer/Draft/Bot/Pairing streams and an independent public arena root: OPEN BLOCKER before any public
+  server (see "Seeds" above; Core/Match/Hosting change). The arena seed is public in the recipe, the arena id and the
+  layout, all SeedHash functions of the secret match seed.
+- LiteNetLib pinned at or after d41569e0: 2.1.4 is still the latest NuGet release; production runs library threads
+  (`ManualMode = false`) instead, which the tests above cover. Pin the fixed release when it ships (manual mode is still
+  used by the virtual-clock tests).
+- Footsteps of a hidden player (L120 "does not suppress footsteps"): the culled pose carries no footstep cue; audible
+  footsteps need a coarse server-side footstep cue (position quantized or noisy) that does not undo the culling.
 - Replay files with checkpoint hashes: MatchHost records manifests in memory (the networked replay test uses them); a
   file writer and periodic checkpoints belong to Hosting.
 - Golden arena hashes in Unity Mono: Stage 4 (the download fallback makes a mismatch non-fatal meanwhile).
@@ -337,10 +409,12 @@ Not done, with reasons:
 2. Adaptive interpolation delay 50-250 ms (ARCHITECTURE "about 100 ms" is the typical value, not a hard cap); one
    snapshot interval of headroom; starved frames report the held tick.
 3. Opponent health is hidden during a duel (policy above); results show both health fractions afterwards (L49).
-4. Live duelists receive other pairs' results and standings only after their own duel or 15 s (L391 "restricts
-   player-to-live-player" information).
-5. Invisible opponents beyond the silhouette are culled server-side; the early reveal margin is 1 m plus 0.25 s of
-   closing speed.
+4. Other pairs' results reach every nonparticipant (live or not) when 15 s old, when no duel of the pass is live, or
+   at match end (L49 "fast winners ... through delayed information", L391); standings change only at pass resolution
+   and reach live duelists only after their duel or 15 s. Reconnects replay the same released history.
+5. Invisible opponents are replicated exactly within the 4 m silhouette (no early-reveal margin); events about a hidden
+   opponent lose positions within 3 m of it and their directions; its own reaction cues near it are dropped, neutral
+   terrain reactions stay.
 6. D-115's 5% loss threshold is measured on snapshot loss over a sliding 4 s window.
 7. Input queue target 1 tick, surplus cut above 4 ticks after 0.5 s, input rate limit burst 32 then 1 per 8 ms, flood
    kick after 2000 rate-limited or faulting messages (tuning).
@@ -349,11 +423,21 @@ Not done, with reasons:
 9. Standard matches use a cryptographic random match seed; fixed seeds are for Laboratory, custom hosts, and tests.
 10. A client that cannot regenerate an arena exactly downloads the server's layout; only a failed download is the
     unsupported-version state (L427).
+11. A tapped button (pressed and released inside one command) is a press edge for every action (melee, guard, jump,
+    dodge, swap), as it already was for casting; a tap of a button held before or now is no new press.
+12. The accepted interpolation of a view claim is the declaration within 3-15 ticks, slewed at 1 tick per 20 arrival
+    ticks per session, capped at one-way + min(jitter, 3) + snapshot interval + 2 ticks; the jitter widening of the
+    view tolerance is capped at 3 ticks (tuning).
+13. Production transports use LiteNetLib's threads (ManualMode = false) until a release with the #616 fix is pinned.
+14. The accelerated test pace is at most x16 (1000 ticks/s, the decodable welcome rate).
+15. Wizard choices freeze when the match host is created (the arena warm-up), not when the first tick runs.
 
 ## Cross-edits outside Net
 
 - `src/Confluence.Sim/Duel/HitVolumeHistory.cs` (additive): discontinuity tracking (`DiscontinuityDistance`,
   `DiscontinuityTick`), `TryGet` never returns a tick before the newest jump.
+- `src/Confluence.Sim/Duel/DuelWorld.cs` `ApplyInput` (one line): `Pressed` includes taps of buttons neither held now
+  nor before (interpretation 11; review finding "queue trimming loses movement, guard, and melee presses").
 
 ## Status / next steps
 
@@ -364,6 +448,15 @@ Not done, with reasons:
   --port 7791 --name Ash|Brook --wizard WIZ-002|WIZ-010 --seed 1|2 --max-seconds 320 --status-seconds 30` processes:
   three complete rounds (shop, draft, alcove, combat, results) and the fourth combat in progress at the limit; 0
   violations, 30 Hz throughout, mean body 150 B, max correction 0.069 m, tick lateness p99 13 ms, clean shutdown.
-- Next: the view pilot rarely finds its opponent on arenas larger than 24 m (pilots often end by time or boundary);
-  catalogue ordinals; received-snapshot ack bitfield; spectator delta stream; HMAC-derived hidden streams (Hosting);
+- Review pass (2026-10-05, two reviewers, 20 findings): fixed hidden-opponent culling on every channel (events,
+  entities, exact 4 m boundary), the declared-interpolation bound, result/standings release by age for every
+  nonparticipant, reconnect replay of results/reports/standings and the finished-match catch-up, metrics at match end
+  and shutdown, LiteNetLib #616 by library threads in production with strict tests, tap edges after trims (Sim
+  cross-edit), early duel messages held on the client and ended snapshots, recall hold in prediction (protocol 3), the
+  accelerated pace bound (x16), wizard choices frozen during the warm-up, and the 8-seat leak test. Open: the HMAC /
+  arena-seed blocker, hidden-player footsteps, and the earlier "Not done" items (ack bitfield, repeated critical events,
+  spectator deltas, implicit baseline, ordinals, replay files with checkpoints, golden hashes in Mono, hit-rate e2e).
+- Next: the HMAC-derived hidden streams and an independent arena root (Core/Match/Hosting; blocker before any public
+  server); footstep cues for hidden players; the view pilot rarely finds its opponent on arenas larger than 24 m;
+  catalogue ordinals; received-snapshot ack bitfield; spectator delta stream; replay files with 60-tick checkpoints;
   Unity client integration (Stage 4: `GameClient` + `HudView` + `ClientMatchView`, golden arena hashes in Mono).
