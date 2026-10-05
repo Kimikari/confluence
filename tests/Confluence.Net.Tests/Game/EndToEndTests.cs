@@ -75,17 +75,24 @@ namespace Confluence.Net.Tests.Game
                 Assert.True(done, "match did not finish");
 
                 // shop -> draft -> duel -> reward -> next round, for both real clients, over UDP.
-                int rounds = a.Client.View.Results.Count;
+                // A simultaneous lethal outcome replays the round (attempt 1, straight to the alcove), so rounds count
+                // distinct round numbers while results and reports count duels.
+                int rounds = a.Client.View.Results.Select(x => x.Round).Distinct().Count();
+                int duels = a.Client.View.Results.Count;
                 Assert.True(rounds >= 2, "rounds " + rounds);
                 foreach (HeadlessPlayer p in new[] { a, b })
                 {
                     int index = p == a ? 0 : 1;
                     ClientMatchView v = p.Client.View;
-                    Assert.Equal(rounds, v.Results.Count);
+                    Assert.True(duels == v.Results.Count, p.Options.Name + " results " + v.Results.Count + " of " + duels);
                     for (int r = 1; r <= rounds; r++)
                     {
+                        // Duel compresses the six drafts into rounds 1-6 (spec L225).
                         foreach (MatchPhase phase in new[] { MatchPhase.Shop, MatchPhase.Draft, MatchPhase.Alcove, MatchPhase.Combat, MatchPhase.Results })
-                            Assert.Contains(v.PhaseHistory, h => h.Round == r && h.Phase == phase);
+                        {
+                            if (phase == MatchPhase.Draft && r > GlobalRules.Draft.DraftsPerMatch) continue;
+                            Assert.True(v.PhaseHistory.Exists(h => h.Round == r && h.Phase == phase), p.Options.Name + " round " + r + " has no " + phase);
+                        }
                     }
 
                     Assert.True(p.Economy.Purchases >= rounds, p.Options.Name + " purchases " + p.Economy.Purchases);
@@ -94,15 +101,17 @@ namespace Confluence.Net.Tests.Game
                     Assert.True(p.Pilot.Casts > 0);
                     Assert.NotNull(v.End);
                     Assert.Contains(v.End.Placements, pl => pl.Seat == v.Seat);
-                    Assert.Equal(rounds, v.Reports.Count); // a post-duel report (feats, decisive sequence) every round
+                    Assert.True(duels == v.Reports.Count, p.Options.Name + " reports " + v.Reports.Count + " of " + duels); // a post-duel report every duel
 
                     // Crowns (spec L193): 600 before the first shop, then 500 plus 100 for winning the previous round.
                     Assert.Equal(GlobalRules.Economy.FirstShopIncome, opening[index][1]);
                     for (int r = 2; r <= rounds; r++)
                     {
-                        DuelResultMessage previous = v.Results.Find(x => x.Round == r - 1);
-                        int bonus = previous != null && previous.WinnerSeat == v.Seat ? GlobalRules.Economy.WinnerBonus : 0;
-                        Assert.Equal(closing[index][r - 1] + GlobalRules.Economy.LaterShopIncome + bonus, opening[index][r]);
+                        DuelResultMessage previous = v.Results.FindLast(x => x.Round == r - 1);
+                        // Draws and replay rounds grant no winner bonus (L193).
+                        int bonus = previous != null && previous.Attempt == 0 && previous.WinnerSeat == v.Seat ? GlobalRules.Economy.WinnerBonus : 0;
+                        Assert.True(closing[index][r - 1] + GlobalRules.Economy.LaterShopIncome + bonus == opening[index][r],
+                            p.Options.Name + " round " + r + " opened with " + opening[index][r] + " after closing " + closing[index][r - 1] + " and bonus " + bonus);
                     }
                 }
             }
