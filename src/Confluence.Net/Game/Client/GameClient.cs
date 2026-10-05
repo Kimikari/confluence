@@ -65,7 +65,6 @@ namespace Confluence.Net.Game.Client
     public sealed class GameClient : IDisposable
     {
         private const int MaxStepsPerUpdate = 8;
-        private const int MaxLeadTicks = 12;
 
         private readonly GameClientOptions _options;
         private readonly INetClock _clock;
@@ -176,9 +175,11 @@ namespace Confluence.Net.Game.Client
                 double serverTick = ServerTick;
                 if (serverTick >= 0)
                 {
-                    // The delay is simulation time (100 ms = 6 ticks), so an accelerated test server keeps the same buffer depth.
-                    double delayTicks = _options.InterpolationDelayMs * (double)Confluence.Core.Time.Ticks.PerSecond / 1000.0;
-                    double render = serverTick - delayTicks - duel.Start.StartMatchTick;
+                    // The delay is simulation time (at most 100 ms = 6 ticks), so an accelerated test server keeps the same
+                    // buffer depth; it adapts to measured snapshot lateness (research §2.2.1).
+                    int pace = View.Settings != null && View.Settings.TicksPerWallSecond > 0 ? View.Settings.TicksPerWallSecond : Confluence.Core.Time.Ticks.PerSecond;
+                    duel.Interpolation.Advance(dt * pace);
+                    double render = serverTick - duel.Interpolation.DelayTicks - duel.Start.StartMatchTick;
                     duel.UpdateRender(render, dt);
                 }
             }
@@ -247,7 +248,9 @@ namespace Confluence.Net.Game.Client
         private void StepInputs(ClientDuel duel)
         {
             double estimate = Transport.Clock.EstimateServerTick(_clock.NowMs);
-            int lead = Math.Max(1, Math.Min(MaxLeadTicks, Transport.Clock.RecommendedInputLeadTicks));
+            if (duel.BaseLeadTicks < 0) duel.BaseLeadTicks = Math.Max(1, Math.Min(ClientDuel.MaxLeadTicks, Transport.Clock.RecommendedInputLeadTicks));
+            // Closed loop (research §2.1.1): the base lead from the RTT estimate, adjusted by the server's queue reports.
+            int lead = Math.Max(0, Math.Min(ClientDuel.MaxLeadTicks, duel.BaseLeadTicks + duel.Lead.Adjust));
             int target = (int)Math.Floor(estimate) + lead - duel.Start.StartMatchTick;
             if (duel.LocalTick == 0 || target - duel.LocalTick > 60 || duel.LocalTick - target > 60)
             {
@@ -260,7 +263,7 @@ namespace Confluence.Net.Game.Client
             {
                 int tick = duel.LocalTick + 1;
                 PlayerInput input = InputProvider != null ? InputProvider(duel, tick) : PlayerInput.Idle(duel.HasPrediction ? duel.Predicted.YawDeg : 0f);
-                int view = (int)Math.Floor(duel.RenderTick);
+                int view = duel.DisplayedViewTick;
                 input.ViewTick = view > 0 && view < tick ? view : 0;
                 duel.Produce(tick, input);
                 _packet.Commands.Clear();
@@ -295,7 +298,8 @@ namespace Confluence.Net.Game.Client
         private void OnDuelStart(DuelStartMessage message)
         {
             if (Duel != null && Duel.DuelId == message.DuelId && !Duel.Ended) return; // a catch-up resend of the running duel
-            Duel = new ClientDuel(message, _options.Catalogue, _options.Content);
+            Duel = new ClientDuel(message, _options.Catalogue, _options.Content,
+                _options.InterpolationDelayMs * (double)Confluence.Core.Time.Ticks.PerSecond / 1000.0);
             _spectateRequested = false;
             ArenaLayout layout = _arenas.TryGet(message.ArenaId);
             if (layout != null) Duel.AttachLayout(layout);
@@ -306,7 +310,11 @@ namespace Confluence.Net.Game.Client
 
         private void OnSnapshot(SnapshotMessage message)
         {
-            Duel?.OnSnapshot(message.Header, message.Body);
+            ClientDuel duel = Duel;
+            if (duel == null) return;
+            double server = ServerTick;
+            duel.OnSnapshot(message.Header, message.Body, message.InputQueue, message.InputStarved,
+                server >= 0 ? server - duel.Start.StartMatchTick : double.NaN);
         }
 
         private void OnEvents(DuelEventsMessage message)

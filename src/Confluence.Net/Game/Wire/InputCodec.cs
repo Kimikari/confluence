@@ -201,12 +201,26 @@ namespace Confluence.Net.Game.Wire
         /// <summary>Newest snapshot duel tick decoded by the client, or -1.</summary>
         public int AckSnapshotTick { get; set; } = -1;
 
+        /// <summary>
+        /// The client's current interpolation delay in whole ticks (its declared view lag; the server's expected-view
+        /// check uses it, docs/research/netcode.md §2.2.3). At most <see cref="MaxInterpolationTicks"/>.
+        /// </summary>
+        public int InterpolationTicks { get; set; }
+
+        /// <summary>Snapshots of this duel the client received so far (the server measures snapshot loss from it).</summary>
+        public uint SnapshotsReceived { get; set; }
+
         public List<InputCommand<PlayerInput>> Commands { get; } = new List<InputCommand<PlayerInput>>();
+
+        /// <summary>Largest declarable interpolation delay: the 150 ms rewind (spec L423).</summary>
+        public const int MaxInterpolationTicks = 9;
 
         public void Serialize(NetWriter writer)
         {
             writer.WriteVarUInt((uint)DuelId);
             writer.WriteVarInt(AckSnapshotTick);
+            writer.WriteByte((byte)Math.Max(0, Math.Min(MaxInterpolationTicks, InterpolationTicks)));
+            writer.WriteVarUInt(SnapshotsReceived);
             InputPacket.Write(writer, Commands, PlayerInputCodec.Instance);
         }
 
@@ -216,6 +230,8 @@ namespace Confluence.Net.Game.Wire
             if (duel > int.MaxValue) throw new NetReadException(NetReadError.InvalidValue, "duel id out of range");
             DuelId = (int)duel;
             AckSnapshotTick = reader.ReadVarIntInRange(-1, int.MaxValue);
+            InterpolationTicks = reader.ReadByteInRange(0, MaxInterpolationTicks);
+            SnapshotsReceived = reader.ReadVarUInt();
             InputPacket.Read(reader, PlayerInputCodec.Instance, Commands);
         }
     }

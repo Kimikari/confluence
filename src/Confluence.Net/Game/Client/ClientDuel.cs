@@ -27,6 +27,9 @@ namespace Confluence.Net.Game.Client
     public sealed class ClientDuel
     {
         public const int MaxSentHistory = 256;
+
+        /// <summary>Largest input lead in ticks (200 ms).</summary>
+        public const int MaxLeadTicks = 12;
         private const int DecodedHistory = 128;
 
         /// <summary>Corrections larger than this snap instead of being smoothed (a teleport, a knockback).</summary>
@@ -46,10 +49,11 @@ namespace Confluence.Net.Game.Client
         private float _predictedStamina;
         private InputButtons _lastSentButtons;
 
-        internal ClientDuel(DuelStartMessage start, Catalogue catalogue, ContentRegistry registry)
+        internal ClientDuel(DuelStartMessage start, Catalogue catalogue, ContentRegistry registry, double maxInterpolationTicks = InterpolationClock.MaxDelayTicks)
         {
             Start = start ?? throw new ArgumentNullException(nameof(start));
             _catalogue = catalogue;
+            Interpolation = new InterpolationClock(Math.Max(InterpolationClock.MinDelayTicks, maxInterpolationTicks));
             Grammar = new GrammarPredictor(catalogue, registry, start.Sides[start.YourSide], start.YourSide);
         }
 
@@ -68,6 +72,18 @@ namespace Confluence.Net.Game.Client
         public MotorPredictor Predictor { get; private set; }
 
         public GrammarPredictor Grammar { get; }
+
+        /// <summary>The adaptive interpolation delay of remote entities (research §2.2.1).</summary>
+        public InterpolationClock Interpolation { get; }
+
+        /// <summary>The closed-loop input lead (research §2.1.1).</summary>
+        public InputLeadControl Lead { get; } = new InputLeadControl();
+
+        /// <summary>The input lead chosen at the duel's first command; <see cref="Lead"/> adjusts around it.</summary>
+        public int BaseLeadTicks { get; internal set; } = -1;
+
+        /// <summary>The newest server-reported input queue depth (commands waiting on the server).</summary>
+        public int ServerInputQueue => Lead.LastQueue;
 
         // ---- Authoritative ------------------------------------------------------------------------------------------
 
@@ -132,6 +148,15 @@ namespace Confluence.Net.Game.Client
 
         public SampleKind LastSampleKind { get; private set; }
 
+        /// <summary>
+        /// The opponent tick actually displayed (research §2.2.2): the render tick while interpolating, the held newest
+        /// tick while starved, the oldest while before it; 0 before any snapshot. Commands report it as their view tick.
+        /// </summary>
+        public int DisplayedViewTick { get; private set; }
+
+        /// <summary>Render updates that found no newer snapshot to interpolate towards.</summary>
+        public int StarvedRenders { get; private set; }
+
         // ---- Events and counters ----------------------------------------------------------------------------------
 
         public List<WireDuelEvent> Events { get; } = new List<WireDuelEvent>();
@@ -170,7 +195,13 @@ namespace Confluence.Net.Game.Client
 
         // ---- Snapshots --------------------------------------------------------------------------------------------
 
-        internal void OnSnapshot(SnapshotHeader header, byte[] body)
+        internal void OnSnapshot(SnapshotHeader header, byte[] body) => OnSnapshot(header, body, -1, 0, double.NaN);
+
+        /// <summary>
+        /// A snapshot with the server's input status for the lead control and the estimated server duel tick at arrival
+        /// (NaN when unknown) for the interpolation delay.
+        /// </summary>
+        internal void OnSnapshot(SnapshotHeader header, byte[] body, int inputQueue, uint inputStarved, double serverDuelTickAtArrival)
         {
             DuelFrame baseline = null;
             if (header.HasBaseline && !_decoded.TryGetValue(header.BaselineTick, out baseline))
@@ -201,6 +232,12 @@ namespace Confluence.Net.Game.Client
 
             SnapshotsReceived++;
             if (header.HasBaseline) DeltaSnapshots++;
+            if (!double.IsNaN(serverDuelTickAtArrival)) Interpolation.OnSnapshot(frame.Tick, serverDuelTickAtArrival - frame.Tick);
+            if (inputQueue >= 0 && BaseLeadTicks >= 0 && (Latest == null || frame.Tick > Latest.Tick))
+            {
+                Lead.OnSnapshot(inputQueue, inputStarved, -BaseLeadTicks, MaxLeadTicks - BaseLeadTicks);
+            }
+
             if (!_decoded.ContainsKey(frame.Tick))
             {
                 _decoded[frame.Tick] = frame;
@@ -299,6 +336,8 @@ namespace Confluence.Net.Game.Client
         {
             message.DuelId = DuelId;
             message.AckSnapshotTick = AckTick;
+            message.InterpolationTicks = (int)Math.Round(Interpolation.DelayTicks);
+            message.SnapshotsReceived = (uint)SnapshotsReceived;
             _inputs.FillPacket(message.Commands);
         }
 
@@ -332,6 +371,23 @@ namespace Confluence.Net.Game.Client
 
             SnapshotSample<DuelFrame> sample = _remote.Sample(renderTick);
             LastSampleKind = sample.Kind;
+            switch (sample.Kind)
+            {
+                case SampleKind.Interpolated:
+                    DisplayedViewTick = Math.Max(sample.FromTick, Math.Min(sample.ToTick, (int)Math.Floor(renderTick)));
+                    break;
+                case SampleKind.Starved:
+                    DisplayedViewTick = sample.ToTick;
+                    StarvedRenders++;
+                    break;
+                case SampleKind.BeforeOldest:
+                    DisplayedViewTick = sample.FromTick;
+                    break;
+                default:
+                    DisplayedViewTick = 0;
+                    break;
+            }
+
             if (sample.Kind == SampleKind.Empty) return;
             PlayerEntry a = sample.From.Players[OpponentSide];
             PlayerEntry b = sample.To.Players[OpponentSide];

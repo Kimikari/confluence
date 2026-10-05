@@ -55,6 +55,7 @@ namespace Confluence.Net.Tests.Game
                     _output.WriteLine("duel " + r.DuelId + " round " + r.Round + " winner " + r.WinnerSeat + " " + r.Reason + " " + r.Health0 + "/" + r.Health1);
                 foreach (PhaseMessage p in a.Client.View.PhaseHistory)
                     _output.WriteLine("phase " + p.Phase + " r" + p.Round + " a" + p.Attempt + " " + p.StartTick + "-" + p.EndTick);
+                foreach (string m in rig.Server.Metrics) _output.WriteLine(m);
                 _output.WriteLine("sight " + a.Pilot.TicksWithSight + " / " + b.Pilot.TicksWithSight + " guard " + a.Pilot.GuardPresses);
                 Assert.True(done, "match did not finish");
             }

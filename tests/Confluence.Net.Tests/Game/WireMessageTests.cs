@@ -317,6 +317,8 @@ namespace Confluence.Net.Tests.Game
             var w = new NetWriter();
             w.WriteVarUInt(1);         // duel
             w.WriteVarInt(-1);         // ack
+            w.WriteByte(6);            // interpolation ticks
+            w.WriteVarUInt(0);         // snapshots received
             w.WriteVarUInt(1);         // newest sequence
             w.WriteVarUInt(1);         // count
             w.WriteVarInt(700);        // tick

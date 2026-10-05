@@ -105,6 +105,7 @@ namespace Confluence.Net.Game.Server
         private readonly NetWriter _body = new NetWriter(4096);
         private readonly List<SpectatorItem> _released = new List<SpectatorItem>();
         private readonly ServerTickClock _tickClock;
+        private readonly List<string> _metrics = new List<string>();
         private int _ticksRun;
         private string _notice = string.Empty;
         private System.Threading.Tasks.Task _warmup;
@@ -197,6 +198,9 @@ namespace Confluence.Net.Game.Server
         public long DeltaSnapshotsSent { get; private set; }
 
         public long SpectatorFramesSent { get; private set; }
+
+        /// <summary>Every session metrics record written so far (one JSON line per human duelist and duel).</summary>
+        public IReadOnlyList<string> Metrics => _metrics;
 
         /// <summary>Raised for every message sent to a client: (seat, message type) — interest-management tests.</summary>
         public event Action<int, MessageType, INetMessage> Sent;
@@ -603,6 +607,7 @@ namespace Confluence.Net.Game.Server
                     Stream stream = live.Streams[side];
                     if (stream == null || stream.Seat != seat) continue;
                     stream.ResetBaseline();
+                    seat.Input?.ResetViewHistory();
                     SendTo(seat, GameProtocol.DuelStart, live.StartFor(side));
                 }
             }
@@ -642,13 +647,17 @@ namespace Confluence.Net.Game.Server
         private void OnInput(PlayerSession session, DuelInputMessage message)
         {
             if (!_seatBySession.TryGetValue(session.PlayerId, out Seat seat) || seat.Input == null) return;
-            seat.Input.Accept(message.DuelId, message.Commands);
-            if (_duels.TryGetValue(message.DuelId, out LiveDuel live))
+            _duels.TryGetValue(message.DuelId, out LiveDuel live);
+            int arrivalTick = live != null && !live.Ended ? live.Duel.World.Tick : -1;
+            seat.Input.Accept(message.DuelId, message.Commands, arrivalTick, message.InterpolationTicks);
+            if (live != null)
             {
                 for (int side = 0; side < 2; side++)
                 {
                     Stream stream = live.Streams[side];
-                    if (stream != null && stream.Seat == seat) stream.Acknowledge(message.AckSnapshotTick);
+                    if (stream == null || stream.Seat != seat) continue;
+                    stream.Acknowledge(message.AckSnapshotTick);
+                    stream.Monitor.OnAck(message.AckSnapshotTick, message.SnapshotsReceived, _clock.NowMs);
                 }
             }
         }
@@ -744,7 +753,7 @@ namespace Confluence.Net.Game.Server
                     continue;
                 }
 
-                if (world.Tick % RateUpdateTicks == 0) stream.Rate.Update(_clock.NowMs, Transport.GetLinkStats(stream.Seat.Session));
+                if (world.Tick % RateUpdateTicks == 0) UpdateLink(stream);
                 stream.SendNow = over || stream.Rate.ShouldSend(world.Tick);
                 capture |= stream.SendNow;
             }
@@ -782,10 +791,35 @@ namespace Confluence.Net.Game.Server
             for (int side = 0; side < 2; side++)
             {
                 Stream stream = live.Streams[side];
-                if (stream != null) FlushEvents(live, stream);
+                if (stream == null) continue;
+                FlushEvents(live, stream);
+                stream.Snap.Ticks++;
+                if (stream.Rate.CurrentRate != stream.Rate.HighRate) stream.Snap.LowRateTicks++;
             }
 
-            if (over) live.Ended = true;
+            if (over)
+            {
+                live.Ended = true;
+                WriteMetrics(live);
+            }
+        }
+
+        /// <summary>
+        /// Feeds the stream's congestion selector from application-level RTT and snapshot loss (research §2.8.4) and
+        /// gives lag compensation its one-way delay and jitter in ticks.
+        /// </summary>
+        private void UpdateLink(Stream stream)
+        {
+            long now = _clock.NowMs;
+            stream.Monitor.Update(now);
+            stream.Rate.Update(now, stream.Monitor.ToLinkStats(Transport.GetLinkStats(stream.Seat.Session)));
+            NetworkInputSource input = stream.Seat.Input;
+            if (input != null && stream.Monitor.RttSamples > 0)
+            {
+                double ticksPerMs = _settings.TicksPerWallSecond / 1000.0;
+                input.OneWayTicks = (int)Math.Round(stream.Monitor.RttMs * 0.5 * ticksPerMs);
+                input.JitterTicks = (int)Math.Ceiling(stream.Monitor.JitterMs * ticksPerMs);
+            }
         }
 
         private void SendSnapshot(Stream stream, DuelFrame frame, PrivateEntry own, bool forceReliable)
@@ -795,7 +829,14 @@ namespace Confluence.Net.Game.Server
             SnapshotCodec.EncodeBody(_body, frame, baseline, own);
             var header = new SnapshotHeader(frame.Tick, stream.Seat.Input != null ? stream.Seat.Input.LastProcessedSequence : 0u,
                 baseline != null ? baseline.Tick : SnapshotHeader.NoBaseline);
-            var msg = new SnapshotMessage { Header = header, Body = _body.Buffer, BodyLength = _body.Length };
+            var msg = new SnapshotMessage
+            {
+                Header = header,
+                Body = _body.Buffer,
+                BodyLength = _body.Length,
+                InputQueue = stream.Seat.Input != null ? stream.Seat.Input.QueueDepth : 0,
+                InputStarved = stream.Seat.Input != null ? (uint)Math.Min(uint.MaxValue, stream.Seat.Input.Buffer.StarvedTicks) : 0u,
+            };
             int limit = Transport.MaxUnreliablePayload(stream.Seat.Session) - 24; // message id and header
             bool reliable = forceReliable || _body.Length > limit;
             MessageType<SnapshotMessage> type = reliable ? GameProtocol.SnapshotReliable : GameProtocol.Snapshot;
@@ -804,11 +845,33 @@ namespace Confluence.Net.Game.Server
                 SnapshotsSent++;
                 if (reliable) ReliableSnapshotsSent++;
                 if (baseline != null) DeltaSnapshotsSent++;
+                stream.Monitor.OnSent(frame.Tick, _clock.NowMs);
+                stream.Snap.Sent++;
+                if (baseline != null) stream.Snap.Delta++;
+                if (reliable) stream.Snap.Reliable++;
+                stream.Snap.BodyBytes += _body.Length;
+                if (_body.Length > stream.Snap.MaxBodyBytes) stream.Snap.MaxBodyBytes = _body.Length;
                 Sent?.Invoke(stream.Seat.Index, type, msg);
             }
 
             stream.Remember(frame);
             if (stream.Seat.Input != null) stream.Seat.Input.NewestShownTick = frame.Tick;
+        }
+
+        /// <summary>One metrics record per human duelist at duel end (research §2.9.5).</summary>
+        private void WriteMetrics(LiveDuel live)
+        {
+            for (int side = 0; side < 2; side++)
+            {
+                Stream stream = live.Streams[side];
+                if (stream == null) continue;
+                PlayerSession session = stream.Seat.Session;
+                LinkStats transport = session != null && session.IsConnected ? Transport.GetLinkStats(session) : default;
+                string line = SessionMetrics.Format(stream.Seat.Index, live.Duel.DuelId, live.Duel.Setup.Round, stream.Monitor, stream.Rate, stream.Snap,
+                    stream.Seat.Input, session?.Counters, transport);
+                _metrics.Add(line);
+                Log("metrics " + line);
+            }
         }
 
         private void FlushEvents(LiveDuel live, Stream stream)
@@ -1171,6 +1234,8 @@ namespace Confluence.Net.Game.Server
             public Seat Seat { get; }
             public int Side { get; }
             public SnapshotRateSelector Rate { get; } = new SnapshotRateSelector();
+            public SnapshotLinkMonitor Monitor { get; } = new SnapshotLinkMonitor();
+            public SessionMetrics.SnapshotStats Snap { get; } = new SessionMetrics.SnapshotStats();
             public List<WireDuelEvent> PendingEvents { get; } = new List<WireDuelEvent>();
             public bool SendNow;
             public int AckedTick = -1;

@@ -102,15 +102,28 @@ namespace Confluence.Net.Game.Snapshots
 
         public int BodyLength { get; set; } = -1;
 
+        /// <summary>
+        /// The receiver's server-side input queue depth after this step (commands waiting), capped at 255: the client's
+        /// input lead control holds it near one tick (docs/research/netcode.md §2.1.1).
+        /// </summary>
+        public int InputQueue { get; set; }
+
+        /// <summary>Server steps of this duel that found no new input from the receiver (cumulative).</summary>
+        public uint InputStarved { get; set; }
+
         public void Serialize(NetWriter writer)
         {
             Header.Write(writer);
+            writer.WriteByte((byte)Math.Max(0, Math.Min(255, InputQueue)));
+            writer.WriteVarUInt(InputStarved);
             writer.WriteBytes(Body, 0, BodyLength >= 0 ? BodyLength : Body.Length);
         }
 
         public void Deserialize(NetReader reader)
         {
             Header = SnapshotHeader.Read(reader);
+            InputQueue = reader.ReadByte();
+            InputStarved = reader.ReadVarUInt();
             Body = reader.RemainingToArray();
             BodyLength = Body.Length;
             reader.Skip(reader.Remaining);

@@ -52,6 +52,18 @@ namespace Confluence.Net
         /// <summary>Most inputs the server queues ahead of consumption (200 ms); older surplus is skipped.</summary>
         public const int InputMaxBufferedTicks = 12;
 
+        /// <summary>
+        /// Game input streams cut a queue that stays deeper than this many ticks (about 67 ms) back to it; the client's
+        /// lead control holds the queue near one tick, so only a client that stopped adapting meets the cut (tuning).
+        /// </summary>
+        public const int InputSurplusTargetTicks = 4;
+
+        /// <summary>Consecutive ticks (0.5 s) a surplus must last before it is cut.</summary>
+        public const int InputSurplusPatienceTicks = 30;
+
+        /// <summary>Queue depth the client's input lead control aims for (minimum over its window).</summary>
+        public const int InputQueueTargetTicks = 1;
+
         // ---- Handshake and sessions ------------------------------------------------------------
 
         public const int DisplayNameMinChars = 1;
