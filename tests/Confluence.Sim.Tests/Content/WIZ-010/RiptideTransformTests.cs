@@ -161,6 +161,53 @@ namespace Confluence.Sim.Tests.Content.Halen
             Assert.Equal(0f, Vec2.Distance(new Vec2(wanted.X, wanted.Z), RiptideLaneTests.Current(d).Arrow(0)), 2);
         }
 
+        [Theory]
+        [InlineData(90f)]
+        [InlineData(270f)]
+        [Verifies("AUG-444")]
+        public void Rank_2_Turns_The_Lane_Itself_So_Travel_Along_The_New_Arrow_Gets_The_Bonus(float aimYaw)
+        {
+            // The 8 m lane runs from (0, -3) to (0, 5) along +Z, centered on (0, 1). Turned 90 degrees it runs across the
+            // old line through the same center, keeps Water 2 and its remaining lifetime, and holds one field slot.
+            HalenDuel d = Stream(HalenTestKit.Aug(RiptideValve.Id, 2));
+            SpellEvent created = d.SpellEvents(SpellEventKind.FieldCreated).Single();
+            d.Run(30);
+            Vec3 center = RiptideLaneTests.Current(d).Lanes[0].Center;
+            Assert.Equal(0f, Vec3.DistanceXZ(center, new Vec3(0f, 0f, 1f)), 0); // about (0, 1)
+            d.Halen = TestWorlds.Face(aimYaw);
+            d.Recast();
+            d.Step();
+            StreamCurrentEntity current = RiptideLaneTests.Current(d);
+            Vec2 arrow = current.Arrow(0);
+            Vec3 wanted = CMath.ForwardFromYaw(aimYaw);
+            Assert.Equal(0f, Vec2.Distance(new Vec2(wanted.X, wanted.Z), arrow), 2);
+            Assert.Equal(1, d.World.Owned.Entities.Count(e => e.Active && e.DefinitionId == RiptideLane.Id));
+            Assert.Equal(0f, Vec3.DistanceXZ(current.Lanes[0].Center, center), 2); // turned about its own center
+
+            Vec3 Across(float meters) => new Vec3(center.X + arrow.X * meters, 0f, center.Z + arrow.Y * meters);
+            Assert.Equal(2, d.Units(Across(3.5f)).Water);   // the turned lane, 8 m long
+            Assert.Equal(2, d.Units(Across(-3.5f)).Water);
+            Assert.Equal(2, d.Units(Across(0f)).Water);
+            Assert.Equal(0, d.Units(Across(4.6f)).Water);
+            Assert.Equal(0, d.Units(new Vec3(0f, 0f, -2.5f)).Water); // the old orientation is gone
+            Assert.Equal(0, d.Units(new Vec3(0f, 0f, 4.5f)).Water);
+
+            // Counterplay "Read new arrow and claim route": a body travelling along the new arrow over the turned lane, well
+            // away from the old 2 m crossing, moves with the current (+15%).
+            TestWorlds.Place(d.World, 1, Across(-3.2f), aimYaw);
+            d.Other = TestWorlds.Face(aimYaw).Moving(0f, 0.6f);
+            d.Run(15);
+            Assert.True(current.IsBoosted(1));
+            Assert.Equal(0.15f, d.P1.Stats.MovementBonus, 3);
+            Assert.True(Vec3.DistanceXZ(d.P1.Position, center) > 1.2f);
+
+            // The turned lane ends when the original would have ("without extending lifetime").
+            d.RunUntil(() => !current.Alive, Ticks.FromSeconds(7.0));
+            SpellEvent ended = d.SpellEvents(SpellEventKind.FieldEnded).Last();
+            Assert.InRange(ended.Tick, created.Tick + created.Ticks - 1, created.Tick + created.Ticks + 1);
+            Assert.Equal(0f, d.P1.Stats.MovementBonus, 3);
+        }
+
         [Fact]
         [Verifies("AUG-443", "AUG-444")]
         public void Fork_And_Valve_Combine_Shorter_Lanes_Both_Turn()

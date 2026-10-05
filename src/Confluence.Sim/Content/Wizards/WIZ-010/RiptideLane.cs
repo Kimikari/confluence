@@ -4,6 +4,7 @@ using System.Globalization;
 using Confluence.Core.Content;
 using Confluence.Core.Geometry;
 using Confluence.Core.Rules;
+using Confluence.Core.Time;
 using Confluence.Sim.Duel;
 using Confluence.Sim.Hashing;
 using Confluence.Sim.Players;
@@ -257,9 +258,56 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
 
                 _arrows[i] = best;
                 turned = angle;
+                if (angle < 179f) RotateLane(ctx, i, best);
             }
 
             HalenRules.Emit(ctx, TideEventKind.StreamTurned, Cast, _lanes[0].Center, turned);
+        }
+
+        /// <summary>
+        /// AUG-444 rank 2 "May rotate direction 90 degrees once instead" (decision): the lane itself turns with its arrow
+        /// about its center, so the bonus runs along the new 8 m length (a turned arrow over the unturned 2 m width would
+        /// be crosswise travel, which the record gives no bonus). The lane keeps its allocation slot, its water strength
+        /// and its remaining lifetime ("without extending lifetime"): the old orientation's field and water are removed
+        /// and the turned lane forms in the same step with the remaining ticks.
+        /// </summary>
+        private void RotateLane(SpellContext ctx, int lane, Vec2 arrow)
+        {
+            FieldEntity old = _lanes[lane];
+            if (!old.Alive || old.Owned == null || !old.Owned.Active) return;
+            int remaining = old.Owned.ExpireTick - ctx.Tick;
+            if (remaining <= 0) return;
+
+            // Free the old orientation's slot first, so the turned lane never retires another field (spec L128).
+            ctx.World.RemoveOwnedEntity(old.Owned.Id, FieldChange.Retired, -1);
+            int strength = LaneWater(Cast.Form.Payload);
+            HalenRules.RemoveWater(ctx, Cast, old.Footprint, strength);
+
+            FieldDelivery spec = _spec.Lane;
+            var turned = new FieldDelivery
+            {
+                Shape = FieldShape.Lane,
+                Length = spec.Length,
+                Width = spec.Width,
+                Placement = PlacementMode.AtAimPoint,
+                LifetimeSec = remaining / (float)Ticks.PerSecond,
+                AffectsOwner = spec.AffectsOwner,
+            };
+            turned.ApplyGlobalCaps();
+            Vec3 center = old.Center;
+            Vec3 start = new Vec3(center.X - arrow.X * spec.Length * 0.5f, center.Y, center.Z - arrow.Y * spec.Length * 0.5f);
+            _lanes[lane] = turned.Spawn(ctx, Cast, start, arrow.ToXZ());
+        }
+
+        private static int LaneWater(PayloadSpec payload)
+        {
+            for (int i = 0; i < payload.Deposits.Count; i++)
+            {
+                DepositSpec d = payload.Deposits[i];
+                if (d.Kind == DepositKind.Water && d.Placement == DepositPlacement.Footprint) return d.Strength;
+            }
+
+            return 0;
         }
 
         protected override void OnEnded(SpellContext ctx)

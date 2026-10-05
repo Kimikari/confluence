@@ -51,8 +51,9 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
     /// AUG-444 Riptide Valve (Prismatic, SPL-078, no exclusive group). Rank 1 "Recast reverses lane direction once without
     /// extending lifetime." Rank 2 "May rotate direction 90 degrees once instead." Drawback "Lane length 10 becomes 8 m;
     /// recast 5 mana." The spell-recast binding (5 mana, spec L94 "unless its record states a further resource payment")
-    /// turns the arrow once: reversed, or at rank 2 turned 90 degrees when the caster aims closer to that side. The lane's
-    /// footprint, water and remaining lifetime stay. The length drawback shortens the stream to 80% (10 m to 8 m; with Riptide
+    /// turns the arrow once: reversed, or at rank 2 turned 90 degrees when the caster aims closer to that side. A reversal
+    /// keeps the lane's footprint; a 90 degree turn turns the lane itself about its center (so the bonus runs along the new
+    /// length, not across the 2 m width). Either way the lane keeps its field slot, Water and remaining lifetime. The length drawback shortens the stream to 80% (10 m to 8 m; with Riptide
     /// Fork its lanes shrink in the same ratio). Counterplay "Read new arrow and claim route".
     /// </summary>
     [ContentBehavior(Id)]
