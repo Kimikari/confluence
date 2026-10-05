@@ -102,6 +102,9 @@ namespace Confluence.Casting
         /// All mastery-linked mana efficiency of a cast (spec L480 "All mastery-linked efficiency rewards, including equipment
         /// and augments that modify the same rewarded cast, clamp together at 20%"): the mana-efficiency reward with its
         /// linked bonus plus mastered-only cost reductions, together at most 20%; zero for a cast without its reward.
+        /// A mastered-only reduction also applies to a cast rewarded in another category (an attribute): "never both" (L124)
+        /// limits the grammar reward itself, and L480 lets mastery-linked equipment and augments of a different statistical
+        /// category apply under the full combat caps (otherwise AUG-005 and AUG-014 could never act for the wizards they list).
         /// </summary>
         public static float RewardedCastEfficiency(MasteryResult mastery, CastModifiers modifiers)
         {

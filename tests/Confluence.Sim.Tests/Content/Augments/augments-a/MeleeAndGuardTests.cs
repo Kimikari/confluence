@@ -205,7 +205,7 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
             AKit.Strike(w, walk);
             AKit.Step(w, 8, walk);
             Assert.Equal(MeleePhase.Windup, w.Player(0).Melee.Phase);
-            Assert.Equal(GlobalRules.Movement.WalkSpeed * 0.95f, AKit.Speed(w, 0), 2);
+            Assert.InRange(AKit.Speed(w, 0), GlobalRules.Movement.WalkSpeed * 0.95f - 0.005f, GlobalRules.Movement.WalkSpeed * 0.95f + 0.005f);
             AKit.FinishStrike(w, 0, walk);
             AKit.Step(w, 2, walk);
             Assert.Equal(GlobalRules.Movement.WalkSpeed, AKit.Speed(w, 0), 2);

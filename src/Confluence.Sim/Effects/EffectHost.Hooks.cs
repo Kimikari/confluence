@@ -54,8 +54,11 @@ namespace Confluence.Sim.Effects
 
             if (totals.Any)
             {
-                command.Tuning.WalkMultiplier = totals.WalkMultiplier(Stats);
-                command.Tuning.SprintMultiplier = totals.SprintMultiplier(Stats);
+                // Only the hooks' change is applied on top of the step's multipliers (the stat block's gait, plus any
+                // edit made before this point), so nothing else written to the command is discarded.
+                Stats.StatBlock stats = Stats;
+                command.Tuning.WalkMultiplier = Math.Max(0f, command.Tuning.WalkMultiplier + totals.WalkMultiplier(stats) - (1f + stats.WalkBonus));
+                command.Tuning.SprintMultiplier = Math.Max(0f, command.Tuning.SprintMultiplier + totals.SprintMultiplier(stats) - (1f + stats.SprintBonus));
             }
         }
 
