@@ -120,6 +120,30 @@ namespace Confluence.Sim.Tests.Content.Halen
             Assert.Equal(before, d.Total(Material.Heat, far));
         }
 
+        [Theory]
+        [InlineData(1)]
+        [InlineData(2)]
+        [Verifies("AUG-447")]
+        public void The_Cone_Keeps_The_Visible_Field_Rule_A_Wall_Shields_The_Hazard_Behind_It(int rank)
+        {
+            // The branch replaces only the splash (L541): SPL-080's "one visible hot/corrosive ground field" still holds,
+            // so heat behind a 3 m wall inside the cone keeps every unit while heat in front of the wall loses one per cell.
+            HalenDuel d = HalenTestKit.Duel(HalenTestKit.Halen(new[] { SealTheSpring.Id }, HalenTestKit.Aug(SpringFan.Id, rank)),
+                layout: HalenTestKit.Layout(SpellTestKit.Wall(50, new Vec3(0f, 0f, -3.5f), new Vec3(6f, 3f, 0.5f))));
+            Footprint hidden = Footprint.Circle(new Vec2(0f, -1.5f), 0.6f);
+            Footprint near = Footprint.Point(new Vec2(0.25f, -4.75f));
+            d.Deposit(Material.Heat, 2, hidden);
+            d.Deposit(Material.Heat, 2, near);
+            d.Step();
+            int hiddenBefore = d.Total(Material.Heat, hidden);
+            Assert.True(hiddenBefore >= 4);
+            d.Halen = TestWorlds.A;
+            Release(d);
+            Assert.Equal(hiddenBefore, d.Total(Material.Heat, hidden));
+            Assert.Equal(1, HeatAt(d, 0.25f, -4.75f));
+            Assert.Equal(1f, d.Tide(TideEventKind.SpringNeutralized).Single().Amount);
+        }
+
         // ---- AUG-448 Spring Steam ------------------------------------------------------------------------------
 
         [Theory]

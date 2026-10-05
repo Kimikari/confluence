@@ -178,6 +178,25 @@ namespace Confluence.Sim.Tests.Content.Halen
             Assert.Single(back.Tide(TideEventKind.MissRecovery)); // the whiff is still punishable
         }
 
+        [Theory]
+        [InlineData(1)]
+        [InlineData(2)]
+        [Verifies("AUG-436")]
+        public void A_Cone_That_Misses_Into_A_Wall_Keeps_The_Impact_Spot_Spray_And_The_Miss_Recovery(int rank)
+        {
+            // The branch replaces the thrust's shape only (L541): a cone that strikes a wall and nobody else still sprays
+            // Water 1 at the struck spot and leaves the 0.3 s miss recovery, as the base thrust does.
+            HalenDuel d = HalenTestKit.Duel(HalenTestKit.Halen(null, HalenTestKit.Aug(HammerFan.Id, rank)),
+                layout: HalenTestKit.Layout(SpellTestKit.Wall(30, new Vec3(0f, 0f, -4.25f), new Vec3(4f, 3f, 0.5f))));
+            TestWorlds.Place(d.World, 1, new Vec3(0f, 0f, -1f), 180f);
+            d.Halen = TestWorlds.A;
+            d.Cast(Slot);
+            d.Run(50);
+            Assert.Null(HitOn(d));
+            Assert.Equal(1, d.Total(Material.Water, Footprint.Circle(new Vec2(0f, -4.6f), 0.8f)));
+            Assert.Single(d.Tide(TideEventKind.MissRecovery));
+        }
+
         [Fact]
         [Verifies("AUG-436")]
         public void A_Guard_Halves_The_Cone()

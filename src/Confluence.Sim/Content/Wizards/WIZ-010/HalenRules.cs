@@ -161,23 +161,6 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
             return true;
         }
 
-        /// <summary>Removes up to <paramref name="perCell"/> water units from every cell of a footprint (AUG-444's turned lane).</summary>
-        public static bool RemoveWater(SpellContext ctx, CastRecord cast, Footprint footprint, int perCell)
-        {
-            ReactionMaterials materials = Materials(ctx);
-            if (materials == null || perCell <= 0) return false;
-            materials.RemoveUnits(new UnitRemoval
-            {
-                Footprint = footprint,
-                Materials = new[] { Material.Water },
-                MaxPerCell = perCell,
-                MaxTotal = int.MaxValue,
-                Owner = cast.Caster,
-                SourceEventId = cast.OriginEventId,
-            });
-            return true;
-        }
-
         /// <summary>Whether a body's feet stand in liquid water (spec L118; ice is not wet). True without a reaction world.</summary>
         public static bool StandsInWater(SpellContext ctx, Vec3 feet)
         {

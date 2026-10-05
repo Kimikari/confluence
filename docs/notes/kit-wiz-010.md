@@ -16,6 +16,10 @@ Owner paths: `src/Confluence.Sim/Content/Wizards/WIZ-010/**`, `tests/Confluence.
   a hot field and imprisons Bram). `tests/Confluence.Hosting.Tests/WIZ-010/`: Economy structural profile with the
   registry populated (all 16, plus a real eligibility change from AUG-437 and AUG-436), bot scripts for every spell
   and the signature through the grammar, planner choices, and hosted Halen-vs-Halen bot duels on MatchHost.
+- Review fixes (two rounds): SPL-080 splash and AUG-447 cone respect "visible" (walls shield hidden fields); AUG-437
+  throws nothing after a break; AUG-435/441/446 puddles are owned fields with a `field` structural delta; AUG-444 rank 2
+  turns the lane footprint and lifts only its own water; AUG-436 cone keeps the wall spray; bots hold a planned ground
+  aim to the release.
 - Next steps (optional): the generic `BotInputSource` movement keeps bots rushing / out of sight much of a duel, so
   hosted bots cast Halen's mobility spells (vault, stream) rarely; a movement-aware planner hook could improve that.
 
@@ -53,7 +57,9 @@ Owner paths: `src/Confluence.Sim/Content/Wizards/WIZ-010/**`, `tests/Confluence.
   ends, or at once when immunity refused the root. A hard-control spell: the L96 anticipatory cue telegraphs it.
 - SPL-080: the impact is the aim's first solid within 18 m (none: the spent cast does nothing). "One ... field" = the
   4-connected hot/venom patch nearest the impact inside the 2 m splash; units nearest first, heat before venom. No water
-  is deposited.
+  is deposited. "visible": a splash cell must be reachable from the impact (lifted 5 cm off the struck face) without
+  crossing a solid, and the chosen patch needs at least one cell the caster's eye sees with clear sight (L167 obscuring
+  limit included), so a wall shields the field behind it.
 - Signature: neutral eddy (owner affected), 12 arcane on first entry per body per cast (never guarded, area contact),
   15% slow re-applied every 0.25 s for 0.3 s while inside; Water 1 over the eddy for its 3 s.
 - Passive: `EffectTrigger.CastCommitted` with `MinAmount` 30 on the amount actually paid; the condition requires the
@@ -65,10 +71,14 @@ Owner paths: `src/Confluence.Sim/Content/Wizards/WIZ-010/**`, `tests/Confluence.
   - AUG-434: a shot that strikes a solid without hitting the opponent leaves a mist cloud (owned, counts as a field);
     the push drops to 1 m and, applied after AUG-433 in stage order, also governs the banked shot.
   - AUG-435: a direct hit leaves a puddle (radius, lifetime as stated) under the target instead of the one-cell spray.
+    The puddles of AUG-435 / AUG-441 / AUG-446 are owned gameplay fields (`TidePuddleEntity`: three-field allocation,
+    oldest retired, deposits carry the field id) and so add the structural tag `field` (L543; SPL-076 carries it).
   - AUG-436: framework cone (half angle 37.5 / 45 degrees, 3 m reach, per-target cover), 40 / 44 damage, no push,
-    +4 mana, +0.1 s windup; structural +cone, -push.
+    +4 mana, +0.1 s windup; structural +cone, -push. A cone that strikes nobody keeps the miss recovery and sprays
+    Water 1 where its center line from the focus meets a solid within the 3 m reach (as the thrust does).
   - AUG-437: recast (spell-recast binding, no payment) throws the remaining shield as a 20 m/s, 20 m physical projectile
-    of 24 / 30; shield 35; structural +projectile, damaging, channel:physical, ranged, recast.
+    of 24 / 30; shield 35; structural +projectile, damaging, channel:physical, ranged, recast. A recast after the
+    bubble broke, emptied or timed out (even before its entity stepped) throws nothing; the normal break runs.
   - AUG-438: a thermal break (thermal hit or own heat reaction emptying it) turns the break water into a 1.5 m / 1 s
     (2 m / 1.5 s) steam puff; each heat reaction consumes 15.
   - AUG-439: one rectangular field 8 (10) x 2 m centered on the aimed point, Water 2.
@@ -78,13 +88,16 @@ Owner paths: `src/Confluence.Sim/Content/Wizards/WIZ-010/**`, `tests/Confluence.
     +4 mana; structural +recast.
   - AUG-443: two lanes 30 degrees either side of the aim from one junction, 6 (8) m, +10%, Water 2 divided (1 each).
   - AUG-444: recast (5 mana) reverses the arrow once; rank 2 may instead turn it 90 degrees toward the caster's aim;
-    length x0.8 (10 -> 8 m); structural +recast.
+    length x0.8 (10 -> 8 m); structural +recast. Rank 2's turn rotates the lane footprint about its center with the
+    remaining lifetime and slot; only the water the lane itself added (computed per cell at release with the L163
+    four-unit cap) and that still remains is lifted from the old orientation; foreign water under it stays.
   - AUG-445: the bubble rolls on the ground at 16 (20) m/s, climbing at most the step height; bodies whose feet clear
     its top are untouched; damage 22; structural +grounded.
   - AUG-446: after the root ends (or at once when refused) a Water 1 puddle 1 (1.5) m for 2 (3) s at the impact
     instead of the slow; no control of its own.
   - AUG-447: ground cone from the feet, 6 (8) m, framework 90 degree default, one heat/venom unit per cell, +3 mana;
-    structural +cone.
+    structural +cone. Keeps the base "visible" rule (L541): a cell counts only when the caster's eye sees its surface,
+    so heat behind a wall is untouched.
   - AUG-448: where heat is neutralized a 1.5 m / 2 s (2 m / 3 s) steam cloud forms; without heat in the plan corrosion
     is untouched.
 - AUG-445 rolling: the wall check sweeps level at the higher of the current and next ground height, so a rise within
@@ -114,6 +127,9 @@ Owner paths: `src/Confluence.Sim/Content/Wizards/WIZ-010/**`, `tests/Confluence.
 - `src/Confluence.Hosting/Bots/BotInputSource.cs`: when the wizard has a kit planner, the planner chooses slot, aim
   (chest / opponent feet / point) and an optional recast; the Observation records a visible windup; rushes no longer
   block planner casts (the planner restricts itself to close range). Wizards without a planner behave as before.
+  A planned ground / point aim (`_aimPlan`) is held after the input script ends, through the committed windup to the
+  spell's release (spec L92), and dropped when the cast releases, cancels or never commits.
+- `src/Confluence.Sim/Duel/DuelWorld.cs`: `RemoveEventObserver` (additive; an ended SPL-075 bubble stops observing).
 - `tests/Confluence.Hosting.Tests/EconomyAdapterTests.cs`: the floor test ignores wizard-kit transformations when it
   compares the implemented pools with the shared proof records (every kit branch adds its transformations to the pools).
 - NEW `tests/Confluence.Hosting.Tests/WIZ-010/` (Economy and bot tests; Sim.Tests does not reference Economy).

@@ -312,7 +312,8 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
 
     /// <summary>
     /// AUG-447 Spring Fan: a ground cone from the caster's feet along the aim removing one hot/corrosive unit in every cell
-    /// it covers (heat first). The record gives no angle, so the framework cone default (90 degrees, D-145 style) applies.
+    /// it covers (heat first) whose surface the caster sees (the base's "visible" field, kept per L541). The record gives
+    /// no angle, so the framework cone default (90 degrees, D-145 style) applies.
     /// </summary>
     public sealed class SpringConeDelivery : DeliverySpec, ISpringNeutralizer
     {
@@ -361,8 +362,13 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
             ctx.Emit(SpellEventKind.ConeReleased, cast, ctx.Player(cast.Caster).Position, new Vec3(aim.X, 0f, aim.Z), 0, Reach);
             ReactionWorld world = HalenRules.Reactions(ctx);
             if (world == null) return;
-            Vec2 apex = ctx.Player(cast.Caster).Position.XZ();
+            Vec3 feet = ctx.Player(cast.Caster).Position;
+            Vec2 apex = feet.XZ();
             List<int> cells = HalenRules.Cells(world, FootprintFor(ctx, cast.Caster, aim));
+            // The branch replaces the splash with a cone but keeps the base's "visible" field (L541): a cell counts only
+            // when the caster's eye sees its surface (no solid, less than the L167 obscuring limit), so a wall shields the
+            // hazard behind it as per-target cover shields a body from a framework cone (D-142).
+            var sight = new SpringSight(ctx, world, feet, Vec3.Up, ctx.AimOrigin(cast.Caster));
             var plan = new List<SpringRemoval>();
             int nearestHeat = -1;
             float bestHeat = float.MaxValue;
@@ -370,6 +376,7 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
             {
                 CellUnits u = world.UnitsAtCell(cells[i]);
                 if (!SpringNeutralization.IsHotOrCorrosive(u)) continue;
+                if (!sight.SeenByCaster(cells[i])) continue;
                 int heat = Math.Min(u.Heat, PerCell);
                 int venom = Math.Min(u.Venom, PerCell - heat);
                 plan.Add(new SpringRemoval { Cell = cells[i], Heat = heat, Venom = venom });

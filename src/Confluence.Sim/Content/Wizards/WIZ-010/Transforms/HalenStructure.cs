@@ -9,9 +9,10 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
     /// The structural tag changes of WIZ-010's transformations, declared once in Core's <see cref="StructuralDeltas"/>
     /// (D-012) so Economy eligibility and the Sim's resolved forms read the same profile (spec L243, L537, L543). Each
     /// transformation's behavior registers the table when it is created (the content registry creates every behavior), so
-    /// any process that loads the registry sees the deltas. Transformations not listed keep their base spell's tags:
-    /// reaction byproducts (puddles, puffs, mist and steam clouds) and parameter changes are not structure, as in the base
-    /// records (SPL-009's steam patch adds no field tag).
+    /// any process that loads the registry sees the deltas. The authored timed puddles of AUG-435 / AUG-441 / AUG-446 are
+    /// gameplay fields (owned, allocation-counted) and add "field". Transformations not listed keep their base spell's tags:
+    /// reaction byproducts (puffs, mist and steam clouds) and parameter changes are not structure, as in the base records
+    /// (SPL-009's steam patch adds no field tag).
     /// </summary>
     public static class HalenStructure
     {
@@ -24,6 +25,11 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
             // AUG-433 Jet Bank: one bank from a wet wall is a ricochet trajectory (SPL-049 "may bounce once" is ricochet).
             Tuple.Create("AUG-433", "SPL-073", new[] { "ricochet" }, new string[0]),
 
+            // AUG-435 Hammer Wake, AUG-441 Landing Basin and AUG-446 Prison Pool: each leaves an authored timed puddle that
+            // is a gameplay field (it takes the normal three-field allocation and retires the oldest, spec L128, L510), so
+            // the branch adds a field (L543), as SPL-076's equivalent water pool carries "field".
+            Tuple.Create("AUG-435", "SPL-074", new[] { "field" }, new string[0]),
+
             // AUG-436 Hammer Fan: "Thrust becomes a 75-degree 40-damage cone with no push" (an offensive close cone stays
             // melee, like SPL-010 Cinder Sweep).
             Tuple.Create("AUG-436", "SPL-074", new[] { "cone" }, new[] { "push" }),
@@ -33,11 +39,13 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
             Tuple.Create("AUG-437", "SPL-075", new[] { "projectile", "damaging", "channel:physical", "ranged", "recast" }, new string[0]),
 
             // AUG-442 Cascade Brake and AUG-444 Riptide Valve add a recast (spec L549 "adding a recast shows a pending state").
+            Tuple.Create("AUG-441", "SPL-077", new[] { "field" }, new string[0]),
             Tuple.Create("AUG-442", "SPL-077", new[] { "recast" }, new string[0]),
             Tuple.Create("AUG-444", "SPL-078", new[] { "recast" }, new string[0]),
 
             // AUG-445 Prison Roll: "Bubble rolls along ground ... instead of flying" (SPL-210's rolling boulder is grounded).
             Tuple.Create("AUG-445", "SPL-079", new[] { "grounded" }, new string[0]),
+            Tuple.Create("AUG-446", "SPL-079", new[] { "field" }, new string[0]),
 
             // AUG-447 Spring Fan: "Utility becomes a 6 m cone".
             Tuple.Create("AUG-447", "SPL-080", new[] { "cone" }, new string[0]),

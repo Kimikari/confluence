@@ -209,6 +209,36 @@ namespace Confluence.Sim.Tests.Content.Halen
         }
 
         [Fact]
+        [Verifies("AUG-444")]
+        public void Rank_2_Turn_Lifts_Only_The_Lanes_Own_Water_Foreign_Water_Under_It_Stays()
+        {
+            // The opponent's water under the old orientation: a full cell (the lane could add nothing there) and a cell
+            // holding 3 (the four-unit cap let the lane add 1). Turning the lane lifts only what the lane itself added.
+            HalenDuel d = With(HalenTestKit.Aug(RiptideValve.Id, 2));
+            Vec3 full = new Vec3(0.25f, 0f, -2.25f);
+            Vec3 partial = new Vec3(0.25f, 0f, -1.75f);
+            Vec3 plain = new Vec3(-0.25f, 0f, -2.25f);
+            d.Deposit(Material.Water, 4, Footprint.Point(full.XZ()), 8f, 1);
+            d.Deposit(Material.Water, 3, Footprint.Point(partial.XZ()), 8f, 1);
+            d.Step();
+            Assert.Equal(4, d.Units(full).Water);
+            Assert.Equal(3, d.Units(partial).Water);
+            d = RiptideLaneTests.Stream(new Vec3(8f, 0f, 8f), d);
+            Assert.Equal(4, d.Units(full).Water);
+            Assert.Equal(4, d.Units(partial).Water);
+            Assert.Equal(2, d.Units(plain).Water);
+
+            d.Run(10);
+            d.Halen = TestWorlds.Face(90f);
+            d.Recast();
+            d.Step();
+            Assert.Equal(90f, d.Tide(TideEventKind.StreamTurned).Single().Amount);
+            Assert.Equal(4, d.Units(full).Water);    // the lane added none of it
+            Assert.Equal(3, d.Units(partial).Water); // only the lane's 1
+            Assert.Equal(0, d.Units(plain).Water);   // the lane's own Water 2 is gone with its old orientation
+        }
+
+        [Fact]
         [Verifies("AUG-443", "AUG-444")]
         public void Fork_And_Valve_Combine_Shorter_Lanes_Both_Turn()
         {

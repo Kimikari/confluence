@@ -83,21 +83,28 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
             }
         }
 
+        /// <summary>The strike's reach: the thrust's (or AUG-436 cone's) reach, else the form's range (the record's 3 m).</summary>
+        internal static float StrikeReach(SpellForm form)
+        {
+            if (form.Delivery is ArcDelivery arc && arc.Reach > 0f) return arc.Reach;
+            if (form.Delivery is ConeDelivery cone) return cone.ReachFor(form);
+            return form.Range;
+        }
+
         public override void OnReleased(SpellContext ctx, CastRecord cast)
         {
             int opponent = 1 - cast.Caster;
             if (cast.HitKindsOn(opponent) != CastHitKinds.None) return;
 
-            // The thrust struck a solid: its spray lands at that impact spot.
-            if (cast.Form.Delivery is ArcDelivery arc)
+            // The strike met a solid along its aim within its reach: the spray lands at that impact spot. The same for the
+            // thrust and for AUG-436's cone (the branch keeps the record's impact-spot spray, L541): the cone's impact spot
+            // is where its center line from the focus meets the solid.
+            Vec3 origin = ctx.FocusOrigin(cast.Caster);
+            Vec3 dir = cast.Form.AimLock == AimLock.AtCommit ? cast.CommitDirection : ctx.AimDirection(cast.Caster);
+            float reach = StrikeReach(cast.Form);
+            if (reach > 0f && ctx.Collision.SegmentCast(origin, origin + dir * reach, SolidMask.Movement, out WorldHit wall))
             {
-                Vec3 origin = ctx.FocusOrigin(cast.Caster);
-                Vec3 dir = cast.Form.AimLock == AimLock.AtCommit ? cast.CommitDirection : ctx.AimDirection(cast.Caster);
-                float reach = arc.Reach > 0f ? arc.Reach : cast.Form.Range;
-                if (ctx.Collision.SegmentCast(origin, origin + dir * reach, SolidMask.Movement, out WorldHit wall))
-                {
-                    HalenRules.DepositWater(ctx, cast, wall.Point - dir * 0.05f, SprayStrength, 0f, HalenRules.ImpactWaterLifetimeSec);
-                }
+                HalenRules.DepositWater(ctx, cast, wall.Point - dir * 0.05f, SprayStrength, 0f, HalenRules.ImpactWaterLifetimeSec);
             }
 
             // "a miss leaves 0.3 s recovery" (spec L92: recovery can only grow).

@@ -136,7 +136,45 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
                 kept.Add(arrows[i]);
             }
 
-            if (lanes.Count > 0) ctx.Spawn(new StreamCurrentEntity(cast, this, lanes.ToArray(), kept.ToArray()));
+            if (lanes.Count > 0)
+            {
+                FieldEntity[] spawned = lanes.ToArray();
+                ctx.Spawn(new StreamCurrentEntity(cast, this, spawned, kept.ToArray(), LaneWaterLayer.Plan(ctx, cast, spawned)));
+            }
+        }
+    }
+
+    /// <summary>
+    /// The water each lane of a stream actually adds, per cell (AUG-444 rank 2 needs it to lift only the stream's own layer
+    /// when a lane turns). Reaction cells pool units of a material (one slot per cell), so the layer is computed at the
+    /// release, before the queued footprint deposit applies, with the reaction world's own L163 cap rule: a cell gains
+    /// min(strength, 4 - water already there). Lanes are planned in order, so a shared junction cell is never counted twice.
+    /// </summary>
+    internal static class LaneWaterLayer
+    {
+        public static Dictionary<int, int>[] Plan(SpellContext ctx, CastRecord cast, FieldEntity[] lanes)
+        {
+            var layers = new Dictionary<int, int>[lanes.Length];
+            Confluence.Reactions.ReactionWorld world = HalenRules.Reactions(ctx);
+            int strength = StreamCurrentEntity.LaneWater(cast.Form.Payload);
+            var running = new Dictionary<int, int>();
+            for (int i = 0; i < lanes.Length; i++)
+            {
+                layers[i] = new Dictionary<int, int>();
+                if (world == null || strength <= 0) continue;
+                List<int> cells = HalenRules.Cells(world, lanes[i].Footprint);
+                for (int c = 0; c < cells.Count; c++)
+                {
+                    int cell = cells[c];
+                    if (layers[i].ContainsKey(cell)) continue;
+                    if (!running.TryGetValue(cell, out int water)) water = world.UnitsAtCell(cell).Water;
+                    int add = Math.Max(0, Math.Min(strength, GlobalRules.World.MaxUnitsPerCell - water));
+                    running[cell] = water + add;
+                    if (add > 0) layers[i][cell] = add;
+                }
+            }
+
+            return layers;
         }
     }
 
@@ -152,14 +190,16 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
         private readonly Vec2[] _arrows;
         private readonly bool[] _boosted = new bool[DuelWorld.PlayerCount];
         private readonly string[] _keys = new string[DuelWorld.PlayerCount];
+        private readonly Dictionary<int, int>[] _layers;
         private bool _valveUsed;
 
-        internal StreamCurrentEntity(CastRecord cast, StreamDelivery spec, FieldEntity[] lanes, Vec2[] arrows)
+        internal StreamCurrentEntity(CastRecord cast, StreamDelivery spec, FieldEntity[] lanes, Vec2[] arrows, Dictionary<int, int>[] layers)
             : base(cast)
         {
             _spec = spec;
             _lanes = lanes;
             _arrows = arrows;
+            _layers = layers;
             for (int i = 0; i < _keys.Length; i++)
             {
                 _keys[i] = cast.SpellId + "#" + cast.CastId.Sequence.ToString(CultureInfo.InvariantCulture) + "#current" + i.ToString(CultureInfo.InvariantCulture);
@@ -280,8 +320,7 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
 
             // Free the old orientation's slot first, so the turned lane never retires another field (spec L128).
             ctx.World.RemoveOwnedEntity(old.Owned.Id, FieldChange.Retired, -1);
-            int strength = LaneWater(Cast.Form.Payload);
-            HalenRules.RemoveWater(ctx, Cast, old.Footprint, strength);
+            RemoveOwnLayer(ctx, lane);
 
             FieldDelivery spec = _spec.Lane;
             var turned = new FieldDelivery
@@ -299,7 +338,28 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
             _lanes[lane] = turned.Spawn(ctx, Cast, start, arrow.ToXZ());
         }
 
-        private static int LaneWater(PayloadSpec payload)
+        /// <summary>
+        /// Lifts the old orientation's own water: in each cell, the units this lane added at its release that still remain
+        /// (never more than the cell holds now). Water from other sources under the lane — an opponent's pool, or the
+        /// cell's share the four-unit cap kept the lane from adding — stays (decision; the record removes nothing else).
+        /// </summary>
+        private void RemoveOwnLayer(SpellContext ctx, int lane)
+        {
+            Confluence.Reactions.ReactionWorld world = HalenRules.Reactions(ctx);
+            Dictionary<int, int> layer = _layers[lane];
+            if (world == null || layer.Count == 0) return;
+            var cells = new List<int>(layer.Keys);
+            cells.Sort();
+            for (int i = 0; i < cells.Count; i++)
+            {
+                int take = Math.Min(layer[cells[i]], world.UnitsAtCell(cells[i]).Water);
+                if (take > 0) HalenRules.RemoveWater(ctx, Cast, world.Grid.CellCenter(cells[i]).ToXZ(0f), take);
+            }
+
+            layer.Clear();
+        }
+
+        internal static int LaneWater(PayloadSpec payload)
         {
             for (int i = 0; i < payload.Deposits.Count; i++)
             {
@@ -325,6 +385,17 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
             h.Add(_valveUsed);
             for (int i = 0; i < _arrows.Length; i++) h.Add(_arrows[i]);
             for (int i = 0; i < _boosted.Length; i++) h.Add(_boosted[i]);
+            for (int i = 0; i < _layers.Length; i++)
+            {
+                var cells = new List<int>(_layers[i].Keys);
+                cells.Sort();
+                h.Add(cells.Count);
+                for (int c = 0; c < cells.Count; c++)
+                {
+                    h.Add(cells[c]);
+                    h.Add(_layers[i][cells[c]]);
+                }
+            }
         }
     }
 }
