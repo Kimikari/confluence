@@ -359,8 +359,11 @@ Not done, with reasons:
 
 - Status (2026-10-05, after resume): Stage 3 complete on this branch, including the incremental cell capture and the
   remaining research-checklist tests (motor envelope, event latency under loss, Events burst). `dotnet test
-  tests/Confluence.Net.Tests` passes (count in the report). Real-time smoke: server + two headless client processes
-  over UDP (commands in the report).
+  tests/Confluence.Net.Tests` passes 168 tests; the whole solution 1896, 0 failures. Real-time smoke (2026-10-05): `Confluence.Server --port 7791
+  --mode duel --players 2 --lab --seed 312 --max-seconds 330` plus two `Confluence.HeadlessClient --host 127.0.0.1
+  --port 7791 --name Ash|Brook --wizard WIZ-002|WIZ-010 --seed 1|2 --max-seconds 320 --status-seconds 30` processes:
+  three complete rounds (shop, draft, alcove, combat, results) and the fourth combat in progress at the limit; 0
+  violations, 30 Hz throughout, mean body 150 B, max correction 0.069 m, tick lateness p99 13 ms, clean shutdown.
 - Next: the view pilot rarely finds its opponent on arenas larger than 24 m (pilots often end by time or boundary);
   catalogue ordinals; received-snapshot ack bitfield; spectator delta stream; HMAC-derived hidden streams (Hosting);
   Unity client integration (Stage 4: `GameClient` + `HudView` + `ClientMatchView`, golden arena hashes in Mono).
