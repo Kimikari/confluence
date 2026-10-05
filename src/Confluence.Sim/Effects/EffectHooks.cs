@@ -68,6 +68,15 @@ namespace Confluence.Sim.Effects
         {
         }
 
+        /// <summary>
+        /// Gait bonuses and penalties this hook requests for the owner's motor step (after every hook's
+        /// <see cref="AdjustMotor"/>). Never assign the command's gait multipliers directly: the host sums all hooks'
+        /// requests and applies the +20% movement cap once (see <see cref="GaitAdjust"/>).
+        /// </summary>
+        public virtual void AdjustGait(in MotorCommand command, ref GaitAdjust gait)
+        {
+        }
+
         /// <summary>The owner's common melee profile at strike begin (stamina is paid from the returned profile).</summary>
         public virtual MeleeProfile AdjustStrike(MeleeProfile profile) => profile;
 
@@ -85,8 +94,24 @@ namespace Confluence.Sim.Effects
         {
         }
 
-        /// <summary>Launch speed of a projectile the owner's cast releases (after the mastery reward).</summary>
+        /// <summary>
+        /// Launch speed of a projectile the owner's cast releases (after the mastery reward and the linked bonuses): for
+        /// speed changes that are not mastery-linked.
+        /// </summary>
         public virtual float AdjustProjectileSpeed(Spells.CastRecord cast, float speed) => speed;
+
+        /// <summary>
+        /// A mastery-linked projectile-speed bonus (fraction) for the owner's released cast; 0 for none. The host sums every
+        /// hook's linked bonus with the cast's own speed reward and clamps the total once at 15% (spec L480, <see cref="MasteryLinked"/>).
+        /// </summary>
+        public virtual float LinkedProjectileSpeed(Spells.CastRecord cast) => 0f;
+
+        /// <summary>
+        /// A mastery-linked direct-damage bonus (fraction) for an original hit of the owner's cast (<paramref name="cast"/>
+        /// may be null once the cast ended); 0 for none. Summed over all hooks and clamped once with the cast's own damage
+        /// reward at 15% (spec L480).
+        /// </summary>
+        public virtual float LinkedDirectDamage(DamageRequest hit, Spells.CastRecord cast) => 0f;
 
         /// <summary>Windup and recovery changes of a cast the owner is committing (see <see cref="CastModifiers"/>).</summary>
         public virtual void AdjustCastTiming(in CastQuote quote, ref CastTimingAdjust timing)

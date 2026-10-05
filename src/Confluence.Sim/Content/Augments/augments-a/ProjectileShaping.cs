@@ -381,12 +381,12 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 }
             }
 
-            public override void AdjustMotor(ref MotorCommand command)
+            public override void AdjustGait(in MotorCommand command, ref GaitAdjust gait)
             {
                 CastMachine m = Self.Caster != null ? Self.Caster.Machine : null;
                 if (m != null && m.Phase == CastPhase.Windup && m.CurrentSpell != null && Qualifies(AugmentsAKit.FormOf(Self, m.CurrentSpell.Id)))
                 {
-                    command.Tuning.WalkMultiplier = AugmentsAKit.WalkMultiplier(Self.Stats, -WalkPenalty);
+                    gait.Walk -= WalkPenalty; // a penalty: applies after the +20% cap with the other gait changes
                 }
             }
 

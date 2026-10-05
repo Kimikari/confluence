@@ -37,24 +37,9 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
         public static bool IsDirectProjectile(SpellForm form) =>
             form != null && form.Delivery is ProjectileDelivery && form.Payload != null && form.Payload.Direct > 0f;
 
-        /// <summary>
-        /// The extra multiplier a mastery-linked direct-damage bonus may add on top of the cast's own mastery multiplier so
-        /// the total mastery damage improvement stays at most 15% (spec L480).
-        /// </summary>
-        public static float LinkedDamageFraction(CastRecord cast, float bonus)
-        {
-            float own = cast != null ? cast.DirectDamageMultiplier : 1f;
-            float total = Math.Min(GlobalRules.Modifiers.MasteryAttributeCap, (own - 1f) + Math.Max(0f, bonus));
-            return Math.Max(0f, (1f + total) / own - 1f);
-        }
-
-        /// <summary>The projectile speed after a mastery-linked bonus, clamped with a projectile-speed reward at 15% (L480).</summary>
-        public static float LinkedSpeed(CastRecord cast, float speed, float bonus)
-        {
-            float own = cast.ProjectileSpeedMultiplier;
-            float total = Math.Min(GlobalRules.Modifiers.MasteryAttributeCap, (own - 1f) + Math.Max(0f, bonus));
-            return speed / own * (1f + total);
-        }
+        // Mastery-linked damage and projectile-speed bonuses are reported through EffectHook.LinkedDirectDamage and
+        // EffectHook.LinkedProjectileSpeed; the effect host sums them over all records and clamps the total once with the
+        // cast's own reward at 15% (Effects/HookAggregates.cs MasteryLinked, spec L480).
     }
 
     /// <summary>Records which resource event paid each of the player's commitments (refunds name the payment, L90).</summary>
@@ -327,25 +312,24 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 Expire(Now);
             }
 
-            public override void AdjustOutgoing(DamageRequest hit, float range, ref float fraction, ref float flat)
+            // Mastery-linked ("total mastery damage/speed bonus capped at 15%"): summed with the other linked bonuses and
+            // clamped once with the cast's reward (L480).
+            public override float LinkedDirectDamage(DamageRequest hit, CastRecord cast)
             {
                 if (hit.Kind != DamageKind.Direct || !hit.IsSpellHit)
                 {
-                    return;
+                    return 0f;
                 }
 
                 Tracked t = Find(hit.CastId);
                 if (t == null || Counts(t.SpellId))
                 {
-                    return;
+                    return 0f;
                 }
 
                 int earliest = int.MaxValue;
                 for (int i = 0; i < _progress.Count; i++) earliest = Math.Min(earliest, _progress[i].Tick);
-                if (_progress.Count == SpellsNeeded - 1 && Now - earliest <= AugmentsAKit.Ticks(WindowSec))
-                {
-                    fraction += CastFacts.LinkedDamageFraction(AugmentsAKit.FindCast(World, hit.CastId), _bonus);
-                }
+                return _progress.Count == SpellsNeeded - 1 && Now - earliest <= AugmentsAKit.Ticks(WindowSec) ? _bonus : 0f;
             }
 
             private void Expire(int now)
@@ -372,6 +356,16 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
             public override void Hash(ref StateHasher h)
             {
                 h.Add(_casts.Count);
+                for (int i = 0; i < _casts.Count; i++)
+                {
+                    h.Add((ulong)_casts[i].Cast.Packed);
+                    h.Add(_casts[i].SpellId);
+                    h.Add(_casts[i].Released);
+                    h.Add(_casts[i].Hit);
+                }
+
+                h.Add(_completed);
+                h.Add(_completedOrigin);
                 h.Add(_progress.Count);
                 for (int i = 0; i < _progress.Count; i++)
                 {
@@ -430,15 +424,9 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
             public override void OnTick() => _aim.Record(Self, Self.Motor.Sprinting);
 
-            public override float AdjustProjectileSpeed(CastRecord cast, float speed)
-            {
-                if (!CastFacts.IsDirectProjectile(cast.Form) || !_aim.SteadyWithin(Self, ConeDeg))
-                {
-                    return speed;
-                }
-
-                return CastFacts.LinkedSpeed(cast, speed, _speed);
-            }
+            // Mastery-linked: summed with the other linked bonuses and clamped once with the cast's reward (L480).
+            public override float LinkedProjectileSpeed(CastRecord cast) =>
+                CastFacts.IsDirectProjectile(cast.Form) && _aim.SteadyWithin(Self, ConeDeg) ? _speed : 0f;
 
             public override void Hash(ref StateHasher h) => _aim.Hash(ref h);
         }
@@ -488,6 +476,11 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
         {
             h.Add(_count);
             h.Add(_next);
+            for (int i = 0; i < _dirs.Length; i++)
+            {
+                h.Add(_dirs[i]);
+                h.Add(_sprint[i]);
+            }
         }
     }
 
@@ -659,28 +652,37 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 }
             }
 
-            public override void AdjustOutgoing(DamageRequest hit, float range, ref float fraction, ref float flat)
+            /// <summary>The owner's projectile impact this tick: true near the head, false elsewhere, null for other hits.</summary>
+            private bool? NearHead(DamageRequest hit)
             {
                 if (hit.Kind != DamageKind.Direct || !hit.IsSpellHit || hit.CastId != _impactCast || _impactTick != Now)
                 {
-                    return; // only the direct impact of the owner's projectile this tick
+                    return null; // only the direct impact of the owner's projectile this tick
                 }
 
                 Capsule body = World.Player(hit.Target).HitVolume;
                 float headBottom = body.B.Y + body.Radius - HeadZoneMeters;
-                if (_impactPoint.Y >= headBottom - NearHeadMeters)
-                {
-                    float allowed = _bonus;
-                    if (hit.PrecisionTagged && hit.PrecisionMultiplier > 1f)
-                    {
-                        allowed = Math.Min(allowed, GlobalRules.Damage.PrecisionMultiplierMax / Math.Min(hit.PrecisionMultiplier, GlobalRules.Damage.PrecisionMultiplierMax) - 1f);
-                    }
+                return _impactPoint.Y >= headBottom - NearHeadMeters;
+            }
 
-                    fraction += Math.Max(0f, allowed);
-                }
-                else
+            // The bonus is mastery-linked (Casting mastery): summed and clamped once with the cast's reward at 15% (L480).
+            public override float LinkedDirectDamage(DamageRequest hit, CastRecord cast)
+            {
+                if (NearHead(hit) != true) return 0f;
+                float allowed = _bonus;
+                if (hit.PrecisionTagged && hit.PrecisionMultiplier > 1f)
                 {
-                    fraction -= OffHeadPenalty;
+                    allowed = Math.Min(allowed, GlobalRules.Damage.PrecisionMultiplierMax / Math.Min(hit.PrecisionMultiplier, GlobalRules.Damage.PrecisionMultiplierMax) - 1f);
+                }
+
+                return Math.Max(0f, allowed);
+            }
+
+            public override void AdjustOutgoing(DamageRequest hit, float range, ref float fraction, ref float flat)
+            {
+                if (NearHead(hit) == false)
+                {
+                    fraction -= OffHeadPenalty; // the drawback is not a mastery bonus
                 }
             }
 
@@ -688,6 +690,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
             {
                 h.Add((ulong)_impactCast.Packed);
                 h.Add(_impactTick);
+                h.Add(_impactPoint);
             }
         }
     }
@@ -772,13 +775,9 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 return toChest.LengthSquared() > 1e-6f && Vec3.Dot(aim, toChest.Normalized()) >= (float)Math.Cos(ConeDeg * Math.PI / 180.0) - 1e-6f;
             }
 
-            public override void AdjustOutgoing(DamageRequest hit, float range, ref float fraction, ref float flat)
-            {
-                if (_boosted.IsValid && hit.CastId == _boosted && hit.Kind == DamageKind.Direct && hit.IsSpellHit)
-                {
-                    fraction += _bonus;
-                }
-            }
+            // A Casting mastery record: mastery-linked, summed and clamped once with the cast's reward at 15% (L480).
+            public override float LinkedDirectDamage(DamageRequest hit, CastRecord cast) =>
+                _boosted.IsValid && hit.CastId == _boosted && hit.Kind == DamageKind.Direct && hit.IsSpellHit ? _bonus : 0f;
 
             public override void Hash(ref StateHasher h)
             {
@@ -854,8 +853,9 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 }
             }
 
-            public override float AdjustProjectileSpeed(CastRecord cast, float speed) =>
-                _second.IsValid && cast.CastId == _second ? CastFacts.LinkedSpeed(cast, speed, _speed) : speed;
+            // Mastery-linked: summed with the other linked bonuses and clamped once with the cast's reward (L480).
+            public override float LinkedProjectileSpeed(CastRecord cast) =>
+                _second.IsValid && cast.CastId == _second ? _speed : 0f;
 
             public override void Hash(ref StateHasher h)
             {

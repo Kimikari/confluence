@@ -67,18 +67,15 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
             public override void OnTick() => _still = StillNow ? _still + 1 : 0;
 
-            public override void AdjustOutgoing(DamageRequest hit, float range, ref float fraction, ref float flat)
-            {
-                if (hit.Kind == DamageKind.Direct && hit.IsSpellHit && _anchored.Contains(hit.CastId))
-                {
-                    fraction += CastFacts.LinkedDamageFraction(AugmentsAKit.FindCast(World, hit.CastId), _bonus);
-                }
-            }
+            // Mastery-linked: summed with the other linked bonuses and clamped once with the cast's reward (L480).
+            public override float LinkedDirectDamage(DamageRequest hit, CastRecord cast) =>
+                hit.Kind == DamageKind.Direct && hit.IsSpellHit && _anchored.Contains(hit.CastId) ? _bonus : 0f;
 
             public override void Hash(ref StateHasher h)
             {
                 h.Add(_still);
                 h.Add(_anchored.Count);
+                for (int i = 0; i < _anchored.Count; i++) h.Add((ulong)_anchored[i].Packed);
             }
         }
     }
@@ -133,8 +130,9 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 }
             }
 
-            public override float AdjustProjectileSpeed(CastRecord cast, float speed) =>
-                _airborne.IsValid && cast.CastId == _airborne ? CastFacts.LinkedSpeed(cast, speed, _bonus) : speed;
+            // Mastery-linked: summed with the other linked bonuses and clamped once with the cast's reward (L480).
+            public override float LinkedProjectileSpeed(CastRecord cast) =>
+                _airborne.IsValid && cast.CastId == _airborne ? _bonus : 0f;
 
             public override void Hash(ref StateHasher h)
             {

@@ -229,10 +229,13 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 {
                     command.Tuning.SprintStaminaPerSecond = Math.Max(0f, command.Tuning.SprintStaminaPerSecond - _stamina / OpeningSec);
                 }
+            }
 
+            public override void AdjustGait(in MotorCommand command, ref GaitAdjust gait)
+            {
                 if (_sprintTicks >= AugmentsAKit.Ticks(SlowAfterSec))
                 {
-                    command.Tuning.SprintMultiplier = AugmentsAKit.SprintMultiplier(Self.Stats, -SpeedCut);
+                    gait.Sprint -= SpeedCut; // a penalty: applies after the +20% cap with the other gait changes
                 }
             }
 

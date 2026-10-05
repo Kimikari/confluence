@@ -181,12 +181,12 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 return AugmentsAKit.With(profile, reach: _reach);
             }
 
-            public override void AdjustMotor(ref MotorCommand command)
+            public override void AdjustGait(in MotorCommand command, ref GaitAdjust gait)
             {
                 MeleeState m = Self.Melee;
                 if (m.Phase == MeleePhase.Windup && AugmentsAKit.IsProfile(m.Profile, MeleeProfile.Spear))
                 {
-                    command.Tuning.WalkMultiplier = AugmentsAKit.WalkMultiplier(Self.Stats, -WindupMovePenalty);
+                    gait.Walk -= WindupMovePenalty; // a penalty: applies after the +20% cap with the other gait changes
                 }
             }
         }
@@ -446,11 +446,11 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 }
             }
 
-            public override void AdjustMotor(ref MotorCommand command)
+            public override void AdjustGait(in MotorCommand command, ref GaitAdjust gait)
             {
                 if (_buffUntil >= 0 && Now < _buffUntil)
                 {
-                    command.Tuning.WalkMultiplier = AugmentsAKit.WalkMultiplier(Self.Stats, _speed);
+                    gait.Walk += _speed; // under the shared +20% cap with every other bonus
                 }
             }
 

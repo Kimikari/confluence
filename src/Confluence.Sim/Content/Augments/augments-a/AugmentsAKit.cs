@@ -51,16 +51,8 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
         /// <summary>Walking now: grounded, not sprinting, and moving (see <see cref="WalkingMinSpeed"/>).</summary>
         public static bool IsWalking(DuelPlayer p) => p.Motor.Grounded && !p.Motor.Sprinting && !p.Motor.IsDisplaced && HorizontalSpeed(p) >= WalkingMinSpeed;
 
-        /// <summary>
-        /// The walking gait multiplier with an extra bonus, under the shared +20% movement cap (spec L124): the same rule as
-        /// <see cref="StatBlock.WalkBonus"/>.
-        /// </summary>
-        public static float WalkMultiplier(StatBlock stats, float extraBonus) =>
-            Math.Max(0f, 1f + Math.Min(stats.Raw(StatKind.MovementBonus) + stats.Raw(StatKind.WalkSpeedBonus) + extraBonus, GlobalRules.Modifiers.MovementBonusCap));
-
-        /// <summary>The sprint gait multiplier with an extra bonus, under the shared +20% movement cap (spec L124).</summary>
-        public static float SprintMultiplier(StatBlock stats, float extraBonus) =>
-            Math.Max(0f, 1f + Math.Min(stats.Raw(StatKind.MovementBonus) + stats.Raw(StatKind.SprintSpeedBonus) + extraBonus, GlobalRules.Modifiers.MovementBonusCap));
+        // Gait bonuses and penalties go through EffectHook.AdjustGait: the host sums every record's request and applies the
+        // +20% movement cap once (Effects/HookAggregates.cs GaitAdjust, spec L124).
 
         public static bool IsSpellSource(string sourceId) => sourceId != null && sourceId.StartsWith("SPL-", StringComparison.Ordinal);
 

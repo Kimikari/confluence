@@ -42,6 +42,21 @@ namespace Confluence.Sim.Effects
             {
                 _hooks[i].AdjustMotor(ref command);
             }
+
+            // Gait requests add up and the +20% cap applies once, whatever the attach order (HookAggregates.cs).
+            var totals = new GaitTotals();
+            for (int i = 0; i < _hooks.Count; i++)
+            {
+                var gait = new GaitAdjust();
+                _hooks[i].AdjustGait(command, ref gait);
+                totals.Add(gait);
+            }
+
+            if (totals.Any)
+            {
+                command.Tuning.WalkMultiplier = totals.WalkMultiplier(Stats);
+                command.Tuning.SprintMultiplier = totals.SprintMultiplier(Stats);
+            }
         }
 
         internal MeleeProfile AdjustStrikeHooks(MeleeProfile profile)
@@ -80,6 +95,13 @@ namespace Confluence.Sim.Effects
 
         internal float AdjustProjectileSpeedHooks(Spells.CastRecord cast, float speed)
         {
+            float linked = 0f;
+            for (int i = 0; i < _hooks.Count; i++)
+            {
+                linked += Math.Max(0f, _hooks[i].LinkedProjectileSpeed(cast));
+            }
+
+            speed *= MasteryLinked.SpeedFactor(cast, linked); // one clamp per cast (spec L480, HookAggregates.cs)
             for (int i = 0; i < _hooks.Count; i++)
             {
                 speed = Math.Max(0f, _hooks[i].AdjustProjectileSpeed(cast, speed));
@@ -98,6 +120,15 @@ namespace Confluence.Sim.Effects
 
         internal void AdjustOutgoingHooks(DamageRequest hit, float range, ref float fraction, ref float flat)
         {
+            if (_hooks.Count == 0) return;
+            Spells.CastRecord cast = hit.CastId.IsValid && World.Spells is Spells.SpellRuntime runtime ? runtime.FindCast(hit.CastId) : null;
+            float linked = 0f;
+            for (int i = 0; i < _hooks.Count; i++)
+            {
+                linked += Math.Max(0f, _hooks[i].LinkedDirectDamage(hit, cast));
+            }
+
+            fraction += MasteryLinked.DamageFraction(cast, linked); // one clamp per cast (spec L480, HookAggregates.cs)
             for (int i = 0; i < _hooks.Count; i++)
             {
                 _hooks[i].AdjustOutgoing(hit, range, ref fraction, ref flat);

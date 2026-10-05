@@ -226,14 +226,18 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
             public override void AdjustMotor(ref MotorCommand command)
             {
+                if (_sprintRun >= AugmentsAKit.Ticks(BurstSec))
+                {
+                    command.Tuning.SprintStaminaPerSecond += LateDrain;
+                }
+            }
+
+            public override void AdjustGait(in MotorCommand command, ref GaitAdjust gait)
+            {
                 // The ticks this sprint has already run decide this step: a sprint starting now is in its burst.
                 if (_sprintRun < AugmentsAKit.Ticks(BurstSec))
                 {
-                    command.Tuning.SprintMultiplier = AugmentsAKit.SprintMultiplier(Self.Stats, _speed);
-                }
-                else
-                {
-                    command.Tuning.SprintStaminaPerSecond += LateDrain;
+                    gait.Sprint += _speed; // under the shared +20% cap with every other bonus
                 }
             }
 
@@ -458,11 +462,11 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 return false;
             }
 
-            public override void AdjustMotor(ref MotorCommand command)
+            public override void AdjustGait(in MotorCommand command, ref GaitAdjust gait)
             {
                 if (_buffUntil >= 0 && Now < _buffUntil)
                 {
-                    command.Tuning.WalkMultiplier = AugmentsAKit.WalkMultiplier(Self.Stats, _speed);
+                    gait.Walk += _speed; // under the shared +20% cap with every other bonus
                 }
             }
 
@@ -627,14 +631,17 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                     return;
                 }
 
-                if (OnSand(command))
-                {
-                    command.Tuning.SprintMultiplier = AugmentsAKit.SprintMultiplier(Self.Stats, _speed);
-                }
-
                 if (command.Surface.Kind == SurfaceKind.Wet)
                 {
                     command.Tuning.SprintStaminaPerSecond += WetDrain;
+                }
+            }
+
+            public override void AdjustGait(in MotorCommand command, ref GaitAdjust gait)
+            {
+                if (Self.Motor.Grounded && OnSand(command))
+                {
+                    gait.Sprint += _speed; // under the shared +20% cap with every other bonus
                 }
             }
 
