@@ -23,12 +23,16 @@ const UNITY = 'C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.4f1\\Editor\\Unity.
 //                                                  only: [] with every label in fixed = merge only
 //  args.noMerge  true                              stop after fix even when all items are done; returns `finished`
 //  args.codexReview false                          skip the second-vendor Codex review (e.g. Codex quota is out)
+//  args.partialMerge true                          merge the finished/fixed items now even though others are missing
+//                                                  (e.g. batch 1 before batch 2 starts, so batch 2 builds on it);
+//                                                  integration tests that need the missing items wait for the final merge
 const A = args || {}
 const IN_PLACE = A.inPlace || {}
 const IMPL = A.impl || {}
 const FIXED = A.fixed || {}
 const ONLY = A.only || null
 const NO_MERGE = !!A.noMerge
+const PARTIAL = !!A.partialMerge
 const CODEX_REVIEW = A.codexReview !== false
 const TRAILER = 'final commit message ends with the two lines "Made-with: uchicago-claude" and "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"'
 
@@ -206,18 +210,23 @@ const summary = all.map(x => ({
   verifierFindings: x.verify ? (x.verify.findings || []).length : (x.verifierFindings !== undefined ? x.verifierFindings : 'n/a'),
   codexFindings: codexStatus(x.codex) !== undefined ? codexStatus(x.codex) : (x.codexFindings !== undefined ? x.codexFindings : 'n/a'),
 }))
-if (missing.length || NO_MERGE) {
-  log(missing.length ? `NOT FINISHED: ${missing.join(', ')} — merge skipped; resume with args.inPlace/impl/fixed`
+if ((missing.length && !PARTIAL) || NO_MERGE || summary.length === 0) {
+  log(missing.length ? `NOT FINISHED: ${missing.join(', ')} — merge skipped; resume with args.inPlace/impl/fixed (or args.partialMerge)`
                      : 'All items finished; merge skipped (args.noMerge). Pass `finished` entries as args.fixed to merge.')
   return { finished: summary, missing }
 }
 
 phase('Merge')
+const MERGE_ORDER = ['equipment', 'augments-a', 'augments-b', 'props-biomes', 'bram-kit', 'halen-kit', 'net-protocol']
+  .filter(l => all.find(x => x.label === l))
+const PARTIAL_NOTE = missing.length ? `
+PARTIAL MERGE: ${missing.join(', ')} are not implemented yet; they will be built from the master you produce and merged in a later run. In step 2 skip the items that need them (content floors without Laboratory overrides, the standard non-Laboratory Duel match, the standard-rules round loop). Instead write and run: a Laboratory-override Duel match through MatchHost with the merged kits and shared augments active (bots casting the merged spells, reactions occurring), and the server + two headless clients over UDP completing at least one full round loop with Laboratory overrides (state exactly which overrides). Keep the ledger-vs-claims check.
+` : ''
 const merge = await agent(`${COMMON}
 YOU WORK DIRECTLY IN THE MAIN CHECKOUT at ${REPO} on branch master (not a worktree).
-TASK merge-and-integrate Stage 2 + 3.
-1. Merge with --no-ff in order: equipment, augments-a, augments-b, props-biomes, bram-kit, halen-kit, net-protocol. Resolve conflicts in shared framework files so every branch's behavior survives (several agents added generic primitives concurrently: dedupe equivalent ones into one implementation and update callers).
-2. Integration (write these as tests; fix what they expose):
+TASK merge-and-integrate Stage 2 + 3${missing.length ? ' (partial: ' + MERGE_ORDER.join(', ') + ')' : ''}.
+1. Merge with --no-ff in order: ${MERGE_ORDER.join(', ')}. Skip any branch already merged into master (git merge-base --is-ancestor <branch> master). Resolve conflicts in shared framework files so every branch's behavior survives (several agents added generic primitives concurrently: dedupe equivalent ones into one implementation and update callers).
+${PARTIAL_NOTE}2. Integration (write these as tests; fix what they expose${missing.length ? '; see PARTIAL MERGE above for which items apply' : ''}):
  - Content floors: with the merged registry, Economy's floor check passes WITHOUT Laboratory overrides for WIZ-002 and WIZ-010 at default loadouts in every rarity (>= 10 legal implemented alternatives), and round-1 shops fill with implemented items. Lobbies offer only wizards whose kits are [ContentBehavior]-implemented.
  - A standard (non-Laboratory) Duel match WIZ-002 vs WIZ-010 bots through MatchHost completes all rounds with real shops, drafts on the scheduled rounds, transformations and shared augments drafted and active in duels, dormancy applied at finalization, reactions (steam from Fireball into Water Pool) occurring in at least one duel.
  - Server + two headless clients over UDP complete at least one full round loop (shop -> draft -> duel -> reward -> next round) with standard rules where pools allow (state precisely what overrides, if any, remain).
@@ -231,10 +240,12 @@ Return: merge outcome, conflicts resolved, integration results (with exact overr
 const records = await agent(`${COMMON}
 YOU WORK DIRECTLY IN THE MAIN CHECKOUT at ${REPO} on branch master (not a worktree). The merge-and-integrate step has merged Stage 2 + 3; its report and the branch reports are below. You are the hub's records step: this is the one place where docs/DECISIONS.md and docs/PROGRESS.md are written.
 1. docs/DECISIONS.md: append every decision from the branch reports below, plus every entry under "Interpretations" in each merged area's docs/notes/<area>.md that is not already a decision. Continue after the highest D-number; merge duplicates; keep the existing style.
-2. docs/PROGRESS.md: Stage 2/3 status, exact test counts and ledger summary (from the merge report), known issues including remaining gaps, temporary assets, which branches still have "Codex review pending" (codexFindings not a number), a session-log entry for this merge, and next concrete task = Stage 4: Unity client networked M1 — connect the UI and Laboratory to the Net client session, predicted first-person play, spell/field/steam presentation and placeholder telegraph audio (spec L96), then validation with server + two real Unity client instances.
+2. docs/PROGRESS.md: Stage 2/3 status, exact test counts and ledger summary (from the merge report), known issues including remaining gaps, temporary assets, which branches still have "Codex review pending" (codexFindings not a number), a session-log entry for this merge, and next concrete task = ${missing.length
+    ? `Stage 2 batch 2 (${missing.join(', ')}) built from this master with args { only: [${missing.join(', ')}], noMerge: true }, then the final Stage 2/3 merge and integration with every label in args.fixed`
+    : 'Stage 4: Unity client networked M1 — connect the UI and Laboratory to the Net client session, predicted first-person play, spell/field/steam presentation and placeholder telegraph audio (spec L96), then validation with server + two real Unity client instances'}.
 3. If the merge report says the ledger was not regenerated after the last code change, run powershell -ExecutionPolicy Bypass -File tools/ledger.ps1.
 4. Commit (${TRAILER}). If git remote get-url origin succeeds: git push origin master.
-5. Remove the merged worktrees (git worktree remove --force <path>) and delete their branches locally; if origin exists, also delete them there (git push origin --delete <branch>; ignore "remote ref does not exist").
+5. Remove the worktrees of the branches merged in this run (git worktree remove --force <path>; skip any already removed) and delete those branches locally; if origin exists, also delete them there (git push origin --delete <branch>; ignore "remote ref does not exist").
 MERGE REPORT: ${typeof merge === 'string' ? merge : JSON.stringify(merge)}
 BRANCHES AND REPORTS: ${JSON.stringify(summary, null, 1)}
 Return: the decisions added (ID range), the PROGRESS summary, push result, and cleanup result.`, { label: 'records', phase: 'Records', effort: 'medium' })
