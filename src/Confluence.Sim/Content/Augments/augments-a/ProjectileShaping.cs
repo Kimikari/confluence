@@ -139,8 +139,10 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
     /// <summary>
     /// AUG-031 High Arc (Silver, projectile spell equipped). Condition "Projectile release occurs at least 1 m above enemy
     /// feet." Rank 1 "Prop damage increases 12%.", rank 2 "Prop damage increases 20%." Drawback "Player damage decreases 3%."
-    /// A projectile cast released from at least 1 m above the enemy's feet (the projectile starts at the caster's eye,
-    /// spec L527) deals 12% (20%) more durability damage to props and 3% less damage to players.
+    /// "Release ... above enemy feet" is an elevated (or airborne) release: the caster's feet are at least 1 m above the
+    /// enemy's feet when the projectile cast releases (a vantage platform or ledge, spec L312, or near a jump's 1.1 m apex,
+    /// D-024). Measuring from the eye (1.6 m above the caster's own feet, L527) would make every level-ground release
+    /// qualify and remove the gate. Such a cast deals 12% (20%) more durability damage to props and 3% less to players.
     /// </summary>
     [ContentBehavior(Id)]
     public sealed class HighArc : IAugmentBehavior
@@ -171,7 +173,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
             {
                 if (e is CastDuelEvent c && c.Player == Player && c.Kind == CastEventKind.Released
                     && AugmentsAKit.FormOf(Self, c.SpellId)?.Delivery is ProjectileDelivery
-                    && Self.Eye.Y - Opponent.Position.Y >= MinHeight)
+                    && Self.Position.Y - Opponent.Position.Y >= MinHeight - 1e-4f)
                 {
                     _high.Add(c.CastId);
                     if (_high.Count > 16) _high.RemoveAt(0);
@@ -189,7 +191,11 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 }
             }
 
-            public override void Hash(ref StateHasher h) => h.Add(_high.Count);
+            public override void Hash(ref StateHasher h)
+            {
+                h.Add(_high.Count);
+                for (int i = 0; i < _high.Count; i++) h.Add((ulong)_high[i].Packed);
+            }
         }
     }
 

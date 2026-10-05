@@ -297,34 +297,64 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
         public void High_Arc_Raises_Prop_Damage_Of_A_Release_Above_The_Enemy(int rank, float bonus)
         {
             AKit.AssertQuotes(HighArc.Id, "at least 1 m above enemy feet", "Prop damage increases 12%.", "Prop damage increases 20%.", "Player damage decreases 3%.");
+            float plain = PropDamageFromLedge(null, 0);
+            Assert.True(plain > 0f);
+            Assert.Equal(plain * (1f + bonus), PropDamageFromLedge(HighArc.Id, rank), 2);
+        }
+
+        /// <summary>A 1.2 m ledge under player 0 at the origin (feet 1.2 m above the enemy's on the floor).</summary>
+        private static Solid Ledge(float height = 1.2f) => TestWorlds.Box(51, Vec3.Zero, new Vec3(2f, height, 2f), SolidKind.Platform);
+
+        /// <summary>Player 0 on the ledge fires down at the crate 4 m ahead; the enemy stands on the floor 8 m away.</summary>
+        private static float PropDamageFromLedge(string augment, int rank)
+        {
+            DuelWorld w = augment != null ? AKit.With(augment, rank, layout: CrateBetween(Ledge())) : AKit.Without(layout: CrateBetween(Ledge()));
+            TestWorlds.Place(w, 0, new Vec3(0f, 1.2f, 0f), 0f);
+            TestWorlds.Place(w, 1, new Vec3(0f, 0f, 8f), 180f);
+            AKit.Step(w, 2);
+            Assert.True(w.Player(0).Position.Y - w.Player(1).Position.Y >= HighArc.MinHeight);
+            Fire(w, SpellTestKit.Aim(w, 0, new Vec3(0f, 1f, 4f)));
+            return PropDamage(w);
+        }
+
+        [Fact]
+        [Verifies("AUG-031")]
+        public void High_Arc_Gives_Nothing_To_A_Level_Ground_Release()
+        {
+            // Level ground: the release point (eye) is 1.6 m above both players' feet, but the release is not elevated.
             DuelWorld control = AKit.Without(layout: CrateBetween());
             AKit.FaceOff(control, 8f);
             Fire(control);
-            float plain = PropDamage(control);
-            Assert.True(plain > 0f);
-
-            DuelWorld w = AKit.With(HighArc.Id, rank, layout: CrateBetween());
+            DuelWorld w = AKit.With(HighArc.Id, 2, layout: CrateBetween());
             AKit.FaceOff(w, 8f);
             Fire(w);
-            Assert.Equal(plain * (1f + bonus), PropDamage(w), 2);
+            Assert.True(PropDamage(control) > 0f);
+            Assert.Equal(PropDamage(control), PropDamage(w), 3);
+
+            DuelWorld duel = AKit.With(HighArc.Id, 2);
+            AKit.FaceOff(duel, 6f);
+            Fire(duel);
+            Assert.Equal(48f, DirectHit(duel).Resolution.Raw, 3); // no drawback either
         }
 
         [Fact]
         [Verifies("AUG-031")]
         public void High_Arc_Drawback_Cuts_Player_Damage_And_A_Raised_Enemy_Gets_Neither()
         {
-            DuelWorld w = AKit.With(HighArc.Id, 2);
-            AKit.FaceOff(w, 6f);
-            Fire(w);
+            DuelWorld w = AKit.With(HighArc.Id, 2, layout: SpellTestKit.FlatWith(Ledge()));
+            TestWorlds.Place(w, 0, new Vec3(0f, 1.2f, 0f), 0f);
+            TestWorlds.Place(w, 1, new Vec3(0f, 0f, 6f), 180f);
+            AKit.Step(w, 2);
+            Fire(w, SpellTestKit.AimAt(w, 0, 1));
             Assert.Equal(48f * 0.97f, DirectHit(w).Resolution.Raw, 3);
 
-            // The enemy stands on a 0.7 m platform: the release (eye 1.6 m) is only 0.9 m above its feet.
+            // The enemy stands on a 0.7 m platform: the ledge is only 0.5 m above its feet.
             Solid platform = TestWorlds.Box(50, new Vec3(0f, 0f, 6f), new Vec3(2f, 0.7f, 2f), SolidKind.Platform);
-            DuelWorld raised = AKit.With(HighArc.Id, 2, layout: SpellTestKit.FlatWith(platform));
-            TestWorlds.Place(raised, 0, Vec3.Zero, 0f);
+            DuelWorld raised = AKit.With(HighArc.Id, 2, layout: SpellTestKit.FlatWith(Ledge(), platform));
+            TestWorlds.Place(raised, 0, new Vec3(0f, 1.2f, 0f), 0f);
             TestWorlds.Place(raised, 1, new Vec3(0f, 0.7f, 6f), 180f);
             AKit.Step(raised, 2);
-            Assert.True(raised.Player(0).Eye.Y - raised.Player(1).Position.Y < HighArc.MinHeight);
+            Assert.True(raised.Player(0).Position.Y - raised.Player(1).Position.Y < HighArc.MinHeight);
             Fire(raised, SpellTestKit.AimAt(raised, 0, 1));
             Assert.Equal(48f, DirectHit(raised).Resolution.Raw, 3);
         }

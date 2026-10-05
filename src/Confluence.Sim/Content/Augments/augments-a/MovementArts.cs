@@ -519,81 +519,9 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
         }
     }
 
-    /// <summary>
-    /// AUG-109 Wet Route (Gold, always). Condition "Walk through shallow water." Rank 1 "Movement penalty reduced by 15% of
-    /// normal penalty.", rank 2 "Movement penalty reduced by 25% of normal penalty." Drawback "Wetness persists 0.5 s longer
-    /// after exit." Shallow water itself carries no penalty (spec L175), so the penalty is the slow on the walker while
-    /// their feet are in liquid water (a water field's slow or any slow applied there, the strongest one, L116): it is
-    /// reduced by 15% (25%) of its amount. When the Wet from the water (D-150) ends after the walker left the water, they
-    /// stay Wet 0.5 s longer.
-    /// </summary>
-    [ContentBehavior(Id)]
-    public sealed class WetRoute : IAugmentBehavior
-    {
-        public const string Id = "AUG-109";
-        public const float Rank1Relief = 0.15f;   // "reduced by 15% of normal penalty"
-        public const float Rank2Relief = 0.25f;   // "reduced by 25% of normal penalty"
-        public const float LingerSec = 0.5f;      // "Wetness persists 0.5 s longer after exit."
-
-        public void Attach(IEffectHost host, int rank)
-        {
-            ContentArgs.Require(host);
-            host.Attach(new Hook(AugmentsAKit.ByRank(rank, Rank1Relief, Rank2Relief)));
-        }
-
-        private sealed class Hook : EffectHook
-        {
-            private readonly float _relief;
-            private bool _wetEnded;
-
-            public Hook(float relief) : base(Id)
-            {
-                _relief = relief;
-            }
-
-            public override void OnEvent(DuelEvent e)
-            {
-                if (e is StatusEvent s && s.Player == Player && s.Kind == StatusKind.Wet && s.Change == StatusChange.Expired
-                    && string.Equals(s.DefinitionId, MaterialRules.WetCellSource, StringComparison.Ordinal))
-                {
-                    _wetEnded = true;
-                }
-            }
-
-            public override void OnTick()
-            {
-                if (!_wetEnded)
-                {
-                    return;
-                }
-
-                _wetEnded = false;
-                if (InCombat && !InWater())
-                {
-                    World.ApplyStatus(Player, StatusApplication.Of(StatusKind.Wet, Id, -1, AugmentsAKit.Ticks(LingerSec)));
-                }
-            }
-
-            private bool InWater() =>
-                Self.Motor.Grounded && World.Materials is ReactionMaterials materials && materials.World != null && materials.StandsInWater(Self.Position);
-
-            public override void AdjustMotor(ref MotorCommand command)
-            {
-                if (command.Surface.Kind != SurfaceKind.Wet || !Self.Motor.Grounded)
-                {
-                    return;
-                }
-
-                float slow = 1f - command.SpeedMultiplier;
-                if (slow > 0f)
-                {
-                    command.SpeedMultiplier = 1f - slow * (1f - _relief);
-                }
-            }
-
-            public override void Hash(ref StateHasher h) => h.Add(_wetEnded);
-        }
-    }
+    // AUG-109 Wet Route is not implemented: its "movement penalty" of shallow water does not exist in the rules (spec
+    // L175 "Wet stone ... no movement penalty by itself"; the Water Pool record: "no automatic slow"), so no record-specific
+    // behavior can be built (see docs/notes/augments-a.md gaps).
 
     /// <summary>
     /// AUG-110 Sand Route (Gold, always). Condition "Sprint on sand." Rank 1 "Gain 3% sprint speed.", rank 2 "Gain 5% sprint

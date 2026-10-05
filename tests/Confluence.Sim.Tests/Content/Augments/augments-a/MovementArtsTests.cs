@@ -385,68 +385,13 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
             Assert.True(AKit.Speed(w, 0) < AKit.Speed(dry, 0) - 1f); // reduced acceleration on ice
         }
 
-        // ----- AUG-109 Wet Route ---------------------------------------------------------------------------
+        // ----- water under the spawn (AUG-110 drawback) --------------------------------------------------
 
         private static ArenaLayout WaterUnderSpawn(float half = 6f)
         {
             ArenaLayout layout = TestWorlds.Flat();
             layout.Materials.Add(WorldDuels.WaterBed(new Vec2(0f, -6f), half, half));
             return layout;
-        }
-
-        private static void Slow(DuelWorld w, float fraction) =>
-            w.ApplyStatus(0, StatusApplication.Of(StatusKind.Slow, "SPL-TEST", 1, AKit.Ticks(3f), fraction));
-
-        [Theory]
-        [InlineData(1, 0.15f)]
-        [InlineData(2, 0.25f)]
-        [Verifies("AUG-109")]
-        public void Wet_Route_Reduces_A_Slow_On_A_Walker_In_Shallow_Water(int rank, float relief)
-        {
-            AKit.AssertQuotes(WetRoute.Id, "Walk through shallow water.", "reduced by 15% of normal penalty", "reduced by 25% of normal penalty", "Wetness persists 0.5 s longer after exit.");
-            DuelWorld w = AKit.With(WetRoute.Id, rank, AKit.Bram, WaterUnderSpawn());
-            DuelWorld control = AKit.Without(AKit.Bram, WaterUnderSpawn());
-            foreach (DuelWorld d in new[] { w, control })
-            {
-                AKit.Step(d, 1);
-                Slow(d, 0.2f);
-                AKit.Step(d, 30, Strafe);
-            }
-
-            Assert.Equal(Confluence.Sim.World.SurfaceKind.Wet, w.SurfaceUnder(w.Player(0)).Kind);
-            Assert.Equal(GlobalRules.Movement.WalkSpeed * (1f - 0.2f), AKit.Speed(control, 0), 2);
-            Assert.Equal(GlobalRules.Movement.WalkSpeed * (1f - 0.2f * (1f - relief)), AKit.Speed(w, 0), 2);
-        }
-
-        [Fact]
-        [Verifies("AUG-109")]
-        public void Wet_Route_Gives_No_Relief_On_Dry_Ground()
-        {
-            DuelWorld w = AKit.With(WetRoute.Id, 2);
-            AKit.Step(w, 1);
-            Slow(w, 0.2f);
-            AKit.Step(w, 30, Strafe);
-            Assert.Equal(GlobalRules.Movement.WalkSpeed * 0.8f, AKit.Speed(w, 0), 2);
-        }
-
-        private static int WetUntil(DuelWorld w)
-        {
-            // Stand in the water, then walk out and count until no Wet remains.
-            AKit.Step(w, 20);
-            Assert.True(w.Player(0).Statuses.Has(StatusKind.Wet));
-            PlayerInput outward = AKit.Walk(0f, 1f, 0f);
-            for (int i = 0; i < 120 && w.SurfaceUnder(w.Player(0)).Kind == Confluence.Sim.World.SurfaceKind.Wet; i++) AKit.Step(w, 1, outward);
-            for (int i = 0; i < 300 && w.Player(0).Statuses.Has(StatusKind.Wet); i++) AKit.Step(w, 1);
-            return w.Tick;
-        }
-
-        [Fact]
-        [Verifies("AUG-109")]
-        public void Wet_Route_Drawback_Keeps_The_Walker_Wet_05_s_Longer_After_Leaving_The_Water()
-        {
-            int with = WetUntil(AKit.With(WetRoute.Id, 1, AKit.Bram, WaterUnderSpawn(1f)));
-            int without = WetUntil(AKit.Without(AKit.Bram, WaterUnderSpawn(1f)));
-            Assert.InRange(with - without, AKit.Ticks(0.5f) - 1, AKit.Ticks(0.5f) + 1);
         }
 
         // ----- AUG-110 Sand Route --------------------------------------------------------------------------
