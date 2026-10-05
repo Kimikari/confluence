@@ -4,13 +4,20 @@ Owner paths: `src/Confluence.Sim/Content/Wizards/WIZ-010/**`, `tests/Confluence.
 `src/Confluence.Hosting/Bots/Profiles/WIZ-010*`, this file.
 
 ## Status / next steps
-- Done: the eight spells (SPL-073..080), the signature (Undertow Mantle) and the passive (Pressure Reserve) in
+- Complete. The eight spells (SPL-073..080), the signature (Undertow Mantle) and the passive (Pressure Reserve) in
   `HalenTideKit`, all sixteen transformations (AUG-433..448) with structural deltas (`Transforms/HalenStructure.cs`),
-  `[Verifies]` tests for every spell, the signature and passive, and AUG-433/434.
-- In progress (this session): tests for AUG-435..448, record-quote tests for the transformations, the Economy
-  structural-profile test, the end-to-end WIZ-010 duel, the bot profile.
-- Finished IDs (`[ContentBehavior]` + `[Verifies]`): SPL-073, SPL-074, SPL-075, SPL-076, SPL-077, SPL-078, SPL-079,
-  SPL-080, WIZ-010, AUG-433, AUG-434 (the rest carry `[ContentBehavior]` and get their tests this session).
+  and the WIZ-010 bot casting profile. Every ID below carries `[ContentBehavior]` and `[Verifies]` tests (rank 1 and
+  rank 2, drawback, caps, counterplay), cast through WIZ-010's real pressure-metering grammar in a DuelWorld.
+- Finished IDs: WIZ-010, SPL-073, SPL-074, SPL-075, SPL-076, SPL-077, SPL-078, SPL-079, SPL-080, AUG-433, AUG-434,
+  AUG-435, AUG-436, AUG-437, AUG-438, AUG-439, AUG-440, AUG-441, AUG-442, AUG-443, AUG-444, AUG-445, AUG-446, AUG-447,
+  AUG-448.
+- End to end: `HalenEndToEndTests` (scripted Halen vs Bram in a DuelWorld: whole default kit, mastered jet, signature,
+  passive, pool + Fireball steam, Fireball on the bubble, stream walk, vault, hammer, Halen wins; a second loadout seals
+  a hot field and imprisons Bram). `tests/Confluence.Hosting.Tests/WIZ-010/`: Economy structural profile with the
+  registry populated (all 16, plus a real eligibility change from AUG-437 and AUG-436), bot scripts for every spell
+  and the signature through the grammar, planner choices, and hosted Halen-vs-Halen bot duels on MatchHost.
+- Next steps (optional): the generic `BotInputSource` movement keeps bots rushing / out of sight much of a duel, so
+  hosted bots cast Halen's mobility spells (vault, stream) rarely; a movement-aware planner hook could improve that.
 
 ## Layout
 - `HalenTideKit.cs` — `IWizardKitBehavior`: signature form (field delivery at the caster) and passive effect.
@@ -80,9 +87,37 @@ Owner paths: `src/Confluence.Sim/Content/Wizards/WIZ-010/**`, `tests/Confluence.
     structural +cone.
   - AUG-448: where heat is neutralized a 1.5 m / 2 s (2 m / 3 s) steam cloud forms; without heat in the plan corrosion
     is untouched.
+- AUG-445 rolling: the wall check sweeps level at the higher of the current and next ground height, so a rise within
+  the step height is stepped onto and a drop is rolled off; a face the bubble is leaving (normal along its travel)
+  never stops it. A 1 m crate stops it (counterplay "block rolling route"); a flying bubble passes over the crate.
+- AUG-441: the landing puddle is measured from the landing tick; the launch water keeps its own 3 s.
+- AUG-443: the straight 10 m line of the unforked stream is dry; each lane is its own field; a body gets +10% from at
+  most one lane.
+
+## Bot casting profile (`src/Confluence.Hosting/Bots/Profiles/WIZ-010HalenTideBotPlanner.cs`)
+- `HalenTideBotPlanner : IBotKitPlanner` (found by reflection through the new `Bots/BotKitPlanner.cs`). Choices, in
+  order: Bubble Buckler against a seen opponent's visible windup at 4 m+ (AUG-437: recast 0.75 s later throws it back);
+  Seal the Spring on visible heat/venom within 6 m of the feet; Water Pool on heat near the opponent (steam screen);
+  signature within 2.2 m; Water Hammer within 3.2 m; Deepglass Prison 5-17 m (60%); Pressure Jet 2.5-19 m; Riptide Lane
+  toward the opponent at 9-20 m; Cascade Vault toward them at 8 m+; Water Pool at their feet. While rushing only the
+  eddy and the hammer. Mana margin 2 over the cost.
+- Legal information only (`BotKitView`): the opponent's position, velocity and visible windup as perceived through the
+  Sim's sight query one reaction latency ago; own resources and cooldowns; visible ground materials (with an eye-ray
+  visibility check for ground targets).
+- Scripts: `PressureMeterScript` (the grammar judges). Mastery attempts by competence: Novice 0, Apprentice 15%,
+  Adept 50%, Expert 75%; the timing jitter still makes some attempts cast normally.
 
 ## Edits outside the owned paths (minimal, additive)
 - `src/Confluence.Casting/Machine/CastMachine.cs`: `ExtendRecovery(castId, ticks, now)` (SPL-074 miss recovery).
+- NEW `src/Confluence.Hosting/Bots/BotKitPlanner.cs`: `IBotKitPlanner`, `BotCastPlan`, `BotKitView`, `BotAimKind`,
+  `BotKitPlanners` (reflection registry, one planner per wizard id), `SignatureScript`.
+- `src/Confluence.Hosting/Bots/BotInputSource.cs`: when the wizard has a kit planner, the planner chooses slot, aim
+  (chest / opponent feet / point) and an optional recast; the Observation records a visible windup; rushes no longer
+  block planner casts (the planner restricts itself to close range). Wizards without a planner behave as before.
+- `tests/Confluence.Hosting.Tests/EconomyAdapterTests.cs`: the floor test ignores wizard-kit transformations when it
+  compares the implemented pools with the shared proof records (every kit branch adds its transformations to the pools).
+- NEW `tests/Confluence.Hosting.Tests/WIZ-010/` (Economy and bot tests; Sim.Tests does not reference Economy).
 
 ## Gaps
-- (filled in at the end of the session)
+- None for the WIZ-010 records. Note for the hub: SPL-009 Fireball's Heat 2 is consumed at impact (no persistent hot
+  ground), so the Seal the Spring end-to-end duel places its hot field directly in the reaction world.
