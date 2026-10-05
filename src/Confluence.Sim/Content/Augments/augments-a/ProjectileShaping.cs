@@ -703,3 +703,120 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
         }
     }
 }
+
+namespace Confluence.Sim.Content.Augments.AugmentsA
+{
+    /// <summary>
+    /// AUG-030 Ground Skimmer (Silver, projectile spell equipped). Condition "A projectile travels within 0.3 m of solid
+    /// ground for at least 2 m." Rank 1 "Speed increases 7%.", rank 2 "Speed increases 11%." Drawback "Airborne-target
+    /// damage decreases 5%." Each of the owner's live projectiles whose underside stays within 0.3 m of a solid surface
+    /// below it (floors, platforms, cover tops) for 2 m of continuous travel flies 7% (11%) faster from then on (once per
+    /// projectile); rising above 0.3 m restarts its count. The owner's spell hits on an airborne target deal 5% less.
+    /// </summary>
+    [ContentBehavior(Id)]
+    public sealed class GroundSkimmer : IAugmentBehavior
+    {
+        public const string Id = "AUG-030";
+        public const float SkimHeight = 0.3f;    // "within 0.3 m of solid ground"
+        public const float SkimDistance = 2f;    // "for at least 2 m"
+        public const float Rank1Speed = 0.07f;   // "Speed increases 7%."
+        public const float Rank2Speed = 0.11f;   // "Speed increases 11%."
+        public const float AirborneCut = 0.05f;  // "Airborne-target damage decreases 5%."
+
+        public void Attach(IEffectHost host, int rank)
+        {
+            Confluence.Sim.Content.ContentArgs.Require(host);
+            host.Attach(new Hook(AugmentsAKit.ByRank(rank, Rank1Speed, Rank2Speed)));
+        }
+
+        private sealed class Hook : EffectHook
+        {
+            private const int MaxTracked = 16;
+            private readonly float _bonus;
+            private readonly List<int> _ids = new List<int>();
+            private readonly List<Vec3> _last = new List<Vec3>();
+            private readonly List<float> _skimmed = new List<float>(); // negative once boosted
+
+            public Hook(float bonus) : base(Id)
+            {
+                _bonus = bonus;
+            }
+
+            public override void OnTick()
+            {
+                SpellRuntime runtime = AugmentsAKit.Runtime(World);
+                if (runtime == null) return;
+                for (int i = _ids.Count - 1; i >= 0; i--)
+                {
+                    if (Find(runtime, _ids[i]) == null) Forget(i);
+                }
+
+                IReadOnlyList<SpellEntity> all = runtime.Entities;
+                for (int e = 0; e < all.Count; e++)
+                {
+                    if (!(all[e] is ProjectileEntity p) || !p.Alive || p.Owner != Player) continue;
+                    int i = _ids.IndexOf(p.Id);
+                    if (i < 0)
+                    {
+                        if (_ids.Count >= MaxTracked) Forget(0);
+                        _ids.Add(p.Id);
+                        _last.Add(p.Position);
+                        _skimmed.Add(0f);
+                        i = _ids.Count - 1;
+                    }
+
+                    float moved = Vec3.Distance(_last[i], p.Position);
+                    _last[i] = p.Position;
+                    if (_skimmed[i] < 0f) continue; // already boosted
+                    float clearance = p.Position.Y - p.Spec.Radius;
+                    bool skimming = World.Collision.Raycast(p.Position, Vec3.Down, p.Spec.Radius + SkimHeight, SolidMask.Movement, out WorldHit ground)
+                        && clearance - ground.Point.Y <= SkimHeight + 1e-4f;
+                    _skimmed[i] = skimming ? _skimmed[i] + moved : 0f;
+                    if (_skimmed[i] >= SkimDistance)
+                    {
+                        _skimmed[i] = -1f;
+                        p.ScaleSpeed(1f + _bonus);
+                        EmitCue("skim", _bonus);
+                    }
+                }
+            }
+
+            private static ProjectileEntity Find(SpellRuntime runtime, int id)
+            {
+                IReadOnlyList<SpellEntity> all = runtime.Entities;
+                for (int e = 0; e < all.Count; e++)
+                {
+                    if (all[e].Id == id && all[e].Alive && all[e] is ProjectileEntity p) return p;
+                }
+
+                return null;
+            }
+
+            private void Forget(int i)
+            {
+                _ids.RemoveAt(i);
+                _last.RemoveAt(i);
+                _skimmed.RemoveAt(i);
+            }
+
+            public override void AdjustOutgoing(DamageRequest hit, float range, ref float fraction, ref float flat)
+            {
+                if (hit.IsSpellHit && !World.Player(hit.Target).Motor.Grounded)
+                {
+                    fraction -= AirborneCut;
+                }
+            }
+
+            public override void Hash(ref StateHasher h)
+            {
+                h.Add(_ids.Count);
+                for (int i = 0; i < _ids.Count; i++)
+                {
+                    h.Add(_ids[i]);
+                    h.Add(_last[i]);
+                    h.Add(_skimmed[i]);
+                }
+            }
+        }
+    }
+}

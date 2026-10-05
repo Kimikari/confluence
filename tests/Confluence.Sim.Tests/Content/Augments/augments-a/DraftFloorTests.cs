@@ -60,6 +60,15 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
                 Assert.True(report.For(r).LegalAlternatives >= unconditional, wizardId + " " + r + ": " + report.For(r).LegalAlternatives + " < " + unconditional);
             }
 
+            // Legal at this loadout but not implemented yet (augments-a families): the remaining work for these wizards.
+            var loadout = new Confluence.Economy.Loadouts.Loadout(cat, wizardId);
+            foreach (Rarity r in new[] { Rarity.Silver, Rarity.Gold, Rarity.Prismatic })
+            {
+                var legal = Confluence.Economy.Augments.AugmentPool.Eligible(loadout, Confluence.Economy.RoundInfo.FirstDraftOf(mode, r), r, Confluence.Economy.FeatLedger.None, ContentAvailability.All);
+                var open = legal.Where(o => Array.IndexOf(AugmentsAFamilies, o.Definition.Family) >= 0 && !o.IsTransformation && !available.IsAvailable(o.Id)).Select(o => o.Id);
+                _out.WriteLine("  " + r + " legal, not implemented: " + string.Join(" ", open));
+            }
+
             Assert.True(report.MeetsAll, report.ToString());
         }
     }

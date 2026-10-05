@@ -120,6 +120,9 @@ namespace Confluence.Sim.Spells
         public Vec3 Velocity { get; private set; }
         public float Travelled => _travelled;
 
+        /// <summary>Changes the flight speed from the next step on (content that speeds a projectile mid-flight).</summary>
+        internal void ScaleSpeed(float factor) => Velocity *= Math.Max(0f, factor);
+
         protected internal override void Step(SpellContext ctx)
         {
             float dt = Ticks.Dt;
