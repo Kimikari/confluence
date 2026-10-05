@@ -23,12 +23,17 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
     /// Counterplay: "Parry the lash or retreat before its fixed arc resolves." Mana 18, cooldown 7 s, 0.3 s windup, range
     /// 6 (the lash's reach) from the record (spec L525).
     /// <list type="bullet">
-    /// <item>The lash is a 0.5 m-wide strike volume from the focus along the aim fixed at commitment ("its fixed arc"),
-    /// stopped by solid geometry (spec L102 no tracking, no hits through walls); each target is struck once. It is an
-    /// offensive melee spell, so a frontal guard reduces it (spec L104, D-135); the direct hit adds Burn 4/s for 3 s.</item>
-    /// <item>Its ground track (the whip's landing line, 0.5 m wide) receives Heat 1 as instant residue. Growth ignites at
-    /// two heat units (spec L153, a global rule a record cannot loosen), so the lash ignites dry growth — growth already
-    /// holding a heat unit, such as sun-dried beds — and dries or steams what it touches by the usual reactions.</item>
+    /// <item>The curved whip is a swept strike (spec L102 "a swept strike volume matching their visible movement"): the
+    /// 0.5 m-wide lash sweeps from the focus across an arc of <see cref="ArcHalfDeg"/> either side of the aim fixed at
+    /// commitment ("its fixed arc"), out to the 6 m reach; its tip traces the visible curved arc. The record states no
+    /// angle, so the whip uses the common light-blade sweep (35 degrees either side, spec L100 "weapons use the
+    /// light-blade profile" unless a category is specified; <see cref="SimRules.Melee.LightBladeArcHalfDeg"/>). Each
+    /// sample line stops at the first solid (no hits through walls); each target is struck once. It is an offensive
+    /// melee spell, so a frontal guard reduces it (spec L104, D-135); the direct hit adds Burn 4/s for 3 s.</item>
+    /// <item>The ground under the tip's curved arc (0.5 m wide) receives Heat 1 as instant residue, once per cell. Growth
+    /// ignites at two heat units (spec L153, a global rule a record cannot loosen), so the lash ignites dry growth —
+    /// growth already holding a heat unit, such as sun-dried beds — and dries or steams what it touches by the usual
+    /// reactions.</item>
     /// </list>
     /// </summary>
     [ContentBehavior("SPL-015")]
@@ -40,6 +45,9 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
         public static readonly ProseParameter BurnDuration = ProseParameter.Of("burn_duration", 3, "Burn 4/s for 3 s");
         public static readonly ProseParameter ArcHeat = ProseParameter.Of("arc_heat", 1, "Heat 1 ignites dry growth touched by the arc");
 
+        /// <summary>Half of the lash's swept angle (unstated in the record: the light-blade sweep, spec L100, L102).</summary>
+        public const float ArcHalfDeg = SimRules.Melee.LightBladeArcHalfDeg;
+
         private static readonly IReadOnlyList<ProseParameter> All = new[] { Width, Damage, BurnDps, BurnDuration, ArcHeat };
 
         public IReadOnlyList<ProseParameter> Parameters => All;
@@ -50,7 +58,7 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
             PayloadSpec payload = form.Payload;
             payload.Direct = Damage.Float;
             payload.AddStatus(StatusKind.Burn, BurnDuration.Float, BurnDps.Float, StatusTrigger.DirectHitOnly);
-            form.Delivery = new LashDelivery { Reach = form.Range, Width = Width.Float, GroundHeat = (int)ArcHeat.Value };
+            form.Delivery = new LashDelivery { Reach = form.Range, Width = Width.Float, ArcHalfDeg = ArcHalfDeg, GroundHeat = (int)ArcHeat.Value };
         }
     }
 
@@ -59,6 +67,7 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
     {
         private float _reach;
         private float _width;
+        private float _arcHalfDeg;
         private int _groundHeat;
         private float _knotLifetimeSec;
         private float _knotHealth;
@@ -70,6 +79,9 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
 
         public float Reach { get => _reach; set => _reach = Set(value); }
         public float Width { get => _width; set => _width = Set(value); }
+
+        /// <summary>Half of the swept angle around the aim (the knot's swing sweeps the same arc).</summary>
+        public float ArcHalfDeg { get => _arcHalfDeg; set => _arcHalfDeg = Set(value); }
 
         /// <summary>Heat units the lash's ground track receives (instant residue).</summary>
         public int GroundHeat { get => _groundHeat; set => _groundHeat = Set(value); }
@@ -92,6 +104,7 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
         internal override void ApplyGlobalCaps()
         {
             _width = Math.Max(0f, _width);
+            _arcHalfDeg = CMath.Clamp(_arcHalfDeg, 0f, 180f);
             _knotLifetimeSec = Math.Min(_knotLifetimeSec, Core.Rules.GlobalRules.FieldsAndSummons.MaxLifetimeSec);
             CapNested(_knotSwing);
         }
@@ -107,17 +120,17 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
             Vec3 origin = ctx.FocusOrigin(caster);
             Vec3 dir = AimDirection(ctx, cast);
             ctx.Emit(SpellEventKind.ArcReleased, cast, origin, dir, 0, Reach);
-            bool wall = Strike(ctx, cast, cast.Form.Payload, origin, dir, Reach, out Vec3 tip, out int solid);
+            LashSweep sweep = Strike(ctx, cast, cast.Form.Payload, origin, dir, false);
 
             DuelPlayer p = ctx.Player(caster);
-            Vec3 feet = p.Position;
-            Vec3 tipGround = wall ? KitSupport.GroundBelow(ctx, tip) : KitSupport.GroundBelow(ctx, tip);
-            HeatTrack(ctx, cast, feet, new Vec3(tipGround.X, feet.Y, tipGround.Z));
+            HeatTrack(ctx, cast, sweep, p.Position.Y);
 
             if (HasKnot)
             {
-                // AUG-317 "Hit surface leaves 20-health knot": where the whip's tip meets a wall, else where it lands.
-                Vec3 at = wall ? tip : tipGround + new Vec3(0f, KnotEntity.Radius, 0f);
+                // AUG-317 "Hit surface leaves 20-health knot": where the whip meets a wall (the struck sample nearest the
+                // aim), else where its tip lands on the ground at the middle of the arc.
+                int wall = sweep.WallNearestAim();
+                Vec3 at = wall >= 0 ? sweep.Tips[wall] : sweep.Ground[sweep.Middle] + new Vec3(0f, KnotEntity.Radius, 0f);
                 KnotEntity knot = ctx.Spawn(new KnotEntity(cast, this, at, Ticks.FromSeconds(KnotLifetimeSec)));
                 ctx.Emit(SpellEventKind.DeployablePlaced, cast, at, dir, knot.Id, KnotHealth, ticks: Ticks.FromSeconds(KnotLifetimeSec));
                 ctx.Emit(SpellEventKind.Marker, cast, at, KitSupport.Flat(dir, Vec3.Forward), knot.Id, Reach); // its marked arc
@@ -125,131 +138,238 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
         }
 
         /// <summary>
-        /// One lash line: a strike volume of the lash's width from the origin along the direction, cut at the first solid;
-        /// every target whose hit volume it touches is struck once with the payload's direct hit, every hostile body it
-        /// touches takes the payload. Returns whether a solid stopped it; <paramref name="tip"/> is the line's end.
+        /// One lash: the whip's swept volume of the lash's width from the origin across the arc around the aim (sample
+        /// lines from the leftmost to the rightmost edge, each cut at the first solid). Every target whose hit volume a
+        /// sample touches is struck once with the payload's direct hit, every hostile body once, every struck solid once.
+        /// <paramref name="secondary"/> marks the knot's recast swing as new secondary damage (spec L508).
         /// </summary>
-        internal bool Strike(SpellContext ctx, CastRecord cast, PayloadSpec payload, Vec3 origin, Vec3 dir, float reach, out Vec3 tip, out int solid)
+        internal LashSweep Strike(SpellContext ctx, CastRecord cast, PayloadSpec payload, Vec3 origin, Vec3 aim, bool secondary)
         {
-            float length = reach;
-            solid = -1;
-            bool wall = ctx.Collision.SegmentCast(origin, origin + dir * reach, SolidMask.Movement, out WorldHit hit);
-            if (wall)
-            {
-                length = hit.Distance;
-                solid = hit.SolidId;
-            }
-
-            tip = origin + dir * length;
+            float yaw = CMath.YawOf(aim);
+            float pitch = CMath.PitchOf(aim);
+            int samples = ArcHalfDeg > 0f ? SpellRules.ArcSamples : 1;
+            var sweep = new LashSweep(samples);
+            var struck = new bool[DuelWorld.PlayerCount];
+            var struckBodies = new List<ISpellBody>();
+            var struckSolids = new List<int>();
             float halfWidth = Width * 0.5f;
-            for (int i = 0; i < DuelWorld.PlayerCount; i++)
-            {
-                if (i == cast.Caster || !ctx.IsTargetable(i)) continue;
-                Capsule body = ctx.TargetVolume(cast.Caster, i, true);
-                float d2 = Intersections.SegmentSegmentClosest(origin, tip, body.A, body.B, out _, out _, out _, out _);
-                float r = body.Radius + halfWidth;
-                if (d2 > r * r) continue;
-                ctx.ApplyToPlayer(cast, payload, i, PayloadHit.Direct(origin, dir)); // one strike damages its target once
-            }
-
             IReadOnlyList<ISpellBody> bodies = ctx.HostileBodies(cast.Caster);
-            for (int i = 0; i < bodies.Count; i++)
+            for (int s = 0; s < samples; s++)
             {
-                ISpellBody b = bodies[i];
-                Vec3 closest = Intersections.ClosestPointOnSegment(b.BodyCenter, origin, tip);
-                if (Vec3.Distance(closest, b.BodyCenter) <= b.BodyRadius + halfWidth) ctx.ApplyToBody(cast, payload, b, CastHitKinds.Direct);
+                float u = samples > 1 ? s / (float)(samples - 1) : 0.5f;
+                float offset = -ArcHalfDeg + 2f * ArcHalfDeg * u;
+                Vec3 dir = CMath.ForwardFromYawPitch(yaw + offset, pitch);
+                float length = Reach;
+                if (ctx.Collision.SegmentCast(origin, origin + dir * Reach, SolidMask.Movement, out WorldHit hit))
+                {
+                    length = hit.Distance;
+                    sweep.Solids[s] = hit.SolidId;
+                }
+
+                Vec3 tip = origin + dir * length;
+                sweep.Tips[s] = tip;
+                sweep.Ground[s] = KitSupport.GroundBelow(ctx, tip - dir * 0.05f);
+                sweep.Offsets[s] = offset;
+
+                for (int i = 0; i < DuelWorld.PlayerCount; i++)
+                {
+                    if (i == cast.Caster || struck[i] || !ctx.IsTargetable(i)) continue;
+                    Capsule body = ctx.TargetVolume(cast.Caster, i, true);
+                    float d2 = Intersections.SegmentSegmentClosest(origin, tip, body.A, body.B, out _, out _, out _, out _);
+                    float r = body.Radius + halfWidth;
+                    if (d2 > r * r) continue;
+                    struck[i] = true; // one strike damages its target once (spec L102)
+                    PayloadHit direct = PayloadHit.Direct(origin, dir);
+                    direct.Secondary = secondary;
+                    ctx.ApplyToPlayer(cast, payload, i, direct);
+                }
+
+                for (int i = 0; i < bodies.Count; i++)
+                {
+                    ISpellBody b = bodies[i];
+                    if (struckBodies.Contains(b) || !b.IsIntact) continue;
+                    Vec3 closest = Intersections.ClosestPointOnSegment(b.BodyCenter, origin, tip);
+                    if (Vec3.Distance(closest, b.BodyCenter) > b.BodyRadius + halfWidth) continue;
+                    struckBodies.Add(b);
+                    ctx.ApplyToBody(cast, payload, b, CastHitKinds.Direct);
+                }
+
+                if (sweep.Solids[s] >= 0 && !struckSolids.Contains(sweep.Solids[s]))
+                {
+                    struckSolids.Add(sweep.Solids[s]);
+                    ctx.DamageSolid(cast, payload, sweep.Solids[s]);
+                }
             }
 
-            if (wall) ctx.DamageSolid(cast, payload, solid);
-            return wall;
+            return sweep;
         }
 
         /// <summary>
-        /// The lash's ground track receives its heat (instant residue). With AUG-318, each run of the track over liquid
-        /// water instead consumes that water (one unit per crossed cell) into a steam strip; the strip uses the lash's
-        /// own heat ("no extra damage or strength"), so those cells receive no further heat.
+        /// The ground under the tip's curved arc receives the lash's heat (instant residue, one deposit per covered cell so
+        /// overlapping pieces never add a second unit). With AUG-318, each covered cell holding liquid water instead loses
+        /// one unit ("consumes it") and each wet run of the arc becomes a steam strip; the strip uses the lash's own heat
+        /// ("no extra damage or strength"), so those cells receive no further heat.
         /// </summary>
-        private void HeatTrack(SpellContext ctx, CastRecord cast, Vec3 from, Vec3 to)
+        private void HeatTrack(SpellContext ctx, CastRecord cast, LashSweep sweep, float y)
         {
-            Vec2 a = from.XZ();
-            Vec2 b = to.XZ();
-            if (Vec2.Distance(a, b) < 0.05f) return;
+            var path = new Vec2[sweep.Count];
+            for (int i = 0; i < path.Length; i++) path[i] = sweep.Ground[i].XZ();
             ReactionWorld world = KitSupport.Reactions(ctx);
-            if (SteamWidth <= 0f || world == null)
+            if (world == null)
             {
-                KitSupport.Deposit(ctx, cast, DepositKind.Heat, GroundHeat, from, Footprint.Segment(a, b, Width));
+                for (int i = 0; i < path.Length; i++)
+                {
+                    Footprint piece = Piece(path, i);
+                    if (i + 1 < path.Length || path.Length == 1) KitSupport.Deposit(ctx, cast, DepositKind.Heat, GroundHeat, new Vec3(path[i].X, y, path[i].Y), piece);
+                }
+
                 return;
             }
 
-            // Walk the track in half-cell steps and split it into wet and dry runs.
-            float length = Vec2.Distance(a, b);
-            int steps = Math.Max(1, (int)Math.Ceiling(length / (Core.Rules.GlobalRules.World.CellSize * 0.5f)));
-            var runs = new List<KeyValuePair<float, float>>();
-            var dry = new List<KeyValuePair<float, float>>();
-            float runStart = -1f;
-            float dryStart = 0f;
-            for (int s = 0; s <= steps; s++)
+            // The arc's covered cells, each once, in index order.
+            var cells = new List<int>();
+            var scratch = new List<int>();
+            for (int i = 0; i < path.Length; i++)
             {
-                float t = s / (float)steps;
-                Vec2 point = Vec2.Lerp(a, b, t);
-                bool wet = world.IsWetAt(new Vec3(point.X, from.Y, point.Y));
-                if (wet && runStart < 0f)
+                if (i + 1 >= path.Length && path.Length > 1) break;
+                scratch.Clear();
+                world.Grid.Rasterize(Piece(path, i), scratch);
+                for (int c = 0; c < scratch.Count; c++)
                 {
-                    runStart = t;
-                    if (t > dryStart) dry.Add(new KeyValuePair<float, float>(dryStart, t));
-                }
-                else if (!wet && runStart >= 0f)
-                {
-                    runs.Add(new KeyValuePair<float, float>(runStart, t));
-                    runStart = -1f;
-                    dryStart = t;
+                    if (!cells.Contains(scratch[c])) cells.Add(scratch[c]);
                 }
             }
 
-            if (runStart >= 0f) runs.Add(new KeyValuePair<float, float>(runStart, 1f));
-            else if (dryStart < 1f) dry.Add(new KeyValuePair<float, float>(dryStart, 1f));
-
-            for (int i = 0; i < dry.Count; i++)
+            cells.Sort();
+            bool steams = SteamWidth > 0f;
+            var wet = new List<int>();
+            for (int c = 0; c < cells.Count; c++)
             {
-                Vec2 da = Vec2.Lerp(a, b, dry[i].Key);
-                Vec2 db = Vec2.Lerp(a, b, dry[i].Value);
-                KitSupport.Deposit(ctx, cast, DepositKind.Heat, GroundHeat, from, Footprint.Segment(da, db, Width));
+                Vec2 center = world.Grid.CellCenter(cells[c]);
+                if (steams && world.IsWetCell(cells[c]))
+                {
+                    wet.Add(cells[c]);
+                    continue;
+                }
+
+                KitSupport.Deposit(ctx, cast, DepositKind.Heat, GroundHeat, new Vec3(center.X, y, center.Y), Footprint.Point(center));
             }
 
+            if (wet.Count == 0) return;
             ReactionMaterials materials = KitSupport.Materials(ctx);
             materials.RecordSource(cast.OriginEventId, cast.SpellId);
-            for (int i = 0; i < runs.Count; i++)
+            for (int c = 0; c < wet.Count; c++)
             {
-                Vec2 ra = Vec2.Lerp(a, b, runs[i].Key);
-                Vec2 rb = Vec2.Lerp(a, b, runs[i].Value);
-                Footprint crossed = Footprint.Segment(ra, rb, Width);
                 materials.RemoveUnits(new UnitRemoval
                 {
-                    Footprint = crossed,
+                    Footprint = Footprint.Point(world.Grid.CellCenter(wet[c])),
                     Materials = new[] { Material.Water },
                     MaxPerCell = 1, // "consumes it": the Water 1 the lash crossed
                     Owner = cast.Caster,
                     SourceEventId = cast.OriginEventId,
                 });
+            }
+
+            // One steam strip per wet run along the arc (walked in half-cell steps).
+            List<KeyValuePair<Vec2, Vec2>> runs = WetRuns(world, path, y);
+            for (int i = 0; i < runs.Count; i++)
+            {
+                Vec2 ra = runs[i].Key;
+                Vec2 rb = runs[i].Value;
                 materials.CreateVolume(new VolumeSpec
                 {
                     Kind = VolumeKind.Steam,
                     Footprint = Footprint.Segment(ra, rb, SteamWidth),
-                    BaseY = from.Y,
+                    BaseY = y,
                     LifetimeTicks = Ticks.FromSeconds(SteamLifetimeSec),
                     Owner = cast.Caster,
                     SourceEventId = cast.OriginEventId,
                     SourceWater = 1,
                 });
-                ctx.Emit(SpellEventKind.Steamed, cast, new Vec3(ra.X, from.Y, ra.Y), new Vec3(rb.X - ra.X, 0f, rb.Y - ra.Y), 0, SteamWidth,
+                ctx.Emit(SpellEventKind.Steamed, cast, new Vec3(ra.X, y, ra.Y), new Vec3(rb.X - ra.X, 0f, rb.Y - ra.Y), 0, SteamWidth,
                     ticks: Ticks.FromSeconds(SteamLifetimeSec));
             }
+        }
+
+        // The arc's ground piece from tip i to tip i + 1 (a single sample: a disc of the lash's width).
+        private Footprint Piece(Vec2[] path, int i) =>
+            i + 1 < path.Length ? Footprint.Segment(path[i], path[i + 1], Width) : Footprint.Circle(path[i], Width * 0.5f);
+
+        // Start and end points of every stretch of the path over liquid water.
+        private static List<KeyValuePair<Vec2, Vec2>> WetRuns(ReactionWorld world, Vec2[] path, float y)
+        {
+            var runs = new List<KeyValuePair<Vec2, Vec2>>();
+            bool inRun = false;
+            Vec2 runStart = default;
+            Vec2 last = path[0];
+            float step = Core.Rules.GlobalRules.World.CellSize * 0.5f;
+            for (int i = 0; i < path.Length; i++)
+            {
+                Vec2 a = path[i];
+                Vec2 b = i + 1 < path.Length ? path[i + 1] : path[i];
+                int steps = i + 1 < path.Length ? Math.Max(1, (int)Math.Ceiling(Vec2.Distance(a, b) / step)) : 0;
+                for (int k = 0; k <= steps; k++)
+                {
+                    if (k == steps && i + 1 < path.Length) break; // the piece's end is the next piece's start
+                    Vec2 point = steps > 0 ? Vec2.Lerp(a, b, k / (float)steps) : a;
+                    bool isWet = world.IsWetAt(new Vec3(point.X, y, point.Y));
+                    if (isWet && !inRun)
+                    {
+                        inRun = true;
+                        runStart = point;
+                    }
+                    else if (!isWet && inRun)
+                    {
+                        inRun = false;
+                        runs.Add(new KeyValuePair<Vec2, Vec2>(runStart, last));
+                    }
+
+                    last = point;
+                }
+            }
+
+            if (inRun) runs.Add(new KeyValuePair<Vec2, Vec2>(runStart, last));
+            return runs;
+        }
+    }
+
+    /// <summary>One lash's sample lines: tips, the ground under each tip, struck solids (-1 = none), angular offsets.</summary>
+    internal sealed class LashSweep
+    {
+        public LashSweep(int count)
+        {
+            Tips = new Vec3[count];
+            Ground = new Vec3[count];
+            Solids = new int[count];
+            Offsets = new float[count];
+            for (int i = 0; i < count; i++) Solids[i] = -1;
+        }
+
+        public Vec3[] Tips { get; }
+        public Vec3[] Ground { get; }
+        public int[] Solids { get; }
+        public float[] Offsets { get; }
+        public int Count => Tips.Length;
+        public int Middle => Tips.Length / 2;
+
+        /// <summary>The sample stopped by a solid closest to the aim (ties: the earlier sample), or -1.</summary>
+        public int WallNearestAim()
+        {
+            int best = -1;
+            for (int i = 0; i < Solids.Length; i++)
+            {
+                if (Solids[i] < 0) continue;
+                if (best < 0 || Math.Abs(Offsets[i]) < Math.Abs(Offsets[best])) best = i;
+            }
+
+            return best;
         }
     }
 
     /// <summary>
     /// AUG-317 Lash Knot's "20-health knot": a destructible anchor (spec L512, L527) that swings the lash once more on
-    /// the spell recast, along the caster's current ("manual") aim. Breaking it cancels the swing.
+    /// the spell recast, sweeping the lash's arc around the caster's current ("manual") aim. Breaking it cancels the
+    /// swing. The swing is new secondary damage (spec L508).
     /// </summary>
     public sealed class KnotEntity : SpellEntity, ISpellBody
     {
@@ -308,7 +428,9 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
             // A knot lying on the ground lifts the lash to waist height as it swings; one on a wall swings from there.
             Vec3 origin = Position.Y - ground.Y < 0.5f ? new Vec3(Position.X, ground.Y + 0.9f, Position.Z) : Position;
             ctx.Emit(SpellEventKind.ArcReleased, Cast, origin, dir, Id, _spec.Reach);
-            _spec.Strike(ctx, Cast, _spec.KnotSwing, origin, dir, _spec.Reach, out _, out _);
+            // The knot's swing is new secondary damage of the transformation (spec L508): generation 1, so it cannot
+            // trigger direct-hit, resource, lifesteal or proc rewards.
+            _spec.Strike(ctx, Cast, _spec.KnotSwing, origin, dir, true);
             ctx.Emit(SpellEventKind.DeployableDetonated, Cast, Position, dir, Id);
             End(ctx);
         }

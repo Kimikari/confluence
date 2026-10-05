@@ -1,5 +1,6 @@
 using System.Linq;
 using Confluence.Casting;
+using Confluence.Core.Arena;
 using Confluence.Core.Geometry;
 using Confluence.Core.Content;
 using Confluence.Core.Rules;
@@ -175,11 +176,12 @@ namespace Confluence.Sim.Tests.Content.Wiz002
 
         // ----- AUG-310 Haze Reservoir --------------------------------------------------------------------------
 
-        private static DuelWorld ReservoirDuel(int rank, float waterAhead)
+        // A 100-damage test projectile: the shimmer's 12% absorbs 12 of each hit, so the second hit fills the reservoir.
+        private static DuelWorld ReservoirDuel(int rank, float waterAhead, ArenaLayout layout = null)
         {
-            var layout = BramKit.FlatWith(BramKit.Water(new Vec2(0f, -6f + waterAhead), 0.25f, 0.25f, 1));
+            layout = layout ?? BramKit.FlatWith(BramKit.Water(new Vec2(0f, -6f + waterAhead), 0.25f, 0.25f, 1));
             var bram = BramKit.Bram(null, BramKit.Aug("AUG-310", rank));
-            return BramKit.Duel(bram, layout, BramKit.Caster(BramKit.Bolt("SPL-T90", 50f)));
+            return BramKit.Duel(bram, layout, BramKit.Caster(BramKit.Bolt("SPL-T90", 100f), BramKit.Swipe("SPL-T92", 60f)));
         }
 
         private static int SteamCount(DuelWorld w) => BramKit.Reactions(w).Volumes.Count(v => v.Kind == VolumeKind.Steam);
@@ -189,7 +191,7 @@ namespace Confluence.Sim.Tests.Content.Wiz002
         [InlineData(1, 2.5f, false)]
         [InlineData(2, 2.5f, true)]
         [Verifies("AUG-310")]
-        public void Haze_Reservoir_Vents_Heat_1_Over_A_Forward_Cone_Once_20_Damage_Was_Absorbed(int rank, float waterAhead, bool reaches)
+        public void Haze_Reservoir_Vents_Heat_1_Over_A_Forward_Cone_Once_The_Shimmer_Absorbed_20_Damage(int rank, float waterAhead, bool reaches)
         {
             DuelWorld w = ReservoirDuel(rank, waterAhead);
             int slot = BramKit.SlotOf(w, Haze);
@@ -198,8 +200,17 @@ namespace Confluence.Sim.Tests.Content.Wiz002
             Assert.DoesNotContain(BramKit.Spell(w, SpellEventKind.ConeReleased), e => e.SpellId == Haze);
             Assert.Equal(0, SteamCount(w));
 
-            BoltDamage(w); // 44 absorbed (>= 20)
-            Assert.True(BramKit.Entity<HazeReservoirEntity>(w).Ready);
+            Assert.Equal(88f, BoltDamage(w), 3); // the haze absorbed 12 of it: below 20, not ready
+            HazeReservoirEntity reservoir = BramKit.Entity<HazeReservoirEntity>(w);
+            Assert.Equal(12f, reservoir.Absorbed, 3);
+            Assert.False(reservoir.Ready);
+            BramKit.Recast(w, slot); // still not charged: nothing happens, the recast stays available
+            Assert.DoesNotContain(BramKit.Spell(w, SpellEventKind.ConeReleased), e => e.SpellId == Haze);
+
+            BramKit.Run(w, 30); // the test projectile's 0.5 s cooldown
+            BoltDamage(w); // 24 absorbed (>= 20): "First 20 absorbed damage readies one Heat 1 vent"
+            Assert.Equal(24f, reservoir.Absorbed, 3);
+            Assert.True(reservoir.Ready);
             float healthBefore = w.Player(1).Resources.Health;
             BramKit.Recast(w, slot, TestWorlds.A.Selecting(slot));
             BramKit.Run(w, 2, TestWorlds.A.Selecting(slot));
@@ -219,7 +230,7 @@ namespace Confluence.Sim.Tests.Content.Wiz002
             int slot = BramKit.SlotOf(w, Haze);
             CastHaze(w);
             Assert.Equal(Ticks.FromSeconds(3.0), BramKit.Spell(w, SpellEventKind.BuffStarted).Single().Ticks); // "Buff 4 s becomes 3 s"
-            Assert.Equal(50f * 0.88f, BoltDamage(w), 3); // the base 12% only ("no additional shield/reduction")
+            Assert.Equal(100f * 0.88f, BoltDamage(w), 3); // the base 12% only ("no additional shield/reduction")
             Assert.Equal(0f, w.Player(0).Shields.Total, 3);
             Assert.Contains("cone", BramKit.Form(w, Haze).Tags); // structural delta (D-012)
 
@@ -229,6 +240,53 @@ namespace Confluence.Sim.Tests.Content.Wiz002
             BramKit.Recast(w, slot);
             Assert.Equal(RejectReason.NoPendingRecast, BramKit.Casts(w, CastEventKind.Rejected).Last().Cast.Reject);
             Assert.Equal(0, SteamCount(w));
+        }
+
+        [Fact]
+        [Verifies("AUG-310")]
+        public void Haze_Reservoir_Counts_Only_What_The_Shimmer_Absorbs_Never_Unmitigated_Melee()
+        {
+            DuelWorld w = ReservoirDuel(1, 1.5f);
+            CastHaze(w);
+            HazeReservoirEntity reservoir = BramKit.Entity<HazeReservoirEntity>(w);
+
+            // A 60-damage cone strike (not a projectile) is not reduced by the haze, so nothing is absorbed.
+            TestWorlds.Place(w, 1, new Vec3(0f, 0f, -3f), 180f);
+            BramKit.OpponentFires(w, 1, BramKit.Chest(w, 0));
+            BramKit.Run(w, 2);
+            Assert.Equal(60f, BramKit.DamageTo(w, 0, "SPL-T92").Single().Dealt, 3);
+            Assert.Equal(0f, reservoir.Absorbed, 3);
+            Assert.False(reservoir.Ready);
+        }
+
+        [Fact]
+        [Verifies("AUG-310")]
+        public void Haze_Reservoir_Is_Never_Charged_By_The_Casters_Own_Damage()
+        {
+            // Bram's own neutral Phoenix Rush trail burns him while the shimmer lasts: no charge (no self-generated reward).
+            var bram = BramKit.Bram(null, BramKit.Aug("AUG-310"));
+            DuelWorld w = BramKit.Duel(bram, BramKit.FlatWith(), BramKit.Caster(BramKit.Bolt("SPL-T90", 100f)));
+            TestWorlds.Place(w, 1, new Vec3(6f, 0f, 6f), 180f);
+            int rush = BramKit.SlotOf(w, "SPL-013");
+            BramKit.Cast(w, rush, BramKit.NormalHold, TestWorlds.A.Selecting(rush));
+            BramKit.RunUntil(w, () => BramKit.Entity<HeatStripEntity>(w) != null, 60, TestWorlds.A.Selecting(rush));
+            Assert.NotNull(BramKit.Entity<HeatStripEntity>(w));
+            BramKit.Run(w, 30, TestWorlds.A.Selecting(rush)); // the rush's recovery
+            CastHaze(w);
+            HazeReservoirEntity reservoir = BramKit.Entity<HazeReservoirEntity>(w);
+            TestWorlds.Place(w, 0, new Vec3(0f, 0f, -4f), 0f); // back on the hot trail
+            BramKit.Run(w, Ticks.FromSeconds(1.5));
+            Assert.True(BramKit.DamageTo(w, 0, "SPL-013").Count >= 2);
+            Assert.Equal(0f, reservoir.Absorbed, 3);
+
+            // Even a self-inflicted hit the haze would reduce is ignored.
+            var self = DamageRequest.Single(0, 0, DamageKind.Direct, "SPL-009", DamageChannel.Thermal, 200f);
+            self.ExtraPassiveReduction = 0.12f;
+            DamageEvent ev = w.ApplyDamage(self);
+            Assert.True(ev.Resolution.ConditionalPrevented > 20f);
+            BramKit.Run(w, 1);
+            Assert.Equal(0f, reservoir.Absorbed, 3);
+            Assert.False(reservoir.Ready);
         }
     }
 }

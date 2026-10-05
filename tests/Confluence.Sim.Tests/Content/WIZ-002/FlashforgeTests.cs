@@ -141,7 +141,7 @@ namespace Confluence.Sim.Tests.Content.Wiz002
             BramKit.Run(w, 2);
             DamageEvent burn = BramKit.DamageTo(w, 1, Forge).Single();
             Assert.Equal(8f, burn.Dealt, 3);
-            Assert.Equal(DamageKind.Splash, burn.Kind); // contact: never guarded
+            Assert.Equal(DamageKind.Environment, burn.Kind); // contact: environmental, never guarded (spec L104, L672)
             BramKit.Run(w, Ticks.PerSecond);
             Assert.Equal(2, BramKit.DamageTo(w, 1, Forge).Count);
 
@@ -220,7 +220,7 @@ namespace Confluence.Sim.Tests.Content.Wiz002
             BramKit.Run(w, 2);
             DamageEvent contact = BramKit.DamageTo(w, 1, Forge).Last();
             Assert.Equal(dps, contact.Dealt, 3);
-            Assert.Equal(DamageKind.Splash, contact.Kind);
+            Assert.Equal(DamageKind.Environment, contact.Kind); // environmental contact (spec L672)
             BramKit.Run(w, Ticks.PerSecond);
             Assert.Equal(3, BramKit.DamageTo(w, 1, Forge).Count); // the smash and two contact seconds
         }

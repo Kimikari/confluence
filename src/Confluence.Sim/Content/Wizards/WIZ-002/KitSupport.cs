@@ -73,10 +73,12 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
         /// the radius, and every hostile spell body inside it, takes the payload once. Solid cover between the burst and a
         /// body stops it (spec L120). <paramref name="kind"/> Splash reads the payload's Splash amount, Direct its Direct
         /// amount; <paramref name="scale"/> multiplies it (the cast's one mastery result when the burst is the record's
-        /// primary damage, spec L480, L508). Returns the players damaged.
+        /// primary damage, spec L480, L508). A burst is never projectile damage (projectile-only reductions such as
+        /// SPL-011's skip it); <paramref name="secondary"/> marks new secondary damage a transformation adds (generation 1,
+        /// no hit or proc rewards, spec L126, L508). Returns the players damaged.
         /// </summary>
         public static int Burst(SpellContext ctx, CastRecord cast, PayloadSpec payload, Vec3 center, float radius, CastHitKinds kind, float scale,
-            Vec3 hitSource, bool includeCaster = false)
+            Vec3 hitSource, bool includeCaster = false, bool secondary = false)
         {
             if (payload == null || !(radius > 0f)) return 0;
             ctx.Emit(SpellEventKind.AreaBurst, cast, center, default, 0, radius);
@@ -92,6 +94,8 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
                     ? PayloadHit.Direct(hitSource, Flat(body.Center - hitSource, Vec3.Forward))
                     : PayloadHit.Splash(center);
                 hit.Scale = scale > 0f ? scale : 1f;
+                hit.NotProjectile = true;
+                hit.Secondary = secondary;
                 if (ctx.ApplyToPlayer(cast, payload, i, hit) != null) hits++;
             }
 

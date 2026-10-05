@@ -30,6 +30,29 @@ namespace Confluence.Sim.Spells
         /// <summary>The hit struck the stated weak point of a precision-tagged spell (spec L110).</summary>
         public bool WeakPoint;
 
+        /// <summary>
+        /// New secondary damage a transformation adds to its source (a recast swing or burst of a planted object, spec
+        /// L508): submitted as generation 1, so it cannot trigger on-hit, resource, lifesteal or other proc rewards
+        /// (spec L126). It keeps the cast's identity and source for attribution.
+        /// </summary>
+        public bool Secondary;
+
+        /// <summary>
+        /// Contact with heated or reacting terrain the spell left in the world (a neutral hot strip, a red-hot prop):
+        /// submitted as <see cref="DamageKind.Environment"/> with the cast's source and original event for attribution,
+        /// so it grants no direct spell-hit healing, refunds or equipment chains (spec L672).
+        /// </summary>
+        public bool Environmental;
+
+        /// <summary>Reaction family of an <see cref="Environmental"/> hit (feat attribution).</summary>
+        public ReactionTag Reaction;
+
+        /// <summary>
+        /// The hit is not projectile damage even though the form's delivery is a projectile (a planted cinder's burst):
+        /// projectile-only reductions such as SPL-011's do not apply to it.
+        /// </summary>
+        public bool NotProjectile;
+
         public static PayloadHit Direct(Vec3 source, Vec3 direction) =>
             new PayloadHit { Kind = CastHitKinds.Direct, Source = source, Direction = direction, Scale = 1f };
 
@@ -215,19 +238,23 @@ namespace Confluence.Sim.Spells
             DamageEvent ev = null;
             if (amount > 0f)
             {
-                DamageKind kind = hit.Kind == CastHitKinds.Direct ? DamageKind.Direct : DamageKind.Splash;
+                DamageKind kind = hit.Environmental ? DamageKind.Environment : hit.Kind == CastHitKinds.Direct ? DamageKind.Direct : DamageKind.Splash;
                 DamageRequest request = payload.SplitFraction > 0f
                     ? DamageRequest.Split(cast.Caster, target, kind, cast.SpellId,
                         new DamagePart(payload.Channel, amount * (1f - payload.SplitFraction)), new DamagePart(payload.SplitChannel, amount * payload.SplitFraction))
                     : DamageRequest.Single(cast.Caster, target, kind, cast.SpellId, payload.Channel, amount);
                 request.From(hit.Source);
-                request.GuardEligible = hit.Kind == CastHitKinds.Direct && payload.GuardEligible;
+                request.GuardEligible = hit.Kind == CastHitKinds.Direct && !hit.Environmental && payload.GuardEligible;
                 request.CastId = cast.CastId;
                 request.OriginEventId = cast.OriginEventId;
+                if (hit.Secondary) request.Generation = 1; // spec L126, L508: one generation of secondary effects
+                if (hit.Environmental) request.Reaction = hit.Reaction;
                 request.Range = Vec3.Distance(World.Player(cast.Caster).Position, victim.Position);
                 request.PrecisionTagged = hit.WeakPoint && cast.Form.HasTag("precision") && payload.PrecisionMultiplier > 1f;
                 request.PrecisionMultiplier = payload.PrecisionMultiplier;
-                request.ExtraPassiveReduction = cast.Form.Delivery.Kind == DeliveryKind.Projectile ? _runtime.ProjectileReductionFor(target) : 0f;
+                request.ExtraPassiveReduction = cast.Form.Delivery.Kind == DeliveryKind.Projectile && !hit.NotProjectile && !hit.Environmental
+                    ? _runtime.ProjectileReductionFor(target)
+                    : 0f;
                 if (payload.Push > 0f && push.LengthSquared() > 0f)
                 {
                     request.Knockback = payload.Push;

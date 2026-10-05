@@ -282,7 +282,9 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
             Vec3 center = end + new Vec3(0f, 0.5f, 0f);
             if (brake)
             {
-                KitSupport.Burst(ctx, Cast, _spec.BrakeBurst, center, _spec.BrakeRadius, CastHitKinds.Splash, 1f, center);
+                // The brake burst replaces the endpoint burst as the cast's primary damage, so it carries the cast's one
+                // mastery result (spec L94, L480: an augment that changes delivery inherits it).
+                KitSupport.Burst(ctx, Cast, _spec.BrakeBurst, center, _spec.BrakeRadius, CastHitKinds.Splash, Cast.DirectDamageMultiplier, center);
             }
             else
             {

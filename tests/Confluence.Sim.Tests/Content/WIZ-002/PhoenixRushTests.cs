@@ -131,7 +131,7 @@ namespace Confluence.Sim.Tests.Content.Wiz002
             BramKit.Run(w, 2);
             DamageEvent first = BramKit.DamageTo(w, 1, Rush).Single();
             Assert.Equal(6f, first.Dealt, 3);
-            Assert.Equal(DamageKind.Splash, first.Kind); // area contact
+            Assert.Equal(DamageKind.Environment, first.Kind); // hot-ground contact: environmental (spec L672)
             BramKit.Run(w, Ticks.PerSecond);
             Assert.Equal(2, BramKit.DamageTo(w, 1, Rush).Count); // "6/s"
 

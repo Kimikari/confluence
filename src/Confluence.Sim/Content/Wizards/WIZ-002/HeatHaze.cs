@@ -129,9 +129,12 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
     }
 
     /// <summary>
-    /// AUG-310 Haze Reservoir: while the shimmer lasts, the first 20 damage the caster takes (shield and health, original
-    /// hits and pulses) readies one Heat 1 vent; the spell recast then applies Heat 1 to a forward cone with no damage.
-    /// Recasts before the vent is ready do nothing (spec L94); the vent is used once.
+    /// AUG-310 Haze Reservoir: "First 20 absorbed damage readies one Heat 1 vent". The damage the shimmer absorbs is the
+    /// part of incoming hits its projectile reduction prevented (<see cref="Confluence.Sim.Combat.DamageResolution.ConditionalPrevented"/>):
+    /// damage the haze does not mitigate (melee, cones, bursts, terrain, statuses, boundary) and the caster's own damage
+    /// (spec L114, L651: no self-generated rewards, as Tempered Hands) never charge it. Once 20 is absorbed the spell
+    /// recast applies Heat 1 to a forward cone with no damage. Recasts before the vent is ready do nothing (spec L94);
+    /// the vent is used once.
     /// </summary>
     public sealed class HazeReservoirEntity : SpellEntity, ISpellEventListener
     {
@@ -156,7 +159,8 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
         public void OnWorldEvent(DuelWorld world, DuelEvent e)
         {
             if (_vented || _absorbed >= _script.ReservoirThreshold) return;
-            if (e is DamageEvent d && d.Target == Owner && d.Dealt > 0f) _absorbed += d.Dealt;
+            if (!(e is DamageEvent d) || d.Target != Owner || d.Attacker == Owner || d.Resolution == null) return;
+            if (d.Resolution.ConditionalPrevented > 0f) _absorbed += d.Resolution.ConditionalPrevented;
         }
 
         protected internal override void Step(SpellContext ctx)

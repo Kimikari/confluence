@@ -24,8 +24,10 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
     /// creates steam, reducing explosion to 16." Counterplay: "Shoot the 25-health orb or exploit premature steaming."
     /// Mana 22, cooldown 10 s, 0.45 s windup, range 22 (the throw's maximum travel) from the record (spec L525).
     /// <list type="bullet">
-    /// <item>The thrown orb passes players and sticks where it first touches a solid within 22 m, else stops at the end
-    /// of its range. Resting, it is a 25-health destructible body (spec L527): destroyed, it never explodes.</item>
+    /// <item>The thrown orb passes players and sticks where it first touches a solid within 22 m. It only ever waits on a
+    /// surface ("waits on first surface"): with no solid within its range it falls straight down from the end of its
+    /// flight to the first surface below (at its throw speed) and waits there; with none within 30 m it fades without
+    /// waiting. Resting, it is a 25-health destructible body (spec L527): destroyed, it never explodes.</item>
     /// <item>The orb carries Heat 3. When it rests on a cell with liquid water (placed there, or water arrives later) the
     /// reaction consumes that heat into steam at once — the reaction world forms the steam from the orb's heat and the
     /// cell's water (spec L144) — and the orb's explosion drops to 16 ("premature steaming").</item>
@@ -146,6 +148,8 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
         private readonly BoilerOrbDelivery _spec;
         private readonly Vec3 _throwDir;
         private float _travelled;
+        private float _fallen;
+        private bool _falling;
         private int _expireTick = -1;
         private int _burstTick = -1;
         private float _health;
@@ -169,6 +173,12 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
         public Vec3 Position { get; private set; }
         public Vec3 Velocity { get; private set; }
         public bool Settled => _expireTick >= 0;
+
+        /// <summary>No surface was within range: the orb drops to the first surface below the end of its flight.</summary>
+        public bool Falling => _falling;
+
+        /// <summary>The farthest the orb drops looking for a surface after its range ends.</summary>
+        public const float MaxFall = 30f;
 
         /// <summary>The water reaction consumed the orb's heat (premature steaming).</summary>
         public bool IsSteamed => _steamed;
@@ -248,6 +258,12 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
 
         private void Fly(SpellContext ctx)
         {
+            if (_falling)
+            {
+                Fall(ctx);
+                return;
+            }
+
             Vec3 delta = Velocity * Ticks.Dt;
             float length = delta.Length();
             float range = Cast.Form.Range;
@@ -263,7 +279,32 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
 
             Position += dir * length;
             _travelled += length;
-            if (last) Settle(ctx); // no surface within range: it waits where its flight ended
+            if (last)
+            {
+                // No surface within range: it never waits in mid-air ("waits on first surface"); it drops instead.
+                _falling = true;
+                Velocity = Vec3.Down * _spec.Speed;
+            }
+        }
+
+        private void Fall(SpellContext ctx)
+        {
+            float length = Math.Min(_spec.Speed * Ticks.Dt, MaxFall - _fallen);
+            if (ctx.Collision.SphereSweep(Position, Position + Vec3.Down * length, OrbRadius, SolidMask.Movement, out WorldHit hit))
+            {
+                Position = hit.Point;
+                _falling = false;
+                Settle(ctx);
+                return;
+            }
+
+            Position += Vec3.Down * length;
+            _fallen += length;
+            if (_fallen >= MaxFall - 1e-4f)
+            {
+                ctx.Emit(SpellEventKind.DeployableExpired, Cast, Position, default, Id); // nothing below: no surface to wait on
+                End(ctx);
+            }
         }
 
         private void Settle(SpellContext ctx)
@@ -381,6 +422,8 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
             h.Add(Position);
             h.Add(Velocity);
             h.Add(_travelled);
+            h.Add(_fallen);
+            h.Add(_falling);
             h.Add(_expireTick);
             h.Add(_burstTick);
             h.Add(_health);

@@ -8,6 +8,7 @@ using Confluence.Reactions;
 using Confluence.Reactions.Grid;
 using Confluence.Reactions.Operations;
 using Confluence.Reactions.Volumes;
+using Confluence.Sim.Combat;
 using Confluence.Sim.Duel;
 using Confluence.Sim.Fields;
 using Confluence.Sim.Hashing;
@@ -71,7 +72,10 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
         public override void OnCommitted(SpellContext ctx, CastRecord cast)
         {
             if (!(cast.Form.Delivery is SmashDelivery smash)) return;
+            // The marker's ground point is stored on the cast: the smash resolves exactly there even when props move or
+            // break during the 0.65 s windup ("Leave the raised casting marker"; the cue describes the delivery, L549).
             Vec3 center = SmashDelivery.CommittedPoint(ctx, cast);
+            cast.SetChosenPoint(center);
             ctx.Emit(SpellEventKind.Marker, cast, center, KitSupport.Flat(cast.CommitDirection, Vec3.Forward), 0, smash.Radius,
                 ticks: cast.Form.Castable.WindupTicks);
         }
@@ -136,7 +140,7 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
 
         public override void Release(SpellContext ctx, CastRecord cast)
         {
-            Vec3 center = CommittedPoint(ctx, cast);
+            Vec3 center = cast.HasChosenPoint ? cast.ChosenPoint : CommittedPoint(ctx, cast);
             Vec3 aim = KitSupport.Flat(cast.CommitDirection, Vec3.Forward);
             Smash(ctx, cast, center);
             KitSupport.Deposit(ctx, cast, DepositKind.Heat, Heat, center, Footprint.Circle(center.XZ(), Radius)); // "Heat 3"
@@ -318,7 +322,11 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
                 if (!Ctx.IsTargetable(i) || now < _nextHit[i] || !Touches(world.Player(i))) continue;
                 _nextHit[i] = now + Ticks.PerSecond; // "8/s": once per second of contact (D-045 cadence)
                 Vec3 feet = world.Player(i).Position;
-                Ctx.ApplyToPlayer(Cast, Spec.HotContact, i, PayloadHit.Area(Center, feet - Center));
+                // Touching hot metal is environmental contact (spec L672): attributed to the cast, no hit rewards.
+                PayloadHit contact = PayloadHit.Area(Center, feet - Center);
+                contact.Environmental = true;
+                contact.Reaction = ReactionTag.Burn;
+                Ctx.ApplyToPlayer(Cast, Spec.HotContact, i, contact);
             }
         }
 

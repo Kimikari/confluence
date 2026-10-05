@@ -3,6 +3,7 @@ using Confluence.Core.Geometry;
 using Confluence.Core.Time;
 using Confluence.Reactions;
 using Confluence.Reactions.Grid;
+using Confluence.Sim.Combat;
 using Confluence.Sim.Duel;
 using Confluence.Sim.Fields;
 using Confluence.Sim.Hashing;
@@ -18,7 +19,8 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
     /// footprint for its lifetime (the field's own material, spec L161, L163), and damages anyone standing on a still-hot
     /// cell of it once per second — the owner too (spec L496 neutral fields). Water or frost that consumes a cell's heat
     /// cools that part ("Step out or cool strip"); when no covered cell holds heat any more the strip ends early.
-    /// Contact is area damage: never guarded (spec L104) and outside the cast's mastery reward (spec L480).
+    /// Contact is environmental damage attributed to the cast (spec L672): never guarded (spec L104), outside the cast's
+    /// mastery reward (spec L480), and it raises no hit, refund or proc triggers.
     /// </summary>
     public sealed class HeatStripEntity : SpellEntity, IOwnedEntityBehavior
     {
@@ -130,7 +132,11 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
                 Vec3 feet = world.Player(i).Position;
                 if (!Contains(feet) || !IsHotAt(feet) || now < _nextHit[i]) continue;
                 _nextHit[i] = now + _intervalTicks;
-                _ctx.ApplyToPlayer(Cast, _contact, i, PayloadHit.Area(Center, feet - Center));
+                // Standing on hot ground is environmental contact (spec L672): attributed to the cast, no hit rewards.
+                PayloadHit contact = PayloadHit.Area(Center, feet - Center);
+                contact.Environmental = true;
+                contact.Reaction = ReactionTag.Burn;
+                _ctx.ApplyToPlayer(Cast, _contact, i, contact);
             }
         }
 

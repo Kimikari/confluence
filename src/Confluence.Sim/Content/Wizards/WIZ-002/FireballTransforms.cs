@@ -102,7 +102,8 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
     /// <item>The fireball hits for 24 direct or 16 splash; wherever it impacts it plants a visible 25-health cinder (a
     /// destructible body, spec L527; on the ground below when it struck a body).</item>
     /// <item>The spell recast (spec L94: once, during the cinder's life) bursts the cinder: 24 thermal splash within 1.5 m
-    /// (rank 2: 28 within 1.8 m, 4 s). A destroyed or expired cinder never bursts.</item>
+    /// (rank 2: 28 within 1.8 m, 4 s). A destroyed or expired cinder never bursts. The burst is new secondary damage
+    /// (spec L508: generation 1, no direct-hit, resource or proc rewards) and is not projectile damage.</item>
     /// <item>"Heat 2 total shared" (spec L529 divided strength): the impact keeps one heat unit in its cell and the burst
     /// releases the other in the cinder's cell, so the cast never deposits more than its Heat 2.</item>
     /// </list>
@@ -407,7 +408,9 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
             _burst = true;
             PayloadSpec burst = _spec.SeedBurst;
             ctx.Emit(SpellEventKind.DeployableDetonated, Cast, Position, default, Id, burst.SplashRadius);
-            KitSupport.Burst(ctx, Cast, burst, Position, burst.SplashRadius, CastHitKinds.Splash, 1f, Position);
+            // The cinder's burst is new secondary damage of the transformation (spec L508: one generation, no hit rewards)
+            // and a stationary burst, not projectile damage (SPL-011's reduction does not apply).
+            KitSupport.Burst(ctx, Cast, burst, Position, burst.SplashRadius, CastHitKinds.Splash, 1f, Position, secondary: true);
             ctx.EmitDeposits(Cast, burst, DepositPlacement.Impact, KitSupport.GroundBelow(ctx, Position), default);
             End(ctx);
         }

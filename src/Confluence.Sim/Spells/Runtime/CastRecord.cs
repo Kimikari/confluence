@@ -82,6 +82,20 @@ namespace Confluence.Sim.Spells
         /// </summary>
         public int Choice { get; set; }
 
+        /// <summary>
+        /// A world point the cast fixed and announced at commitment (a raised ground marker), recorded by the form's
+        /// script so the release resolves exactly there even when geometry changes during the windup (spec L549).
+        /// </summary>
+        public Vec3 ChosenPoint { get; private set; }
+
+        public bool HasChosenPoint { get; private set; }
+
+        public void SetChosenPoint(Vec3 point)
+        {
+            ChosenPoint = point;
+            HasChosenPoint = true;
+        }
+
         /// <summary>The release resolved or spawned its effect; with no live entities left the effect has ended.</summary>
         public bool Released => ReleaseTick >= 0;
 
@@ -109,6 +123,7 @@ namespace Confluence.Sim.Spells
             h.Add(ReleaseTick);
             h.Add(LiveEntities);
             h.Add(Choice);
+            if (HasChosenPoint) h.Add(ChosenPoint); // only casts that fix a point add to the hash
             for (int i = 0; i < _hitKinds.Length; i++)
             {
                 h.Add((int)_hitKinds[i]);

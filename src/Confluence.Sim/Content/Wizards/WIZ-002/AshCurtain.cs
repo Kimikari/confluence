@@ -152,18 +152,10 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
                 return;
             }
 
-            if (_volumeId == 0)
+            if (_volumeId == 0 && !Bind(ctx, world))
             {
-                ObscurationVolume found = Find(world);
-                if (found == null)
-                {
-                    if (ctx.Tick - SpawnTick > SearchTicks) End(ctx); // refused (no columns) or retired at once
-                    return;
-                }
-
-                _volumeId = found.Id;
-                ctx.Emit(SpellEventKind.FieldCreated, Cast, Ground, default, Id, _spec.IsCurtain ? _spec.CurtainLength * 0.5f : _spec.Radius,
-                    ticks: found.RemainingTicks(world.Tick));
+                if (ctx.Tick - SpawnTick > SearchTicks) End(ctx); // refused (no columns) or retired at once
+                return;
             }
 
             ObscurationVolume volume = world.FindVolume(_volumeId);
@@ -188,8 +180,13 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
         {
             // AUG-312 "Recast pushes existing ash cloud 2 m in manually chosen direction": the caster's current aim; the
             // push never changes the cloud's lifetime.
+            // The recast is processed (and its 6 mana paid) in step 3, before this entity's own step 4 binds the volume
+            // created at step 5 of the release tick: resolve the existing cloud here, so a recast on the first tick after
+            // the cloud appeared pushes it.
             ReactionMaterials materials = KitSupport.Materials(ctx);
-            if (_pushed || _volumeId == 0 || materials == null || materials.World.FindVolume(_volumeId) == null) return;
+            if (_pushed || materials == null) return;
+            if (_volumeId == 0) Bind(ctx, materials.World);
+            if (_volumeId == 0 || materials.World.FindVolume(_volumeId) == null) return;
             _pushed = true;
             DuelPlayer p = ctx.Player(Owner);
             Vec3 dir = KitSupport.Flat(ctx.AimDirection(Owner), CMath.ForwardFromYaw(p.Motor.YawDeg));
@@ -207,6 +204,17 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
                 SourceEventId = Cast.OriginEventId,
             });
             ctx.Emit(SpellEventKind.CloudMoved, Cast, Ground, dir, Id, _spec.PushDistance);
+        }
+
+        // Binds the cloud's reaction-world volume once it exists and announces the field.
+        private bool Bind(SpellContext ctx, ReactionWorld world)
+        {
+            ObscurationVolume found = Find(world);
+            if (found == null) return false;
+            _volumeId = found.Id;
+            ctx.Emit(SpellEventKind.FieldCreated, Cast, Ground, default, Id, _spec.IsCurtain ? _spec.CurtainLength * 0.5f : _spec.Radius,
+                ticks: found.RemainingTicks(world.Tick));
+            return true;
         }
 
         private ObscurationVolume Find(ReactionWorld world)
