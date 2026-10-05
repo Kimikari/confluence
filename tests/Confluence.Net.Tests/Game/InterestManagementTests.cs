@@ -38,6 +38,10 @@ namespace Confluence.Net.Tests.Game
             public INetMessage Message;
             public int MatchTick;
             public bool RecipientInLiveDuel;
+            public bool AnyDuelLive;
+
+            /// <summary>For events: positions of events about an opponent hidden from the recipient that lie near it (must stay 0).</summary>
+            public int HiddenLeaks;
 
             /// <summary>Read at send time: a snapshot's body buffer is reused by the next encode.</summary>
             public int DuelId;
@@ -55,10 +59,12 @@ namespace Confluence.Net.Tests.Game
         [Fact]
         public void A_Conclave_Sends_No_Other_Pairs_Duels_No_Other_Seats_Economy_And_Only_Delayed_Spectator_Frames()
         {
+            // The unranked 8-seat lobby with six headless clients and two bots: four duels per round, at least two of them
+            // between two clients, so every cross-duel stream leak between human recipients is exercised every round.
             var settings = new GameServerSettings
             {
                 Mode = MatchMode.Conclave,
-                PlayerCount = 4,
+                PlayerCount = 8,
                 Bots = 2,
                 Seed = EndToEndTests.SeedWithFirstDiameter(MatchMode.Conclave, 24, 500),
                 Laboratory = true,
@@ -79,8 +85,10 @@ namespace Confluence.Net.Tests.Game
                         Message = message,
                         MatchTick = server.CurrentTick,
                         RecipientInLiveDuel = server.IsInLiveDuel(seat),
+                        AnyDuelLive = server.AnyDuelLive,
                         DuelId = DuelOf(message),
                     };
+                    if (message is DuelEventsMessage batch) s.HiddenLeaks = HiddenLeaks(server, seat, batch);
                     if (message is ShopStateMessage shop)
                     {
                         s.ActualPrivate = Bytes(shop);
@@ -99,35 +107,44 @@ namespace Confluence.Net.Tests.Game
                     sent.Add(s);
                 };
 
-                HeadlessPlayer a = rig.AddPlayer("Ash", "WIZ-002", seed: 1);
-                HeadlessPlayer b = rig.AddPlayer("Brook", "WIZ-010", seed: 2);
-                var opponentVitalsSeen = new int[2];
-                var foreignPrivate = new int[2];
+                string[] names = { "Ash", "Brook", "Cedar", "Dune", "Ember", "Fern" };
+                var players = new List<HeadlessPlayer>();
+                for (int i = 0; i < names.Length; i++) players.Add(rig.AddPlayer(names[i], i % 2 == 0 ? "WIZ-002" : "WIZ-010", seed: (ulong)(i + 1)));
+                int opponentVitalsSeen = 0, foreignPrivate = 0, attachedWithPosition = 0;
                 // Two full rounds: shop, draft, alcove, combat, results, and the second round's start.
                 bool done = rig.RunUntil(() =>
                 {
-                    foreach (HeadlessPlayer p in new[] { a, b })
+                    foreach (HeadlessPlayer p in players)
                     {
                         ClientDuel duel = p.Client.Duel;
                         if (duel?.Latest == null) continue;
-                        int index = p == a ? 0 : 1;
-                        if (duel.Latest.Players[duel.OpponentSide].HealthDeci != -1) opponentVitalsSeen[index]++;
-                        if (duel.LatestPrivate != null && duel.LatestPrivate.Motor.Position != duel.OwnAuthoritativePosition) foreignPrivate[index]++;
+                        if (duel.Latest.Players[duel.OpponentSide].HealthDeci != -1) opponentVitalsSeen++;
+                        if (duel.LatestPrivate != null && duel.LatestPrivate.Motor.Position != duel.OwnAuthoritativePosition) foreignPrivate++;
+                        foreach (EntityEntry e in duel.Latest.Entities)
+                            if (EntityEntry.IsOwnerAttached(e.Kind) && !e.Position.Equals(default(QuantizedVec3))) attachedWithPosition++;
                     }
 
-                    return a.Client.View.Results.Count(r => r.Round >= 2) >= 1 && b.Client.View.Results.Count(r => r.Round >= 2) >= 1 &&
-                        server.Host.Flow.Round >= 3;
-                }, 60 * 60 * 20);
+                    return players.All(p => p.Client.View.Results.Count(r => r.Round >= 2) >= 1) && server.Host.Flow.Round >= 3;
+                }, 60 * 60 * 30);
 
                 foreach (string m in server.Metrics) _output.WriteLine(m);
                 _output.WriteLine("messages " + sent.Count + ", duels " + duelSides.Count + ", spectator frames " + server.SpectatorFramesSent);
                 Assert.True(done, "two Conclave rounds did not complete");
-                Assert.Equal(0, opponentVitalsSeen[0] + opponentVitalsSeen[1]);
-                Assert.Equal(0, foreignPrivate[0] + foreignPrivate[1]);
+                Assert.Equal(0, opponentVitalsSeen);
+                Assert.Equal(0, foreignPrivate);
+                Assert.Equal(0, attachedWithPosition);
+
+                // At least two duels per round were between two clients (the cross-duel checks below cover them).
+                int humanPairs = duelSides.Values.Count(sides => sides.All(seat => seat < names.Length));
+                Assert.True(humanPairs >= 4, "client-vs-client duels " + humanPairs);
 
                 int checkedDuelMessages = 0;
                 int checkedPrivate = 0;
                 int checkedSpectator = 0;
+                int checkedForeignResults = 0;
+                int checkedStandings = 0;
+                var resolvedAt = new Dictionary<int, int>();
+                var lastOutcome = new Dictionary<int, string>();
                 int delayTicks = NetRules.SpectatorDelayMinTicks;
                 foreach (Sent s in sent)
                 {
@@ -158,10 +175,39 @@ namespace Confluence.Net.Tests.Game
                         checkedSpectator++;
                     }
 
-                    if (s.Message is DuelResultMessage result && s.RecipientInLiveDuel)
+                    if (s.Message is DuelResultMessage result)
                     {
-                        Assert.Contains(s.Seat, new[] { result.Side0Seat, result.Side1Seat }); // other pairs' results wait (§2.6.4)
+                        bool participant = s.Seat == result.Side0Seat || s.Seat == result.Side1Seat;
+                        if (participant)
+                        {
+                            if (!resolvedAt.ContainsKey(result.DuelId)) resolvedAt[result.DuelId] = s.MatchTick;
+                        }
+                        else
+                        {
+                            // Other pairs' results reach every nonparticipant (fighting or not, L49 "delayed information")
+                            // only when 15 s old or when no duel of the pass is live (§2.6.4).
+                            if (s.AnyDuelLive && resolvedAt.TryGetValue(result.DuelId, out int at))
+                            {
+                                Assert.True(s.MatchTick - at >= delayTicks, "seat " + s.Seat + " got duel " + result.DuelId + "'s result " + (s.MatchTick - at) + " ticks after it resolved");
+                            }
+
+                            Assert.False(s.RecipientInLiveDuel && s.MatchTick - (resolvedAt.TryGetValue(result.DuelId, out int t0) ? t0 : s.MatchTick) < delayTicks && s.AnyDuelLive,
+                                "a live duelist got another pair's fresh result");
+                            checkedForeignResults++;
+                        }
                     }
+
+                    if (s.Message is StandingsMessage standings)
+                    {
+                        // Standings never carry an outcome a live duelist may not know yet: what a live recipient receives
+                        // has the same outcome columns as the standings it held before.
+                        string outcome = OutcomeColumns(standings);
+                        if (s.RecipientInLiveDuel && lastOutcome.TryGetValue(s.Seat, out string before)) Assert.Equal(before, outcome);
+                        lastOutcome[s.Seat] = outcome;
+                        checkedStandings++;
+                    }
+
+                    if (s.HiddenLeaks > 0) Assert.Fail("seat " + s.Seat + " received " + s.HiddenLeaks + " event positions near a hidden opponent at " + s.MatchTick);
 
                     if (s.Message is DuelEventsMessage events)
                     {
@@ -174,10 +220,45 @@ namespace Confluence.Net.Tests.Game
                     }
                 }
 
-                _output.WriteLine("checked duel messages " + checkedDuelMessages + ", private " + checkedPrivate + ", spectator " + checkedSpectator);
+                _output.WriteLine("checked duel messages " + checkedDuelMessages + ", private " + checkedPrivate + ", spectator " + checkedSpectator +
+                                  ", foreign results " + checkedForeignResults + ", standings " + checkedStandings);
                 Assert.True(checkedDuelMessages > 1000);
                 Assert.True(checkedPrivate > 4);
+                Assert.True(checkedForeignResults > 10);
+                Assert.True(checkedStandings > 6);
             }
+        }
+
+        private static string OutcomeColumns(StandingsMessage m) =>
+            string.Join(";", m.Seats.OrderBy(s => s.Seat).Select(s => s.Seat + ":" + s.Resolve + "/" + s.CombatWins + "/" + s.Losses + "/" + s.Draws + "/" + s.DuelHalfWins + "/" + s.Eliminated));
+
+        /// <summary>
+        /// Positions in an events batch for <paramref name="seat"/> that would locate an opponent hidden from it right now
+        /// (spec L120): events about the opponent with a position within the conceal radius of its live position.
+        /// </summary>
+        private static int HiddenLeaks(GameServer server, int seat, DuelEventsMessage batch)
+        {
+            if (server.Host == null) return 0;
+            foreach (Confluence.Hosting.Duels.RunningDuel duel in server.Host.Duels.Running)
+            {
+                if (duel.DuelId != batch.DuelId) continue;
+                int side = duel.Seats[0].Player == seat ? 0 : duel.Seats[1].Player == seat ? 1 : -1;
+                if (side < 0) return 0;
+                int opponent = 1 - side;
+                Confluence.Sim.Duel.DuelWorld world = duel.World;
+                if (world.IsVisibleTo(side, opponent)) return 0;
+                Confluence.Core.Geometry.Vec3 at = world.Player(opponent).Position;
+                int leaks = 0;
+                foreach (WireDuelEvent e in batch.Events)
+                {
+                    bool about = e.Player == opponent || (e.Type == WireEventType.Damage && e.Target == opponent);
+                    if (about && e.PositionSet && Confluence.Core.Geometry.Vec3.Distance(e.Position, at) <= DuelEventFilter.ConcealRadiusMeters) leaks++;
+                }
+
+                return leaks;
+            }
+
+            return 0;
         }
 
         /// <summary>The duel a message belongs to, or -1 for match-level messages.</summary>

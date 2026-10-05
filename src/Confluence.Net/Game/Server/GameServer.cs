@@ -775,6 +775,9 @@ namespace Confluence.Net.Game.Server
         /// <summary>Whether a seat is fighting a duel right now (interest management; tests).</summary>
         public bool IsInLiveDuel(int seat) => seat >= 0 && seat < _seats.Length && InLiveDuel(_seats[seat]);
 
+        /// <summary>Whether any duel of the current pass is still live (the result release rule; tests).</summary>
+        public bool AnyDuelLive => AnyLiveDuel();
+
         /// <summary>
         /// Sends the exact layout of an arena already announced to this seat (research §2.7.1: the authoritative fallback
         /// when a client's regeneration does not match the layout hash). Unannounced arenas are never sent.
