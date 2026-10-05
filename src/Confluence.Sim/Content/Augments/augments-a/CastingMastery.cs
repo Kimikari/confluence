@@ -81,9 +81,11 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
     /// <summary>
     /// AUG-012 Perfect Landing (Gold, always). Condition "Release a normal paid spell 0.1-0.25 s after landing." Rank 1
     /// "Cost decreases 2 mana.", rank 2 "Cost decreases 4 mana." Drawback "Landing outside the window grants nothing."
-    /// The release is the grammar release that commits and pays the cast (spec L90, L525: the cost is paid at
-    /// commitment, so it is priced then): a normal (unrewarded) spell committed 0.1-0.25 s after a landing pays 2 (4)
-    /// less inside the 70% floor (L124). Mastered casts and commitments outside the window pay in full.
+    /// The condition is judged at the cast's release (spec L90-L92 distinguish commitment, when the cost is paid, from
+    /// release): an equipped spell with a normal (unrewarded) grammar result whose release falls 0.1-0.25 s after the
+    /// owner's last landing has its cost decreased by 2 (4) mana after the fact, returned through the cast's refund ledger
+    /// (25% of the payment, once, L124). One landing qualifies one release. Mastered casts, unpaid casts, and releases
+    /// outside the window get nothing.
     /// </summary>
     [ContentBehavior(Id)]
     public sealed class PerfectLanding : IAugmentBehavior
@@ -100,57 +102,58 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
             host.Attach(new Hook(AugmentsAKit.ByRank(rank, Rank1Mana, Rank2Mana)));
         }
 
+        /// <summary>Whether a release <paramref name="sinceLanding"/> ticks after a landing is inside the window.</summary>
+        public static bool InWindow(int sinceLanding) =>
+            sinceLanding >= AugmentsAKit.Ticks(WindowStartSec) && sinceLanding <= AugmentsAKit.Ticks(WindowEndSec);
+
         private sealed class Hook : EffectHook
         {
             private readonly float _mana;
+            private readonly PaymentLog _payments = new PaymentLog();
             private int _landTick = int.MinValue / 2;
-            private bool _paid;
+            private CastDuelEvent _release;
 
             public Hook(float mana) : base(Id)
             {
                 _mana = mana;
             }
 
-            private bool InWindow()
-            {
-                int since = Now - _landTick;
-                return since >= AugmentsAKit.Ticks(WindowStartSec) && since <= AugmentsAKit.Ticks(WindowEndSec);
-            }
-
             public override void OnEvent(DuelEvent e)
             {
+                _payments.Observe(e, Player);
                 if (e is MovementEvent m && m.Player == Player && m.Change == MovementChange.Landed)
                 {
                     _landTick = m.Tick;
                 }
-                else if (CastFacts.IsSpellCommit(e, Player, out CastDuelEvent c) && !c.Cast.Mastery.IsMastered && InWindow())
+                else if (e is CastDuelEvent c && c.Player == Player && c.Kind == CastEventKind.Released && c.Cast.Slot >= 0
+                    && !c.Cast.Mastery.IsMastered && InWindow(c.Tick - _landTick))
                 {
-                    _paid = true;
-                    _landTick = int.MinValue / 2; // one landing prices one cast
+                    _release = c;
+                    _landTick = int.MinValue / 2; // one landing qualifies one release
                 }
             }
 
             public override void OnTick()
             {
-                if (_paid)
+                if (_release == null)
                 {
-                    _paid = false;
-                    TryActivate();
+                    return;
                 }
-            }
 
-            public override void AdjustMasteryPrice(in CastQuote quote, ref float masteredReduction, ref float normalReduction)
-            {
-                if (InWindow() && AugmentsAKit.CurrentCast(Self).IsValid && Self.Caster.Machine.CurrentSpell != null && !Self.Caster.Machine.CurrentSpell.IsSignature)
+                CastDuelEvent c = _release;
+                _release = null;
+                int payment = _payments.PaymentOf(c.CastId);
+                if (InCombat && payment != 0 && TryActivate(c.Id, -1, _mana))
                 {
-                    normalReduction += _mana;
+                    World.Effects.RefundCast(Player, payment, _mana, Key); // the cast's 25% refund ledger (L90, L124)
                 }
             }
 
             public override void Hash(ref StateHasher h)
             {
                 h.Add(_landTick);
-                h.Add(_paid);
+                h.Add(_release != null ? _release.Id : 0);
+                _payments.Hash(ref h);
             }
         }
     }

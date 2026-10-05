@@ -61,36 +61,68 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
             Assert.Equal(landing, AKit.Events<MovementEvent>(w).Single(m => m.Player == 0 && m.Change == MovementChange.Landed).Tick);
         }
 
-        [Theory]
-        [InlineData(1, 6, 16f)]
-        [InlineData(2, 6, 14f)]
-        [InlineData(2, 15, 14f)]
-        [InlineData(2, 5, 18f)]
-        [InlineData(2, 16, 18f)]
-        [Verifies("AUG-012")]
-        public void Perfect_Landing_Discounts_A_Normal_Cast_Committed_01_To_025_s_After_Landing(int rank, int afterLanding, float paid)
+        /// <summary>Jumps, then commits a Fireball so that its release (0.35 s windup) falls <paramref name="afterLanding"/> ticks after the landing.</summary>
+        private static void ReleaseAfterLanding(DuelWorld w, int afterLanding, int hold = AKit.NormalHold)
         {
-            AKit.AssertQuotes(PerfectLanding.Id, "0.1-0.25 s after landing", "Cost decreases 2 mana.", "Cost decreases 4 mana.", "Landing outside the window grants nothing.");
+            int windup = AKit.Ticks(0.35f);
+            int delay = LandingDelay();
+            AKit.Step(w, 1, AKit.A.With(InputButtons.Jump));
+            int expectedLanding = w.Tick + delay;
+            int press = expectedLanding + afterLanding - windup - hold;
+            AKit.Step(w, press - 1 - w.Tick);
+            AKit.HoldAndRelease(w, hold); // commits in the air; the windup runs through the landing
+            AKit.Step(w, windup + 5);
+            int landing = AKit.Events<MovementEvent>(w).Single(m => m.Player == 0 && m.Change == MovementChange.Landed).Tick;
+            Assert.Equal(landing + afterLanding, AKit.Casts(w, CastEventKind.Released).Single().Tick);
+        }
+
+        [Theory]
+        [InlineData(1, 6, 2f)]
+        [InlineData(2, 6, 4f)]
+        [InlineData(2, 15, 4f)]
+        [InlineData(2, 5, 0f)]
+        [InlineData(2, 16, 0f)]
+        [Verifies("AUG-012")]
+        public void Perfect_Landing_Decreases_The_Cost_Of_A_Normal_Spell_Released_01_To_025_s_After_Landing(int rank, int afterLanding, float decrease)
+        {
+            AKit.AssertQuotes(PerfectLanding.Id, "Release a normal paid spell 0.1-0.25 s after landing.", "Cost decreases 2 mana.", "Cost decreases 4 mana.", "Landing outside the window grants nothing.");
             DuelWorld w = AKit.With(PerfectLanding.Id, rank);
-            CommitAfterLanding(w, afterLanding);
+            ReleaseAfterLanding(w, afterLanding);
             Assert.False(Commit(w).Cast.Mastery.IsMastered);
-            Assert.Equal(paid, Commit(w).Cast.Mana, 3);
+            Assert.Equal(18f, Commit(w).Cast.Mana, 3);  // paid at commitment (spec L90)
+            Assert.Equal(decrease, Refunded(w), 3);      // settled at the qualifying release
+            Assert.Equal(decrease > 0f ? 1 : 0, AKit.Activations(w, PerfectLanding.Id).Count());
         }
 
         [Fact]
         [Verifies("AUG-012")]
-        public void Perfect_Landing_Gives_Nothing_To_An_Advanced_Variation_And_Respects_The_Cost_Floor()
+        public void Perfect_Landing_A_Commitment_In_The_Window_Whose_Release_Falls_Outside_It_Gets_Nothing()
+        {
+            DuelWorld w = AKit.With(PerfectLanding.Id, 2);
+            CommitAfterLanding(w, 6); // committed 0.1 s after landing: released 0.45 s after it
+            AKit.Step(w, 40);
+            int landing = AKit.Events<MovementEvent>(w).Single(m => m.Player == 0 && m.Change == MovementChange.Landed).Tick;
+            Assert.True(AKit.Casts(w, CastEventKind.Released).Single().Tick - landing > AKit.Ticks(PerfectLanding.WindowEndSec));
+            Assert.Equal(18f, Commit(w).Cast.Mana, 3);
+            Assert.Equal(0f, Refunded(w), 3);
+        }
+
+        [Fact]
+        [Verifies("AUG-012")]
+        public void Perfect_Landing_Gives_Nothing_To_An_Advanced_Variation_And_Respects_The_Refund_Cap()
         {
             DuelWorld crest = AKit.With(PerfectLanding.Id, 2);
-            CommitAfterLanding(crest, 10, AKit.CrestHold);
+            ReleaseAfterLanding(crest, 10, AKit.CrestHold);
             Assert.True(Commit(crest).Cast.Mastery.IsMastered);
-            Assert.Equal(18f, Commit(crest).Cast.Mana, 3);
+            Assert.Equal(0f, Refunded(crest), 3);
 
+            // At the 70% cost floor the 4 mana still comes back, but only up to 25% of the payment (spec L124).
             DuelPlayerSetup a = AKit.Setup("A", AKit.Bram, AKit.Aug(PerfectLanding.Id, 2));
             a.Modifiers.Add(new StatModifier(StatKind.CostReduction, 0.30f, "EQP-TEST"));
             DuelWorld floor = AKit.Duel(a);
-            CommitAfterLanding(floor, 8);
+            ReleaseAfterLanding(floor, 8);
             Assert.Equal(18f * 0.7f, Commit(floor).Cast.Mana, 3);
+            Assert.Equal(18f * 0.7f * GlobalRules.Casting.RefundCapFraction, Refunded(floor), 3);
         }
 
         // ----- AUG-019 Pressure Examination ----------------------------------------------------------------

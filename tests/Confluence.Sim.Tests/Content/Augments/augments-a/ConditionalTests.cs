@@ -205,6 +205,24 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
             Assert.Equal(30f + extra, Direct(w), 3);
         }
 
+        [Theory]
+        [InlineData(1, 3f)]
+        [InlineData(2, 5f)]
+        [Verifies("AUG-082")]
+        public void Blade_And_Bolt_Boosts_A_Projectile_That_Strikes_On_Its_Release_Tick(int rank, float extra)
+        {
+            // A 90 m/s bolt at point-blank range: the delivery advances (and hits) before the tick's effect dispatch.
+            DuelWorld w = Tapped(BladeAndBolt.Id, rank, Normal, "SPL-073", new TestBolt(30f, 90f));
+            AKit.FaceOff(w, 1.5f);
+            StrikeOnce(w);
+            Tap(w, afterTicks: 30);
+            int release = AKit.Casts(w, CastEventKind.Released).Single().Tick;
+            DamageEvent hit = AKit.Hits(w, 1, DamageKind.Direct).Single();
+            Assert.Equal(release, hit.Tick);
+            Assert.Equal(30f + extra, hit.Resolution.Raw, 3);
+            Assert.Single(AKit.Activations(w, BladeAndBolt.Id)); // the activation is still recorded once, under the budget
+        }
+
         [Fact]
         [Verifies("AUG-082")]
         public void Blade_And_Bolt_Second_Weapon_Hit_Resets_And_The_Window_Closes()

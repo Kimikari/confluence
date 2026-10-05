@@ -259,16 +259,16 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
         [InlineData(1, 16f)]
         [InlineData(2, 14f)]
         [Verifies("AUG-080")]
-        public void Guarded_Study_Discounts_A_Spell_Begun_Within_05_s_Of_A_Perfect_Guard_And_Adds_005_s_Recovery(int rank, float paid)
+        public void Guarded_Study_Discounts_A_Spell_Paid_Within_05_s_Of_A_Perfect_Guard_And_Adds_005_s_Recovery(int rank, float paid)
         {
             AKit.AssertQuotes(GuardedStudy.Id, "Perfect guard then paid spell within 0.5 s.", "costs 2 less mana", "costs 4 less mana", "0.05 s longer recovery");
             DuelWorld w = AKit.With(GuardedStudy.Id, rank);
             int perfect = PerfectGuardAgainstStrike(w);
-            Assert.True(w.Tick - perfect < AKit.Ticks(GuardedStudy.WindowSec) - AKit.NormalHold);
-            int wait = perfect + 17 - w.Tick; // the 0.25 s guard release window blocks casting (spec L104)
-            AKit.Step(w, wait);
-            AKit.HoldAndRelease(w, AKit.NormalHold);
+            AKit.Step(w, perfect + 17 - w.Tick); // the 0.25 s guard release window blocks casting (spec L104)
+            AKit.HoldAndRelease(w, QuickTap); // a tap: WIZ-002 commits (and pays) 0.2 s after the press
+            AKit.Step(w, 12);
             CastDuelEvent commit = AKit.Casts(w, CastEventKind.Committed).Single();
+            Assert.True(commit.Tick - perfect <= AKit.Ticks(GuardedStudy.WindowSec)); // paid within 0.5 s (spec L90)
             Assert.Equal(paid, commit.Cast.Mana, 3);
             Assert.Single(AKit.Activations(w, GuardedStudy.Id));
             AKit.Step(w, 60);
@@ -276,6 +276,27 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
             int recoveryEnd = AKit.Casts(w, CastEventKind.RecoveryEnded).Single().Tick;
             Assert.Equal(AKit.Ticks(GlobalRules.Casting.RecoveryQuickProjectileSec + 0.05f), recoveryEnd - release);
         }
+
+        [Fact]
+        [Verifies("AUG-080")]
+        public void Guarded_Study_A_Spell_Begun_In_The_Window_But_Paid_After_It_Pays_In_Full()
+        {
+            DuelWorld w = AKit.With(GuardedStudy.Id, 2);
+            int perfect = PerfectGuardAgainstStrike(w);
+            AKit.Step(w, perfect + 17 - w.Tick);
+            AKit.HoldAndRelease(w, AKit.NormalHold); // a 0.25 s hold commits at its release, 0.55 s after the guard
+            CastDuelEvent commit = AKit.Casts(w, CastEventKind.Committed).Single();
+            CastDuelEvent prep = AKit.Casts(w, CastEventKind.PreparationStarted).Single();
+            Assert.True(prep.Tick - perfect <= AKit.Ticks(GuardedStudy.WindowSec));
+            Assert.True(commit.Tick - perfect > AKit.Ticks(GuardedStudy.WindowSec));
+            Assert.Equal(18f, commit.Cast.Mana, 3);
+            AKit.Step(w, 60);
+            int release = AKit.Casts(w, CastEventKind.Released).Single().Tick;
+            Assert.Equal(AKit.Ticks(GlobalRules.Casting.RecoveryQuickProjectileSec), AKit.Casts(w, CastEventKind.RecoveryEnded).Single().Tick - release);
+        }
+
+        /// <summary>A WIZ-002 release before 0.20 s: the cast is queued and commits 0.2 s after the press (D-056).</summary>
+        private const int QuickTap = 4;
 
         [Fact]
         [Verifies("AUG-080")]
@@ -304,7 +325,8 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
             DuelWorld w = AKit.Duel(a);
             int perfect = PerfectGuardAgainstStrike(w);
             AKit.Step(w, perfect + 17 - w.Tick);
-            AKit.HoldAndRelease(w, AKit.NormalHold);
+            AKit.HoldAndRelease(w, QuickTap);
+            AKit.Step(w, 12);
             Assert.Equal(18f * 0.7f, AKit.Casts(w, CastEventKind.Committed).Single().Cast.Mana, 3);
         }
 

@@ -216,10 +216,10 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
     /// <summary>
     /// AUG-080 Guarded Study (Silver, always). Condition "Perfect guard then paid spell within 0.5 s." Rank 1 "Spell
     /// costs 2 less mana.", rank 2 "Spell costs 4 less mana." Drawback "That spell has 0.05 s longer recovery." A
-    /// perfect guard (spec L104) arms the next spell whose preparation starts within 0.5 s; if that cast commits it
-    /// pays 2 (4) less mana inside the 70% floor (L124) and its recovery is 0.05 s longer. The window is measured to
-    /// the start of the spell's preparation because the guard's 0.25 s release window (L104) and the wizard's own
-    /// preparation would otherwise make a commitment inside 0.5 s impossible for most grammars.
+    /// perfect guard (spec L104) opens a 0.5 s window; the first equipped spell paid inside it — the payment is made at
+    /// commitment (L90, L525), so its commitment must fall within 0.5 s of the perfect guard — pays 2 (4) less mana inside
+    /// the 70% floor (L124) and its recovery is 0.05 s longer. A preparation begun inside the window but committed after
+    /// it pays in full. Quick grammars (a WIZ-002 tap commits 0.2 s after the press) fit after the guard's release window.
     /// </summary>
     [ContentBehavior(Id)]
     public sealed class GuardedStudy : IAugmentBehavior
@@ -241,7 +241,6 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
             private readonly float _mana;
             private GuardEvent _perfect;
             private int _windowEnd = -1;
-            private CastEventId _armedCast = CastEventId.None;
 
             public Hook(float mana) : base(Id)
             {
@@ -254,17 +253,9 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 {
                     _perfect = g;
                 }
-                else if (e is CastDuelEvent c && c.Player == Player)
+                else if (CastFacts.IsSpellCommit(e, Player, out CastDuelEvent c) && _windowEnd >= 0 && c.Tick <= _windowEnd && c.Cast.Mana > 0f)
                 {
-                    if (c.Kind == CastEventKind.PreparationStarted && !_armedCast.IsValid && _windowEnd >= 0 && c.Tick <= _windowEnd && c.Cast.Slot >= 0)
-                    {
-                        _armedCast = c.CastId; // the spell begun inside the window
-                        _windowEnd = -1;
-                    }
-                    else if ((c.Kind == CastEventKind.Committed || c.Kind == CastEventKind.PreparationCancelled) && c.CastId == _armedCast)
-                    {
-                        _armedCast = CastEventId.None; // used by its commitment, or lost with its preparation
-                    }
+                    _windowEnd = -1; // the first paid spell inside the window uses it
                 }
             }
 
@@ -277,7 +268,6 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                     if (InCombat && TryActivate(origin))
                     {
                         _windowEnd = Now + AugmentsAKit.Ticks(WindowSec);
-                        _armedCast = CastEventId.None;
                     }
                 }
 
@@ -287,7 +277,10 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 }
             }
 
-            private bool Armed(in CastQuote quote) => _armedCast.IsValid && AugmentsAKit.CurrentCast(Self) == _armedCast;
+            /// <summary>The cast being paid now (prices are taken at commitment) falls inside the window.</summary>
+            private bool Armed(in CastQuote quote) =>
+                _windowEnd >= 0 && Now <= _windowEnd && AugmentsAKit.CurrentCast(Self).IsValid
+                && Self.Caster.Machine.CurrentSpell != null && !Self.Caster.Machine.CurrentSpell.IsSignature;
 
             public override void AdjustCastPrice(in CastQuote quote, ref float reduction, ref float increase)
             {
@@ -308,7 +301,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
             public override void Hash(ref StateHasher h)
             {
                 h.Add(_windowEnd);
-                h.Add((ulong)_armedCast.Packed);
+                h.Add(_perfect != null ? _perfect.Id : 0);
             }
         }
     }

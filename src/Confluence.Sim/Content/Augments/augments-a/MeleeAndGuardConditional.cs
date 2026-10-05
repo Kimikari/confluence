@@ -98,7 +98,10 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
     /// projectile within 1 s." Rank 1 "Projectile gains 3 direct damage.", rank 2 "Projectile gains 5 direct damage."
     /// Drawback "Second weapon hit before projectile resets setup." After a weapon hit, the owner's next direct projectile
     /// released within 1 s deals 3 (5) more direct damage on its hit; a second weapon hit inside that second cancels the
-    /// setup (the hit after it starts a new one).
+    /// setup (the hit after it starts a new one). A projectile that strikes on its release tick (deliveries advance before
+    /// the effect dispatch, so before the activation is recorded) is boosted when the record's proc budget will accept the
+    /// activation this tick (its own 0.5 s interval; each weapon hit opens one setup); the activation is then recorded at
+    /// the dispatch point.
     /// </summary>
     [ContentBehavior(Id)]
     public sealed class BladeAndBolt : IAugmentBehavior
@@ -121,11 +124,15 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
             private int _hitEvent;
             private CastEventId _pending = CastEventId.None;
             private CastEventId _boosted = CastEventId.None;
+            private int _lastActivation = int.MinValue / 2;
 
             public Hook(float damage) : base(Id)
             {
                 _damage = damage;
             }
+
+            /// <summary>The budget will accept this record's activation now: its group's 0.5 s interval has run (spec L126).</summary>
+            private bool BudgetOpen => Now - _lastActivation >= ProcBudget.IntervalTicks;
 
             public override void OnEvent(DuelEvent e)
             {
@@ -155,7 +162,11 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 {
                     CastEventId cast = _pending;
                     _pending = CastEventId.None;
-                    if (InCombat && TryActivate(_hitEvent, 1 - Player, _damage)) _boosted = cast;
+                    if (InCombat && TryActivate(_hitEvent, 1 - Player, _damage))
+                    {
+                        _boosted = cast;
+                        _lastActivation = Now;
+                    }
                 }
 
                 if (_hitTick >= 0 && Now - _hitTick > AugmentsAKit.Ticks(WindowSec)) _hitTick = -1;
@@ -163,7 +174,9 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
             public override void AdjustOutgoing(DamageRequest hit, float range, ref float fraction, ref float flat)
             {
-                if (_boosted.IsValid && hit.CastId == _boosted && ProjectileForms.IsProjectileDirectHit(World, hit))
+                bool boosted = _boosted.IsValid && hit.CastId == _boosted;
+                bool releasedThisTick = _pending.IsValid && hit.CastId == _pending && InCombat && BudgetOpen; // a release-tick impact
+                if ((boosted || releasedThisTick) && ProjectileForms.IsProjectileDirectHit(World, hit))
                 {
                     flat += _damage;
                 }
@@ -175,6 +188,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 h.Add(_hitEvent);
                 h.Add((ulong)_pending.Packed);
                 h.Add((ulong)_boosted.Packed);
+                h.Add(_lastActivation);
             }
         }
     }
