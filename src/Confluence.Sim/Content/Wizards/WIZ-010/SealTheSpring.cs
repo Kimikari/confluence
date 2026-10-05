@@ -22,6 +22,8 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
     /// <item>"one ... ground field": the connected patch of hot (heat) or corrosive (venom) cells nearest the impact inside
     /// the 2 m splash; up to 2 units are removed from its splash cells, nearest first, heat before venom in a cell, through
     /// the reaction world's neutralization (spec L161 neutral removal; L165 direct-impact phase).</item>
+    /// <item>"visible": the splash reaches only cells with no solid between the impact and the cell (a wall shields the
+    /// far side), and the field must have a cell the caster sees with clear sight (<see cref="SpringSight"/>).</item>
     /// <item>"Water 2 is fully consumed ... no surviving pool": the splash deposits no water at all.</item>
     /// </list>
     /// </summary>
@@ -143,23 +145,29 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
         public override Vec3 PredictTarget(SpellContext ctx, SpellForm form, int caster) => ctx.AimPoint(caster, form.Range);
 
         /// <summary>The splash's surface impact for the caster's aim, or false when no surface is within range.</summary>
-        public static bool SurfaceImpact(SpellContext ctx, int caster, Vec3 aim, float range, out Vec3 impact)
+        public static bool SurfaceImpact(SpellContext ctx, int caster, Vec3 aim, float range, out Vec3 impact) =>
+            SurfaceImpact(ctx, caster, aim, range, out impact, out _);
+
+        /// <summary>As <see cref="SurfaceImpact(SpellContext,int,Vec3,float,out Vec3)"/>, with the struck surface's normal.</summary>
+        public static bool SurfaceImpact(SpellContext ctx, int caster, Vec3 aim, float range, out Vec3 impact, out Vec3 normal)
         {
             Vec3 origin = ctx.AimOrigin(caster);
             if (ctx.Collision.Raycast(origin, aim, range, SolidMask.Movement, out WorldHit hit))
             {
                 impact = hit.Point;
+                normal = hit.Normal.LengthSquared() > 1e-6f ? hit.Normal : -aim;
                 return true;
             }
 
             impact = origin + aim * range;
+            normal = -aim;
             return false;
         }
 
         public override void Release(SpellContext ctx, CastRecord cast)
         {
             Vec3 aim = AimDirection(ctx, cast);
-            if (!SurfaceImpact(ctx, cast.Caster, aim, cast.Form.Range, out Vec3 impact))
+            if (!SurfaceImpact(ctx, cast.Caster, aim, cast.Form.Range, out Vec3 impact, out Vec3 normal))
             {
                 HalenRules.Emit(ctx, TideEventKind.SpringNoSurface, cast, impact);
                 return;
@@ -169,7 +177,8 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
             int removed = 0;
             if (world != null)
             {
-                List<SpringRemoval> plan = Plan(world, HalenRules.Ground(ctx.Collision, impact).XZ());
+                var sight = new SpringSight(ctx, world, impact, normal, ctx.AimOrigin(cast.Caster));
+                List<SpringRemoval> plan = Plan(world, HalenRules.Ground(ctx.Collision, impact).XZ(), sight);
                 removed = SpringNeutralization.Apply(ctx, cast, this, plan, impact);
             }
 
@@ -179,46 +188,61 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
         /// <summary>
         /// The removals for a splash centered on a ground point: the 4-connected hot/corrosive patch of the splash cell
         /// nearest the point, up to <see cref="MaxUnits"/> units from its cells nearest first, heat before venom.
+        /// With a <paramref name="sight"/>, only cells the splash reaches from its impact without crossing a solid belong
+        /// to the splash, and the field must be visible from the caster's eye ("one visible hot/corrosive ground field").
         /// </summary>
-        internal List<SpringRemoval> Plan(ReactionWorld world, Vec2 center)
+        internal List<SpringRemoval> Plan(ReactionWorld world, Vec2 center, SpringSight sight = null)
         {
             var plan = new List<SpringRemoval>();
             List<int> cells = HalenRules.Cells(world, Footprint.Circle(center, Radius));
-            var inSplash = new HashSet<int>(cells);
-            int seed = -1;
-            float best = float.MaxValue;
+            var inSplash = new HashSet<int>();
+            var candidates = new List<int>();
             for (int i = 0; i < cells.Count; i++)
             {
-                if (!SpringNeutralization.IsHotOrCorrosive(world.UnitsAtCell(cells[i]))) continue;
-                float d = SpringNeutralization.Distance2(world, cells[i], center);
-                if (d < best - 1e-6f)
-                {
-                    best = d;
-                    seed = cells[i];
-                }
+                if (sight != null && !sight.Reaches(cells[i])) continue; // a solid between the impact and the cell shields it
+                inSplash.Add(cells[i]);
+                if (SpringNeutralization.IsHotOrCorrosive(world.UnitsAtCell(cells[i]))) candidates.Add(cells[i]);
             }
 
-            if (seed < 0) return plan;
-
-            // The one field: the connected hot/corrosive patch of the seed, limited to the splash.
-            var patch = new List<int>();
-            var seen = new HashSet<int> { seed };
-            var queue = new Queue<int>();
-            queue.Enqueue(seed);
-            var neighbors = new List<int>();
-            while (queue.Count > 0)
+            // Nearest hot/corrosive splash cell first (cell index breaks ties), so the nearest visible field is the one.
+            candidates.Sort((a, b) =>
             {
-                int c = queue.Dequeue();
-                patch.Add(c);
-                neighbors.Clear();
-                world.Grid.Neighbors4(c, neighbors);
-                for (int n = 0; n < neighbors.Count; n++)
+                int c = SpringNeutralization.Distance2(world, a, center).CompareTo(SpringNeutralization.Distance2(world, b, center));
+                return c != 0 ? c : a.CompareTo(b);
+            });
+
+            var seen = new HashSet<int>();
+            var neighbors = new List<int>();
+            List<int> patch = null;
+            for (int s = 0; s < candidates.Count && patch == null; s++)
+            {
+                int seed = candidates[s];
+                if (!seen.Add(seed)) continue;
+
+                // The field: the connected hot/corrosive patch of the seed, limited to the splash.
+                var field = new List<int>();
+                var queue = new Queue<int>();
+                queue.Enqueue(seed);
+                bool visible = sight == null;
+                while (queue.Count > 0)
                 {
-                    int next = neighbors[n];
-                    if (!inSplash.Contains(next) || !seen.Add(next) || !SpringNeutralization.IsHotOrCorrosive(world.UnitsAtCell(next))) continue;
-                    queue.Enqueue(next);
+                    int c = queue.Dequeue();
+                    field.Add(c);
+                    if (!visible && sight.SeenByCaster(c)) visible = true;
+                    neighbors.Clear();
+                    world.Grid.Neighbors4(c, neighbors);
+                    for (int n = 0; n < neighbors.Count; n++)
+                    {
+                        int next = neighbors[n];
+                        if (!inSplash.Contains(next) || !SpringNeutralization.IsHotOrCorrosive(world.UnitsAtCell(next)) || !seen.Add(next)) continue;
+                        queue.Enqueue(next);
+                    }
                 }
+
+                if (visible) patch = field;
             }
+
+            if (patch == null) return plan;
 
             patch.Sort((a, b) =>
             {
@@ -239,6 +263,51 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
 
             return plan;
         }
+    }
+
+    /// <summary>
+    /// SPL-080 "one visible hot/corrosive ground field" (decision): a ground cell belongs to the splash only when the
+    /// segment from the impact (lifted 5 cm off the struck surface) to the cell's ground point crosses no solid, so a wall
+    /// shields the field behind it; and the chosen field must have at least one cell the caster's eye sees with clear
+    /// sight (no sight-blocking solid, less than the obscuring limit of steam/mist, spec L167).
+    /// </summary>
+    internal sealed class SpringSight
+    {
+        /// <summary>Cell ground points are tested this far above the ground (decision: a field is seen on its surface).</summary>
+        public const float SurfaceLift = 0.1f;
+
+        private readonly SpellContext _ctx;
+        private readonly ReactionWorld _world;
+        private readonly Vec3 _from;
+        private readonly Vec3 _eye;
+        private readonly float _probeY;
+
+        public SpringSight(SpellContext ctx, ReactionWorld world, Vec3 impact, Vec3 normal, Vec3 eye)
+        {
+            _ctx = ctx;
+            _world = world;
+            _from = impact + normal.NormalizedOr(Vec3.Up) * 0.05f;
+            _eye = eye;
+            _probeY = HalenRules.GroundY(ctx.Collision, impact) + 1f;
+        }
+
+        /// <summary>The surface point of a ground cell (the walkable height under its center).</summary>
+        public Vec3 CellPoint(int cell)
+        {
+            Vec2 c = _world.Grid.CellCenter(cell);
+            float y = HalenRules.GroundY(_ctx.Collision, new Vec3(c.X, _probeY, c.Y));
+            return new Vec3(c.X, y + SurfaceLift, c.Y);
+        }
+
+        /// <summary>Whether the splash reaches the cell from its impact without crossing a solid.</summary>
+        public bool Reaches(int cell)
+        {
+            Vec3 to = CellPoint(cell);
+            return !_ctx.Collision.SegmentCast(_from, to, SolidMask.Movement, out WorldHit hit) || hit.Distance >= (to - _from).Length() - 0.02f;
+        }
+
+        /// <summary>Whether the caster's eye sees the cell's surface.</summary>
+        public bool SeenByCaster(int cell) => _ctx.World.HasClearSight(_eye, CellPoint(cell));
     }
 
     /// <summary>

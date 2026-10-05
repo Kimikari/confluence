@@ -128,5 +128,69 @@ namespace Confluence.Sim.Tests.Content.Halen
             Splash(d, new Vec3(0f, 1.2f, 0f));
             Assert.Equal(before - 2, d.Total(Material.Heat, hot));
         }
+
+        [Fact]
+        [Verifies("SPL-080")]
+        public void A_Field_Hidden_Behind_The_Struck_Wall_Is_Untouched()
+        {
+            // "one visible hot/corrosive ground field": a splash on the near face of a 3 m wall does not reach the field on
+            // its far side, although that field lies inside the 2 m splash radius.
+            HalenDuel d = HalenTestKit.Duel(HalenTestKit.Halen(new[] { SealTheSpring.Id }),
+                layout: HalenTestKit.Layout(SpellTestKit.Wall(50, new Vec3(0f, 0f, 0.25f), new Vec3(4f, 3f, 0.5f))));
+            Footprint hidden = Footprint.Circle(new Vec2(0f, 1.25f), 0.5f);
+            d.Deposit(Material.Heat, 2, hidden);
+            d.Step();
+            int before = d.Total(Material.Heat, hidden);
+            Assert.True(before > 0);
+            Splash(d, new Vec3(0f, 0.3f, 0f));
+            Assert.Equal(before, d.Total(Material.Heat, hidden));
+            Assert.Equal(0f, d.Tide(TideEventKind.SpringNeutralized).Single().Amount);
+
+            // The same field with a visible one on the near side: only the visible one loses units.
+            HalenDuel both = HalenTestKit.Duel(HalenTestKit.Halen(new[] { SealTheSpring.Id }),
+                layout: HalenTestKit.Layout(SpellTestKit.Wall(50, new Vec3(0f, 0f, 0.25f), new Vec3(4f, 3f, 0.5f))));
+            Footprint near = Footprint.Circle(new Vec2(0f, -1.25f), 0.5f);
+            both.Deposit(Material.Heat, 2, hidden);
+            both.Deposit(Material.Heat, 2, near);
+            both.Step();
+            int hiddenBefore = both.Total(Material.Heat, hidden);
+            int nearBefore = both.Total(Material.Heat, near);
+            Splash(both, new Vec3(0f, 0.3f, 0f));
+            Assert.Equal(hiddenBefore, both.Total(Material.Heat, hidden));
+            Assert.Equal(nearBefore - 2, both.Total(Material.Heat, near));
+        }
+
+        [Fact]
+        [Verifies("SPL-080")]
+        public void A_Field_The_Caster_Cannot_See_Through_Steam_Is_Not_Chosen()
+        {
+            // The splash lands on the ground at the field, but a 3 m deep steam bank (spec L167: 2 m of obscuring volume
+            // blocks sight) hides the field from the caster's eye, so it is not a "visible" field.
+            HalenDuel d = Ready();
+            Footprint venom = Footprint.Circle(new Vec2(0f, 2.5f), 0.6f);
+            d.Deposit(Material.Venom, 2, venom);
+            d.Materials.CreateVolume(new Confluence.Reactions.Operations.VolumeSpec
+            {
+                Kind = Confluence.Reactions.Volumes.VolumeKind.Steam,
+                Footprint = Footprint.Rectangle(new Vec2(0f, -1.5f), new Vec2(2f, 1.5f), 0f),
+                BaseY = 0f,
+                Height = 2f,
+                LifetimeTicks = Ticks.FromSeconds(8f),
+                Owner = 1,
+            });
+            d.Step();
+            int before = d.Total(Material.Venom, venom);
+            Assert.False(d.World.HasClearSight(d.P0.Eye, new Vec3(0f, 0.1f, 2.5f)));
+            Splash(d, new Vec3(0f, 0f, 2.5f));
+            Assert.Equal(before, d.Total(Material.Venom, venom));
+
+            // Control: without the steam the same splash neutralizes 2 units.
+            HalenDuel clear = Ready();
+            clear.Deposit(Material.Venom, 2, venom);
+            clear.Step();
+            int clearBefore = clear.Total(Material.Venom, venom);
+            Splash(clear, new Vec3(0f, 0f, 2.5f));
+            Assert.Equal(clearBefore - 2, clear.Total(Material.Venom, venom));
+        }
     }
 }
