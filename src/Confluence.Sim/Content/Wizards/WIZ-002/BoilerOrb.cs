@@ -141,7 +141,7 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
     }
 
     /// <summary>A live Boiler Orb (see <see cref="BoilerOrb"/>).</summary>
-    public sealed class BoilerOrbEntity : SpellEntity, ISpellBody
+    public sealed class BoilerOrbEntity : SpellEntity, ISpellBody, IAwaitsRecastTarget
     {
         public const float OrbRadius = SpellRules.DeployableRadius;
 
@@ -190,7 +190,11 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
         /// <summary>The explosion it would deal now (before the target's mitigation and the mastery result).</summary>
         public float ExplosionDamage => _steamed ? Math.Min(Cast.Form.Payload.Splash, _spec.SteamedExplosion) : Cast.Form.Payload.Splash;
 
-        public override bool AcceptsRecast => _spec.DetonateOnRecast;
+        /// <summary>The recast detonates a waiting orb only; before it settles there is nothing to detonate (spec L94).</summary>
+        public override bool AcceptsRecast => _spec.DetonateOnRecast && Settled && !Warning;
+
+        /// <summary>In flight (or falling to a surface) the orb is the recast's target on its way: an early press does nothing.</summary>
+        public bool AwaitingRecastTarget => _spec.DetonateOnRecast && !Settled;
 
         // ----- ISpellBody -----------------------------------------------------------------------------------
 

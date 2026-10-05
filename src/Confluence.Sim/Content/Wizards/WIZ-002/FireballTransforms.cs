@@ -242,7 +242,7 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
     }
 
     /// <summary>A Fireball variant in flight (see <see cref="HeatProjectileDelivery"/>).</summary>
-    public sealed class HeatProjectileEntity : SpellEntity
+    public sealed class HeatProjectileEntity : SpellEntity, IAwaitsRecastTarget
     {
         public const float WalkableNormalY = 0.7f;
 
@@ -263,6 +263,9 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
         public Vec3 Position { get; private set; }
         public Vec3 Velocity { get; private set; }
         public bool Bounced => _bounced;
+
+        /// <summary>AUG-306: the cinder the recast bursts is planted on impact; a press while the fireball flies does nothing (spec L94).</summary>
+        public bool AwaitingRecastTarget => _spec.PlantsSeed;
 
         protected internal override void Step(SpellContext ctx)
         {

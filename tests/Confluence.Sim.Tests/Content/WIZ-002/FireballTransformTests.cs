@@ -289,5 +289,32 @@ namespace Confluence.Sim.Tests.Content.Wiz002
             Assert.Single(BramKit.DamageTo(w, 1, Fireball));
             Assert.True(BramKit.Mana(w) >= mana); // the recast adds no cost
         }
+
+        [Theory]
+        [InlineData(1, 24f, 1.5f)]
+        [InlineData(2, 28f, 1.8f)]
+        [Verifies("AUG-306")]
+        public void Cinder_Seed_An_Early_Recast_While_The_Fireball_Flies_Does_Nothing_And_The_Cinder_Still_Bursts(int rank, float burst, float radius)
+        {
+            // Spec L94: the recast acts only on a pending recast state; while the fireball flies there is no cinder yet.
+            DuelWorld w = Duel(null, null, BramKit.Aug("AUG-306", rank));
+            Vec3 ground = new Vec3(0f, 0f, 12f); // 18 m ahead: 0.75 s of flight
+            PlayerInput aim = BramKit.AimAt(w, ground, 0);
+            BramKit.Cast(w, 0, BramKit.NormalHold, aim);
+            BramKit.RunUntil(w, () => BramKit.Entity<HeatProjectileEntity>(w) != null, 60, aim);
+            Assert.NotNull(BramKit.Entity<HeatProjectileEntity>(w));
+            BramKit.Recast(w, 0, aim);
+            Assert.NotNull(BramKit.Entity<HeatProjectileEntity>(w)); // still in flight when the press was refused
+            Assert.Equal(RejectReason.NoPendingRecast, BramKit.Casts(w, CastEventKind.Rejected).Last().Cast.Reject);
+            Assert.Equal(0, w.Player(0).Caster.Machine.PendingRecastFor(0).Used); // the one recast is still there
+
+            BramKit.RunUntil(w, () => BramKit.Entity<CinderEntity>(w) != null, 90, aim);
+            CinderEntity cinder = BramKit.Entity<CinderEntity>(w);
+            Assert.NotNull(cinder);
+            TestWorlds.Place(w, 1, new Vec3(cinder.Position.X, 0f, cinder.Position.Z + radius + 0.3f), 180f);
+            BramKit.Recast(w, 0);
+            Assert.True(cinder.HasBurst);
+            Assert.Equal(burst, BramKit.DamageTo(w, 1, Fireball).Last().Dealt, 3);
+        }
     }
 }

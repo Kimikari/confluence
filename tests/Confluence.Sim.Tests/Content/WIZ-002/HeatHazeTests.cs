@@ -172,16 +172,91 @@ namespace Confluence.Sim.Tests.Content.Wiz002
             BramKit.Run(w, 1);
             Assert.NotNull(MantlePuff(w));
             Assert.True(w.CanAcquire(1, 0)); // "Use sound or close range": less than two meters of steam between them
+            Assert.True(w.CanAcquire(0, 1)); // an opponent inside the same puff is not hidden from the caster either
+        }
+
+        [Theory]
+        [InlineData(1, 1f)]
+        [InlineData(2, 1.5f)]
+        [Verifies("AUG-309")]
+        public void Steam_Mantle_Drawback_Hides_The_Casters_View_From_Inside_The_Puff(int rank, float seconds)
+        {
+            // Bram at (0,0,-6), the opponent 12 m away at (0,0,6), nothing but the puff between them.
+            DuelWorld w = Duel(BramKit.Aug("AUG-309", rank));
+            w.ApplyStatus(0, StatusApplication.Of(StatusKind.Wet, "TEST-WET", -1, Ticks.FromSeconds(6.0)));
+            Assert.True(w.CanAcquire(0, 1));
+            CastHaze(w);
+            BramKit.Run(w, 1);
+            ObscurationVolume puff = MantlePuff(w);
+            Assert.NotNull(puff);
+            Assert.True(puff.ContainsPoint(w.Player(0).Eye));
+
+            // "steam also hides caster's view": from inside the puff Bram cannot acquire the opponent outside it, even at
+            // rank 1, where the line from the puff's centre crosses only 1.5 m of steam (below the 2 m of spec L167).
+            Vec3 chest = w.Player(1).Position + new Vec3(0f, w.Player(1).Motor.Height * 0.6f, 0f);
+            float path = w.Materials.ObscuringPathLength(w.Player(0).Eye, chest);
+            if (rank == 1) Assert.True(path < 2f);
+            Assert.False(w.CanAcquire(0, 1));
+
+            // The opponent's view of Bram follows the shared rule only: hidden by the 2 m rank 2 puff, not by 1.5 m.
+            Assert.Equal(rank >= 2, !w.CanAcquire(1, 0));
+
+            // Stepping out of the puff (or the puff fading) gives the view back.
+            BramKit.Run(w, Ticks.FromSeconds(seconds) + 2);
+            Assert.Null(MantlePuff(w));
+            Assert.True(w.CanAcquire(0, 1));
+            Assert.Null(BramKit.Entity<MantlePuffEntity>(w));
+        }
+
+        [Fact]
+        [Verifies("AUG-309")]
+        public void Steam_Mantle_Rank_1_Puff_Screens_The_Caster_Who_Steps_Behind_It_Until_The_Opponent_Closes_In()
+        {
+            DuelWorld w = Duel(BramKit.Aug("AUG-309"));
+            w.ApplyStatus(0, StatusApplication.Of(StatusKind.Wet, "TEST-WET", -1, Ticks.FromSeconds(6.0)));
+            CastHaze(w);
+            BramKit.Run(w, 1);
+            Assert.NotNull(MantlePuff(w));
+
+            // Bram steps 2 m back behind the puff: the opponent's line crosses its whole 3 m diameter (spec L167).
+            TestWorlds.Place(w, 0, new Vec3(0f, 0f, -8f), 0f);
+            Assert.False(w.CanAcquire(1, 0));
+
+            // "close range": the opponent walks around the puff to Bram's side and acquires him again.
+            TestWorlds.Place(w, 1, new Vec3(0f, 0f, -10f), 0f);
+            Assert.True(w.CanAcquire(1, 0));
+            Assert.True(w.CanAcquire(0, 1)); // Bram is outside his puff: his own view is not hidden
         }
 
         // ----- AUG-310 Haze Reservoir --------------------------------------------------------------------------
 
-        // A 100-damage test projectile: the shimmer's 12% absorbs 12 of each hit, so the second hit fills the reservoir.
+        // Player 1: a 15-damage test projectile (slot 0), a 60-damage test cone (slot 1) and the catalogue's own Fireball
+        // (SPL-009, slot 2, 48 direct, cast through a tap grammar).
         private static DuelWorld ReservoirDuel(int rank, float waterAhead, ArenaLayout layout = null)
         {
             layout = layout ?? BramKit.FlatWith(BramKit.Water(new Vec2(0f, -6f + waterAhead), 0.25f, 0.25f, 1));
             var bram = BramKit.Bram(null, BramKit.Aug("AUG-310", rank));
-            return BramKit.Duel(bram, layout, BramKit.Caster(BramKit.Bolt("SPL-T90", 100f), BramKit.Swipe("SPL-T92", 60f)));
+            return BramKit.Duel(bram, layout, BramKit.Caster(BramKit.Bolt("SPL-T90", 15f), BramKit.Swipe("SPL-T92", 60f), CatalogueFireball()));
+        }
+
+        private static SpellForm CatalogueFireball() => BramKit.Form(BramKit.Duel(), "SPL-009");
+
+        private const int FireballSlot = 2;
+
+        private static float FireballDamage(DuelWorld w)
+        {
+            int before = BramKit.DamageTo(w, 0, "SPL-009").Count;
+            BramKit.OpponentFires(w, FireballSlot, BramKit.Chest(w, 0));
+            BramKit.RunUntil(w, () => BramKit.DamageTo(w, 0, "SPL-009").Count > before, 90);
+            return BramKit.DamageTo(w, 0, "SPL-009").Last().Dealt;
+        }
+
+        private static float SmallBoltDamage(DuelWorld w)
+        {
+            int before = BramKit.DamageTo(w, 0, "SPL-T90").Count;
+            BramKit.OpponentFires(w, 0, BramKit.Chest(w, 0));
+            BramKit.RunUntil(w, () => BramKit.DamageTo(w, 0, "SPL-T90").Count > before, 40);
+            return BramKit.DamageTo(w, 0, "SPL-T90").Last().Dealt;
         }
 
         private static int SteamCount(DuelWorld w) => BramKit.Reactions(w).Volumes.Count(v => v.Kind == VolumeKind.Steam);
@@ -196,21 +271,25 @@ namespace Confluence.Sim.Tests.Content.Wiz002
             DuelWorld w = ReservoirDuel(rank, waterAhead);
             int slot = BramKit.SlotOf(w, Haze);
             CastHaze(w);
-            BramKit.Recast(w, slot); // not charged yet: nothing happens
+            BramKit.Recast(w, slot); // not charged yet: no recast target, refused, nothing spent (spec L94)
+            Assert.Equal(RejectReason.NoPendingRecast, BramKit.Casts(w, CastEventKind.Rejected).Last().Cast.Reject);
+            Assert.Equal(0, w.Player(0).Caster.Machine.PendingRecastFor(slot).Used);
             Assert.DoesNotContain(BramKit.Spell(w, SpellEventKind.ConeReleased), e => e.SpellId == Haze);
             Assert.Equal(0, SteamCount(w));
 
-            Assert.Equal(88f, BoltDamage(w), 3); // the haze absorbed 12 of it: below 20, not ready
+            // A small projectile the shimmer softens: 13.2 absorbed, below the threshold.
+            Assert.Equal(15f * 0.88f, SmallBoltDamage(w), 3);
             HazeReservoirEntity reservoir = BramKit.Entity<HazeReservoirEntity>(w);
-            Assert.Equal(12f, reservoir.Absorbed, 3);
+            Assert.Equal(15f * 0.88f, reservoir.Absorbed, 3);
             Assert.False(reservoir.Ready);
-            BramKit.Recast(w, slot); // still not charged: nothing happens, the recast stays available
-            Assert.DoesNotContain(BramKit.Spell(w, SpellEventKind.ConeReleased), e => e.SpellId == Haze);
+            BramKit.Recast(w, slot); // still not charged: refused again, the recast stays available
+            Assert.Equal(0, w.Player(0).Caster.Machine.PendingRecastFor(slot).Used);
 
-            BramKit.Run(w, 30); // the test projectile's 0.5 s cooldown
-            BoltDamage(w); // 24 absorbed (>= 20): "First 20 absorbed damage readies one Heat 1 vent"
-            Assert.Equal(24f, reservoir.Absorbed, 3);
+            // The opponent's catalogue Fireball (48 direct, 42.24 after the shimmer): "First 20 absorbed damage readies one
+            // Heat 1 vent" - the reservoir stops counting at the threshold.
+            Assert.Equal(48f * 0.88f, FireballDamage(w), 3);
             Assert.True(reservoir.Ready);
+            Assert.True(reservoir.Absorbed >= 20f);
             float healthBefore = w.Player(1).Resources.Health;
             BramKit.Recast(w, slot, TestWorlds.A.Selecting(slot));
             BramKit.Run(w, 2, TestWorlds.A.Selecting(slot));
@@ -220,6 +299,25 @@ namespace Confluence.Sim.Tests.Content.Wiz002
             Assert.Empty(BramKit.DamageTo(w, 1));             // "no damage"
             Assert.Equal(healthBefore, w.Player(1).Resources.Health);
             Assert.True(BramKit.Entity<HazeReservoirEntity>(w).Vented);
+
+            // "maximum Heat 1 unchanged": one vent per cast.
+            BramKit.Recast(w, slot);
+            Assert.Single(BramKit.Spell(w, SpellEventKind.ConeReleased), e => e.SpellId == Haze);
+        }
+
+        [Fact]
+        [Verifies("AUG-310")]
+        public void Haze_Reservoir_Needs_The_Full_20_Two_Small_Projectiles_Fill_It()
+        {
+            DuelWorld w = ReservoirDuel(1, 1.5f);
+            CastHaze(w);
+            HazeReservoirEntity reservoir = BramKit.Entity<HazeReservoirEntity>(w);
+            SmallBoltDamage(w);
+            Assert.False(reservoir.Ready); // 13.2 < 20
+            BramKit.Run(w, 30);           // the test projectile's 0.5 s cooldown
+            SmallBoltDamage(w);
+            Assert.Equal(2f * 15f * 0.88f, reservoir.Absorbed, 3);
+            Assert.True(reservoir.Ready);   // 26.4 >= 20
         }
 
         [Fact]
@@ -230,11 +328,12 @@ namespace Confluence.Sim.Tests.Content.Wiz002
             int slot = BramKit.SlotOf(w, Haze);
             CastHaze(w);
             Assert.Equal(Ticks.FromSeconds(3.0), BramKit.Spell(w, SpellEventKind.BuffStarted).Single().Ticks); // "Buff 4 s becomes 3 s"
-            Assert.Equal(100f * 0.88f, BoltDamage(w), 3); // the base 12% only ("no additional shield/reduction")
-            Assert.Equal(0f, w.Player(0).Shields.Total, 3);
+            Assert.Equal(0f, w.Player(0).Shields.Total, 3); // the reservoir grants no shield
+            Assert.Equal(48f * 0.88f, FireballDamage(w), 3); // the base 12% only ("no additional shield/reduction")
+            Assert.True(BramKit.Entity<HazeReservoirEntity>(w).Ready);
             Assert.Contains("cone", BramKit.Form(w, Haze).Tags); // structural delta (D-012)
 
-            // "Wait out mantle": once the shimmer ended there is nothing to recast.
+            // "Wait out mantle": once the shimmer ended the charged vent is gone and there is nothing to recast.
             BramKit.RunUntil(w, () => BramKit.Spell(w, SpellEventKind.BuffEnded).Any(), 300, TestWorlds.A.Selecting(slot));
             BramKit.Run(w, 2, TestWorlds.A.Selecting(slot));
             BramKit.Recast(w, slot);

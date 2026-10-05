@@ -116,6 +116,7 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
                         SourceEventId = cast.OriginEventId,
                     });
                     ctx.Emit(SpellEventKind.Steamed, cast, p.Position, default, 0, MantleRadius, ticks: Ticks.FromSeconds(MantleLifetimeSec));
+                    ctx.Spawn(new MantlePuffEntity(cast, Ticks.FromSeconds(MantleLifetimeSec))); // "steam also hides caster's view"
                 }
             }
 
@@ -130,13 +131,16 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
 
     /// <summary>
     /// AUG-310 Haze Reservoir: "First 20 absorbed damage readies one Heat 1 vent". The damage the shimmer absorbs is the
-    /// part of incoming hits its projectile reduction prevented (<see cref="Confluence.Sim.Combat.DamageResolution.ConditionalPrevented"/>):
-    /// damage the haze does not mitigate (melee, cones, bursts, terrain, statuses, boundary) and the caster's own damage
-    /// (spec L114, L651: no self-generated rewards, as Tempered Hands) never charge it. Once 20 is absorbed the spell
-    /// recast applies Heat 1 to a forward cone with no damage. Recasts before the vent is ready do nothing (spec L94);
-    /// the vent is used once.
+    /// damage of the hostile hits it soaks: every hit its projectile reduction acts on (a hostile spell projectile while
+    /// the shimmer lasts; <see cref="Confluence.Sim.Combat.DamageResolution.ConditionalPrevented"/> above zero) counts
+    /// with the damage the caster takes from it (shield and health). Damage the haze does not mitigate (melee, cones,
+    /// bursts, terrain, statuses, boundary) and the caster's own damage (spec L114, L651: no self-generated rewards, as
+    /// Tempered Hands) never charge it. Counting only the prevented part (12% of a hit) would need about 167 projectile
+    /// damage inside the 3 s buff (four Fireballs), which leaves the record inert in a duel. Once 20 is absorbed the
+    /// spell recast applies Heat 1 to a forward cone with no damage. Before the vent is ready the cast has no recast target, so a press is refused and
+    /// spends nothing (spec L94); the vent is used once.
     /// </summary>
-    public sealed class HazeReservoirEntity : SpellEntity, ISpellEventListener
+    public sealed class HazeReservoirEntity : SpellEntity, ISpellEventListener, IAwaitsRecastTarget
     {
         private readonly HeatHazeScript _script;
         private readonly int _endTick;
@@ -154,13 +158,17 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
         public bool Ready => !_vented && _absorbed >= _script.ReservoirThreshold;
         public bool Vented => _vented;
 
-        public override bool AcceptsRecast => true;
+        /// <summary>Only the charged vent takes the recast; before it is charged a press does nothing (spec L94).</summary>
+        public override bool AcceptsRecast => Ready;
+
+        /// <summary>The vent the recast applies is not readied yet: an early press spends nothing.</summary>
+        public bool AwaitingRecastTarget => !_vented && !Ready;
 
         public void OnWorldEvent(DuelWorld world, DuelEvent e)
         {
             if (_vented || _absorbed >= _script.ReservoirThreshold) return;
             if (!(e is DamageEvent d) || d.Target != Owner || d.Attacker == Owner || d.Resolution == null) return;
-            if (d.Resolution.ConditionalPrevented > 0f) _absorbed += d.Resolution.ConditionalPrevented;
+            if (d.Resolution.ConditionalPrevented > 0f) _absorbed += d.Resolution.Dealt; // a hit the shimmer soaked
         }
 
         protected internal override void Step(SpellContext ctx)
@@ -184,6 +192,76 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
             h.Add(_endTick);
             h.Add(_absorbed);
             h.Add(_vented);
+        }
+    }
+
+    /// <summary>
+    /// AUG-309's drawback "steam also hides caster's view": while the caster's eye is inside their own mantle puff, they
+    /// cannot acquire a target whose chest is outside it, whatever the steam path length (the 1.5 m rank 1 puff is
+    /// shorter than the 2 m L167 threshold from its centre, so the shared rule alone would never hide the caster's view;
+    /// the record states it does). A target inside the same puff stays visible ("close range"). Outside viewers keep the
+    /// ordinary L167 rule: the puff blocks lines that cross 2 m of it. The entity follows the puff's reaction-world
+    /// volume (wind may move it) and ends with it.
+    /// </summary>
+    public sealed class MantlePuffEntity : SpellEntity, IAcquisitionVeil
+    {
+        private readonly int _searchTicks;
+        private int _volumeId;
+
+        internal MantlePuffEntity(CastRecord cast, int lifetimeTicks)
+            : base(cast)
+        {
+            _searchTicks = Math.Max(2, lifetimeTicks);
+        }
+
+        public int VolumeId => _volumeId;
+
+        protected internal override void Step(SpellContext ctx)
+        {
+            ReactionMaterials materials = KitSupport.Materials(ctx);
+            if (materials == null)
+            {
+                End(ctx);
+                return;
+            }
+
+            if (_volumeId == 0)
+            {
+                ObscurationVolume found = Find(materials.World);
+                if (found != null) _volumeId = found.Id;
+                else if (ctx.Tick - SpawnTick > _searchTicks) End(ctx);
+                return;
+            }
+
+            if (materials.World.FindVolume(_volumeId) == null) End(ctx); // faded, dispersed or condensed
+        }
+
+        public bool HidesView(DuelWorld world, int viewer, int target)
+        {
+            if (viewer != Owner || viewer == target) return false;
+            ReactionMaterials materials = world.Materials as ReactionMaterials;
+            ObscurationVolume puff = materials == null ? null : _volumeId != 0 ? materials.World.FindVolume(_volumeId) : Find(materials.World);
+            if (puff == null || !puff.ContainsPoint(world.Player(viewer).Eye)) return false;
+            DuelPlayer t = world.Player(target);
+            Vec3 chest = t.Position + new Vec3(0f, t.Motor.Height * 0.6f, 0f);
+            return !puff.ContainsPoint(chest);
+        }
+
+        private ObscurationVolume Find(Confluence.Reactions.ReactionWorld world)
+        {
+            IReadOnlyList<ObscurationVolume> volumes = world.Volumes;
+            for (int i = 0; i < volumes.Count; i++)
+            {
+                ObscurationVolume v = volumes[i];
+                if (v.Kind == VolumeKind.Steam && v.Owner == Owner && v.SourceEventId == Cast.OriginEventId) return v;
+            }
+
+            return null;
+        }
+
+        protected override void HashState(ref StateHasher h)
+        {
+            h.Add(_volumeId);
         }
     }
 }

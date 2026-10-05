@@ -54,12 +54,14 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
     /// 1 vent; recast applies it to 2 m forward cone, no damage." Rank 2: "Vent cone 3 m; maximum Heat 1 unchanged."
     /// Drawback: "Buff 4 s becomes 3 s; no additional shield/reduction." Counterplay: "Wait out mantle or dodge vent."
     /// <list type="bullet">
-    /// <item>While the 3 s shimmer lasts, the first 20 damage the caster takes (shield and health) charges the reservoir;
-    /// it absorbs nothing itself (no extra shield or reduction).</item>
+    /// <item>While the 3 s shimmer lasts, the first 20 damage it absorbs charges the reservoir: the damage the caster
+    /// takes (shield and health) from hostile hits the shimmer's projectile reduction acts on (see
+    /// <see cref="HazeReservoirEntity"/>). Unmitigated damage (melee, bursts, terrain, statuses) and self damage never
+    /// charge it. The reservoir absorbs nothing itself (no extra shield or reduction).</item>
     /// <item>Once charged, the spell recast (spec L94, during the shimmer) vents Heat 1 over a 2 m forward cone (rank 2:
     /// 3 m) along the caster's current aim; the cone angle is unstated and uses the cone default of 90 degrees. The vent
-    /// deals no damage; its heat dries, steams or melts by the usual reactions. One vent per cast; recasts before the
-    /// reservoir is charged do nothing.</item>
+    /// deals no damage; its heat dries, steams or melts by the usual reactions. One vent per cast (one recast, spec
+    /// L94); before the reservoir is charged the cast has no recast target, so a press is refused and spends nothing.</item>
     /// <item>Structural delta: the spell gains the cone tag.</item>
     /// </list>
     /// </summary>
@@ -67,9 +69,6 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
     public sealed class HazeReservoir : ISpellTransform
     {
         public const string Id = "AUG-310";
-
-        /// <summary>Recast presses the reservoir tolerates before it is charged; only the charged vent acts (once).</summary>
-        public const int RecastAllowance = 32;
 
         public const float VentHalfAngleDeg = 45f;
 
@@ -98,7 +97,7 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
 
             buff.DurationSec = Duration.Float;
             form.Script = script.WithReservoir(Threshold.Float, rank >= 2 ? Rank2Cone.Float : Rank1Cone.Float, VentHalfAngleDeg, (int)VentHeat.Value);
-            form.Recast = new RecastRule(RecastAllowance);
+            form.Recast = RecastRule.Default; // one vent; early presses are refused (IAwaitsRecastTarget)
         }
     }
 }

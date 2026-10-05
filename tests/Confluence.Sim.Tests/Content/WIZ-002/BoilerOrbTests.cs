@@ -180,6 +180,12 @@ namespace Confluence.Sim.Tests.Content.Wiz002
             SpellEvent placed = BramKit.Spell(w, SpellEventKind.DeployablePlaced).Single();
             Assert.InRange(placed.Position.Y, 0f, 0.35f);
 
+            // The press in the air spent nothing: the orb waiting on the floor still detonates.
+            PlaceNear(w, orb, 1.5f);
+            Detonate(w);
+            Assert.Single(BramKit.Spell(w, SpellEventKind.DeployableDetonated));
+            Assert.Equal(32f, BramKit.DamageTo(w, 1, Orb).Single().Dealt, 3);
+
             // With nothing below at all (beyond the floor's edge) it fades without ever waiting.
             DuelWorld edge = Duel(TestWorlds.Flat(18f, 8f));
             int s2 = BramKit.SlotOf(edge, Orb);
@@ -188,6 +194,37 @@ namespace Confluence.Sim.Tests.Content.Wiz002
             BramKit.RunUntil(edge, () => BramKit.Spell(edge, SpellEventKind.DeployableExpired).Any(), 240, out_);
             Assert.Single(BramKit.Spell(edge, SpellEventKind.DeployableExpired));
             Assert.Empty(BramKit.Spell(edge, SpellEventKind.DeployablePlaced));
+        }
+
+        [Theory]
+        [InlineData(null, 0, 32f)]
+        [InlineData("AUG-315", 1, 26f)]
+        [InlineData("AUG-315", 2, 26f)]
+        [Verifies("SPL-014")]
+        [Verifies("AUG-315")]
+        public void An_Early_Recast_While_The_Orb_Flies_Does_Nothing_And_The_Waiting_Orb_Still_Detonates(string aug, int rank, float explosion)
+        {
+            // Spec L94: a recast "does nothing when none exists"; the flying orb is not waiting yet, so the press is
+            // refused and the cast's one recast stays for the orb once it rests.
+            DuelWorld w = aug == null ? Duel() : Duel(null, BramKit.Aug(aug, rank));
+            int slot = BramKit.SlotOf(w, Orb);
+            PlayerInput aim = BramKit.AimAt(w, new Vec3(3f, 0f, 12f), slot); // 18 m ahead, beside the dummy
+            BramKit.Cast(w, slot, BramKit.NormalHold, aim);
+            BramKit.RunUntil(w, () => BramKit.Entity<BoilerOrbEntity>(w) != null, 60, aim);
+            BoilerOrbEntity orb = BramKit.Entity<BoilerOrbEntity>(w);
+            Assert.False(orb.Settled);
+            BramKit.Recast(w, slot, aim);
+            Assert.False(orb.Settled);
+            Assert.Equal(RejectReason.NoPendingRecast, BramKit.Casts(w, CastEventKind.Rejected).Last().Cast.Reject);
+            Assert.Equal(0, w.Player(0).Caster.Machine.PendingRecastFor(slot).Used);
+            Assert.Empty(BramKit.Spell(w, SpellEventKind.DeployableDetonated));
+
+            BramKit.RunUntil(w, () => orb.Settled, 90, aim);
+            Assert.True(orb.Settled);
+            PlaceNear(w, orb, 1.5f);
+            Detonate(w);
+            Assert.Single(BramKit.Spell(w, SpellEventKind.DeployableDetonated));
+            Assert.Equal(explosion, BramKit.DamageTo(w, 1, Orb).Single().Dealt, 3);
         }
 
         // ----- AUG-315 Boiler Funnel -----------------------------------------------------------------------------
