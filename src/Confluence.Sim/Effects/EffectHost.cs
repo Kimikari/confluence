@@ -15,7 +15,7 @@ namespace Confluence.Sim.Effects
     /// their stacking instances, conditional modifiers, and pending next-cast and next-hit bonuses. Content behaviors
     /// attach here at duel construction (<see cref="IEffectHost"/>); the <see cref="EffectSystem"/> runs them.
     /// </summary>
-    public sealed class EffectHost : IEffectHost
+    public sealed partial class EffectHost : IEffectHost
     {
         private readonly List<EffectRuntime> _effects = new List<EffectRuntime>();
         private readonly List<ConditionalModifier> _conditional = new List<ConditionalModifier>();
@@ -114,6 +114,9 @@ namespace Confluence.Sim.Effects
 
                     conditional.Key = conditional.SourceId + "#" + (++_attachSerial);
                     _conditional.Add(conditional);
+                    break;
+                case EffectHook hook:
+                    AttachHook(hook); // stateful content hooks (EffectHooks.cs)
                     break;
                 case null:
                     throw new ArgumentNullException(nameof(effect));
@@ -463,6 +466,8 @@ namespace Confluence.Sim.Effects
                 h.Add(b.Flat);
                 h.Add(b.ExpireTick);
             }
+
+            HashHooks(ref h);
         }
 
         private EffectRuntime Find(Effect effect)

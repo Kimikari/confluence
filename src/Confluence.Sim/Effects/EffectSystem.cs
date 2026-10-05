@@ -28,7 +28,7 @@ namespace Confluence.Sim.Effects
     /// raises no hit triggers at all (L51, L126, L173, L672).
     /// </para>
     /// </summary>
-    public sealed class EffectSystem
+    public sealed partial class EffectSystem
     {
         private readonly EffectHost[] _hosts;
         private readonly PlayerWatch[] _watch;
@@ -157,6 +157,8 @@ namespace Confluence.Sim.Effects
                 Poll(p, combat);
             }
 
+            TickHooks(); // stateful content hooks see the whole tick before its triggers fire (EffectHooks.cs)
+
             if (combat)
             {
                 for (int p = 0; p < DuelWorld.PlayerCount; p++)
@@ -246,6 +248,7 @@ namespace Confluence.Sim.Effects
         {
             DuelPlayer p = World.Player(player);
             _hosts[player].SumCastBonuses(quote, World.Tick, out float reduction, out float increase);
+            _hosts[player].AdjustCastPriceHooks(quote, ref reduction, ref increase); // EffectHooks.cs
             return CastCostRules.Price(quote.BaseCost, p.Stats.CostReduction, reduction, increase);
         }
 
@@ -347,6 +350,7 @@ namespace Confluence.Sim.Effects
 
             float range = request.Range > 0f ? request.Range : Vec3.Distance(attacker.Position, World.Player(request.Target).Position);
             _hosts[request.Attacker].ConsumeHitBonuses(request, range, World.Tick, out float fraction, out float flat);
+            _hosts[request.Attacker].AdjustOutgoingHooks(request, range, ref fraction, ref flat); // EffectHooks.cs
             multiplier *= Math.Max(0f, 1f + fraction);
             if (multiplier == 1f && flat == 0f)
             {

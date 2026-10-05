@@ -122,6 +122,22 @@ namespace Confluence.Sim.Players
             return gained;
         }
 
+        /// <summary>
+        /// Stamina removed by an opponent's effect (AUG-085 "Remove 3 additional stamina"): never below zero, and not
+        /// spending, so it does not restart the regeneration delay (spec L78). Returns the stamina removed.
+        /// </summary>
+        public float LoseStamina(float amount)
+        {
+            if (!(amount > 0f))
+            {
+                return 0f;
+            }
+
+            float lost = Math.Min(amount, Stamina);
+            Stamina -= lost;
+            return lost;
+        }
+
         /// <summary>Removes health (after mitigation). Health may go to or below zero; death resolves at step 9.</summary>
         public void LoseHealth(float amount)
         {

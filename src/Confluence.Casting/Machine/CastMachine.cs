@@ -44,6 +44,7 @@ namespace Confluence.Casting
         private int _channelPulses;
         private MasteryResult _mastery;
         private float _paid;
+        private int _recoveryTicks; // the committed cast's recovery after timing modifiers (CastModifiers)
 
         // A commit held back so the anticipatory cue lasts its minimum (spec L96).
         private bool _commitHeld;
@@ -227,6 +228,7 @@ namespace Confluence.Casting
             h = Mix(h, (ulong)(uint)_releaseTick);
             h = Mix(h, (ulong)(uint)_channelPulses);
             h = Mix(h, (ulong)(uint)BitConverter.SingleToInt32Bits(_paid));
+            h = Mix(h, (ulong)(uint)_recoveryTicks);
             h = Mix(h, (ulong)_mastery.Reward);
             h = Mix(h, (ulong)(uint)BitConverter.SingleToInt32Bits(_mastery.Magnitude));
             h = Mix(h, _commitHeld ? 1UL : 0UL);
@@ -440,7 +442,8 @@ namespace Confluence.Casting
             }
 
             CastModifiers modifiers = _host.ModifiersFor(_spell);
-            float cost = MasteryClamp.PaidCost(_spell.Mana, modifiers.CostReduction, MasteryClamp.ManaEfficiency(mastery, modifiers))
+            float reduction = modifiers.CostReduction + (mastery.IsMastered ? 0f : modifiers.NormalCostReduction);
+            float cost = MasteryClamp.PaidCost(_spell.Mana, reduction, MasteryClamp.RewardedCastEfficiency(mastery, modifiers))
                 + Math.Max(0f, modifiers.CostIncrease);
             if (!_host.TryPayCommitment(_spell, cost))
             {
@@ -451,6 +454,7 @@ namespace Confluence.Casting
             _host.StartCooldown(_spell);
             _paid = cost;
             _mastery = mastery;
+            _recoveryTicks = MasteryClamp.TimedRecoveryTicks(_spell.RecoveryTicks, modifiers);
             _refunds.Open(_castId, cost);
             TotalExposedPreparationTicks += tick - _preparationStartTick;
             if (_usesGrammar) _grammar.End(true, mastery);
@@ -467,8 +471,10 @@ namespace Confluence.Casting
         /// <summary>Intrinsic windup after a windup-reduction reward and same-category linked bonuses (spec L480).</summary>
         private int EffectiveWindup(MasteryResult mastery, CastModifiers modifiers)
         {
-            if (mastery.Reward != MasteryReward.WindupReduction) return _spell.WindupTicks;
-            return MasteryClamp.ReducedWindupTicks(_spell.WindupTicks, MasteryClamp.Combined(mastery, modifiers.MasteryLinkedAttribute), mastery.WindupCapTicks);
+            int windup = mastery.Reward != MasteryReward.WindupReduction
+                ? _spell.WindupTicks
+                : MasteryClamp.ReducedWindupTicks(_spell.WindupTicks, MasteryClamp.Combined(mastery, modifiers.MasteryLinkedAttribute), mastery.WindupCapTicks);
+            return MasteryClamp.TimedWindupTicks(_spell.WindupTicks, windup, mastery, modifiers); // equipment/augment timing
         }
 
         private void CancelPreparation(CancelReason reason, int tick, List<CastEvent> events)
@@ -501,7 +507,7 @@ namespace Confluence.Casting
             }
             else
             {
-                StartRecovery(tick, _spell.RecoveryTicks);
+                StartRecovery(tick, _recoveryTicks);
             }
         }
 
@@ -509,7 +515,7 @@ namespace Confluence.Casting
         {
             events.Add(new CastEvent(CastEventKind.ChannelEnded, tick, _castId, _spell.Id, _spellSlot, _mastery, CancelReason.None, InterruptCause.None,
                 reason, RejectReason.None, 0f, tick - _releaseTick, _channelPulses, false));
-            StartRecovery(tick, _spell.RecoveryTicks);
+            StartRecovery(tick, _recoveryTicks);
         }
 
         private void StartRecovery(int tick, int ticks)

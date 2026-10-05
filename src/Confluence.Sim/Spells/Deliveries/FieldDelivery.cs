@@ -113,6 +113,7 @@ namespace Confluence.Sim.Spells
         {
             Vec3 center = PredictTarget(ctx, cast.Form, cast.Caster);
             Vec3 aim = AimDirection(ctx, cast);
+            ctx.World.Effects.BindFieldPlacement(cast, ref center, ref aim); // a placement priced at commitment (Effects/EffectHooks.cs)
             Spawn(ctx, cast, center, new Vec3(aim.X, 0f, aim.Z));
         }
 

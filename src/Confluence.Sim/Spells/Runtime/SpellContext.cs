@@ -383,7 +383,8 @@ namespace Confluence.Sim.Spells
             CollisionSolid solid = Collision.Find(solidId);
             if (solid != null && solid.Destructible && payload.SolidDamage > 0f)
             {
-                World.DamageSolid(solidId, payload.SolidDamage * cast.DirectDamageMultiplier, cast.Caster);
+                float amount = World.Effects.AdjustSolidDamage(cast.Caster, solidId, payload.SolidDamage * cast.DirectDamageMultiplier, cast.SpellId, cast.CastId);
+                World.DamageSolid(solidId, amount, cast.Caster);
             }
         }
 
