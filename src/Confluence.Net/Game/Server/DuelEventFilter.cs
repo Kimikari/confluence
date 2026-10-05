@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Confluence.Casting;
+using Confluence.Core.Geometry;
 using Confluence.Net.Game.Wire;
 using Confluence.Reactions.Events;
 using Confluence.Sim.Casting;
@@ -21,12 +22,21 @@ namespace Confluence.Net.Game.Server
     /// the viewer without amounts. Opponent health policy (research §2.6.3): the exact value is never sent during a
     /// duel; it can be bounded from one's own confirmed hits, as on any damage-number HUD, but heals, shields, and
     /// third-party damage stay hidden; the judgement indicator (L53) and the results (L49) are the public health
-    /// channels. Movement events of a player hidden from the viewer (L120) carry no position.
+    /// channels. Events about a player hidden from the viewer (invisible beyond the 4 m silhouette, L120) carry no position
+    /// near that player and no direction (<see cref="Conceal"/>): cast lifecycle (aim origin and direction), movement,
+    /// damage it takes, its own spell, prop, and effect events. Positions far from it (a field it placed earlier, a
+    /// projectile impact elsewhere) stay, as do reaction cues (neutral terrain reactions stay visible, L120).
     /// </summary>
     public static class DuelEventFilter
     {
         /// <summary>Spectators see both players' public tells.</summary>
         public const int SpectatorView = -1;
+
+        /// <summary>
+        /// Positions of a hidden player's events within this distance of its live position are removed (an eye, hand, body,
+        /// feet, or self-centered effect position would locate it; spec L120).
+        /// </summary>
+        public const float ConcealRadiusMeters = 3f;
 
         /// <summary>Converts one world step's events (and its reaction outcomes) for <paramref name="viewerSide"/>.</summary>
         public static void Convert(DuelWorld world, int viewerSide, List<WireDuelEvent> into) => Convert(world, viewerSide, into, -1, null);
@@ -39,9 +49,10 @@ namespace Confluence.Net.Game.Server
         public static void Convert(DuelWorld world, int viewerSide, List<WireDuelEvent> into, int hiddenPlayer, List<WireDuelEvent> cosmetic)
         {
             IReadOnlyList<DuelEvent> events = world.TickEvents;
+            Vec3 hiddenAt = hiddenPlayer == 0 || hiddenPlayer == 1 ? world.Player(hiddenPlayer).Position : Vec3.Zero;
             for (int i = 0; i < events.Count; i++)
             {
-                WireDuelEvent w = Convert(events[i], viewerSide, hiddenPlayer);
+                WireDuelEvent w = Convert(events[i], viewerSide, hiddenPlayer, hiddenAt);
                 if (w != null) into.Add(w);
             }
 
@@ -54,6 +65,9 @@ namespace Confluence.Net.Game.Server
                 for (int i = 0; i < reactions.Count; i++)
                 {
                     ReactionEvent r = reactions[i];
+                    // A cue the hidden player's own effects cause around it would locate it; neutral terrain reactions stay
+                    // visible (spec L120 "does not suppress ... neutral terrain reactions").
+                    if (hiddenPlayer >= 0 && hiddenPlayer != viewerSide && r.Owner == hiddenPlayer && Vec3.Distance(r.Position, hiddenAt) <= ConcealRadiusMeters) continue;
                     reactionsInto.Add(new WireDuelEvent
                     {
                         Id = 0,
@@ -72,6 +86,59 @@ namespace Confluence.Net.Game.Server
 
         /// <summary>One event for one viewer, or null when the viewer may not know it.</summary>
         public static WireDuelEvent Convert(DuelEvent e, int viewerSide) => Convert(e, viewerSide, -1);
+
+        /// <summary>
+        /// One event for one viewer with <paramref name="hiddenPlayer"/> (-1 none) hidden from it at
+        /// <paramref name="hiddenAt"/>, that player's live position this step (see <see cref="Conceal"/>).
+        /// </summary>
+        public static WireDuelEvent Convert(DuelEvent e, int viewerSide, int hiddenPlayer, Vec3 hiddenAt)
+        {
+            WireDuelEvent w = Convert(e, viewerSide, hiddenPlayer);
+            if (w != null && (hiddenPlayer == 0 || hiddenPlayer == 1) && hiddenPlayer != viewerSide) Conceal(w, e, hiddenPlayer, hiddenAt);
+            return w;
+        }
+
+        /// <summary>
+        /// Removes what would locate a hidden player (spec L120, research §2.6.1): the direction of every event it acts in,
+        /// and the position of every event it acts in, takes damage in, or is targeted by when that position lies within
+        /// <see cref="ConcealRadiusMeters"/> of its live position (cast and movement events always lose theirs: the eye,
+        /// the aim, and the feet are the player).
+        /// </summary>
+        public static void Conceal(WireDuelEvent w, DuelEvent e, int hiddenPlayer, Vec3 hiddenAt)
+        {
+            bool actor = e.Player == hiddenPlayer;
+            bool involved = actor;
+            switch (e)
+            {
+                case DamageEvent damage:
+                    actor = damage.Attacker == hiddenPlayer;
+                    involved = actor || damage.Target == hiddenPlayer;
+                    break;
+                case SpellEvent spell:
+                    involved |= spell.TargetPlayer == hiddenPlayer;
+                    break;
+                case PropEvent prop:
+                    involved |= prop.TargetPlayer == hiddenPlayer;
+                    break;
+                case MeleeEvent melee:
+                    involved |= melee.TargetPlayer == hiddenPlayer;
+                    break;
+            }
+
+            if (!involved) return;
+            bool self = e is CastDuelEvent || e is MovementEvent;
+            if (actor || self)
+            {
+                w.DirectionSet = false;
+                w.Direction = Vec3.Zero;
+            }
+
+            if (w.PositionSet && (self || Vec3.Distance(w.Position, hiddenAt) <= ConcealRadiusMeters))
+            {
+                w.PositionSet = false;
+                w.Position = Vec3.Zero;
+            }
+        }
 
         public static WireDuelEvent Convert(DuelEvent e, int viewerSide, int hiddenPlayer)
         {

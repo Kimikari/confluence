@@ -473,9 +473,23 @@ namespace Confluence.Net.Game.Client
             PlayerEntry a = sample.From.Players[OpponentSide];
             PlayerEntry b = sample.To.Players[OpponentSide];
             float t = sample.Kind == SampleKind.Interpolated ? sample.Alpha : 0f;
-            InterpolatedOpponent = t < 0.5f ? a : b;
-            OpponentRenderPosition = Vec3.Lerp(a.PositionMeters, b.PositionMeters, t);
-            OpponentRenderYaw = a.YawDeg + CMath.DeltaAngle(a.YawDeg, b.YawDeg) * t;
+            bool aHidden = a.Has(PlayerBits.Hidden), bHidden = b.Has(PlayerBits.Hidden);
+            if (aHidden != bHidden)
+            {
+                // Never blend a frozen hidden pose with a live one (spec L120): the silhouette appears where the first
+                // replicated frame puts it, and vanishes at the first hidden one.
+                PlayerEntry live = aHidden ? b : a;
+                InterpolatedOpponent = aHidden ? b : (t < 0.5f ? a : b);
+                OpponentRenderPosition = live.PositionMeters;
+                OpponentRenderYaw = live.YawDeg;
+            }
+            else
+            {
+                InterpolatedOpponent = t < 0.5f ? a : b;
+                OpponentRenderPosition = Vec3.Lerp(a.PositionMeters, b.PositionMeters, t);
+                OpponentRenderYaw = a.YawDeg + CMath.DeltaAngle(a.YawDeg, b.YawDeg) * t;
+            }
+
             _remote.DiscardBefore((int)Math.Floor(renderTick) - Ticks.PerSecond);
         }
 
@@ -488,6 +502,14 @@ namespace Confluence.Net.Game.Client
             EntityEntry a = sample.From.Entities.Find(e => e.Key == entityId);
             EntityEntry b = sample.To.Entities.Find(e => e.Key == entityId);
             if (a == null && b == null) return false;
+            EntityEntry any = a ?? b;
+            if (EntityEntry.IsOwnerAttached(any.Kind))
+            {
+                // Movement and buff entities ride on their owner's replicated pose (no position on the wire).
+                position = any.Owner == Side ? RenderPosition : OpponentRenderPosition;
+                return true;
+            }
+
             if (a == null || b == null)
             {
                 position = (a ?? b).PositionMeters;

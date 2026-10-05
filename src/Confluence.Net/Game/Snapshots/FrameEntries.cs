@@ -291,6 +291,12 @@ namespace Confluence.Net.Game.Snapshots
         public Vec3 PositionMeters => Quantization.DequantizePosition(Position);
         public Vec3 VelocityMetersPerSecond => new Vec3(Velocity.X / 64f, Velocity.Y / 64f, Velocity.Z / 64f);
 
+        /// <summary>
+        /// Kinds that ride on their owner (movement, buff, other): they carry the origin as their position and are drawn
+        /// on the owner's replicated pose, so they can never locate a hidden owner (spec L120).
+        /// </summary>
+        public static bool IsOwnerAttached(EntityKind kind) => kind == EntityKind.Movement || kind == EntityKind.Buff || kind == EntityKind.Other;
+
         public override void WriteBody(NetWriter w)
         {
             w.WriteByte((byte)Kind);

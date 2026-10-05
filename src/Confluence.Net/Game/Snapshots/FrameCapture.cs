@@ -70,36 +70,40 @@ namespace Confluence.Net.Game.Snapshots
         /// <summary>
         /// The frame a duelist receives. When the opponent is not replicated to the viewer (invisible beyond the
         /// silhouette radius, see <see cref="ReplicatesTo"/>), its entry is <see cref="PlayerEntry.AsHidden"/> of the last
-        /// pose the viewer saw, so a modified client learns nothing the rules hide (spec L120, research §2.6.1).
+        /// pose the viewer saw, so a modified client learns nothing the rules hide (spec L120, research §2.6.1). The
+        /// opponent's owner-attached entities (movement, buff, other: they ride on their owner and carry no position of
+        /// their own) are left out as well, like the frozen entry's action state.
         /// </summary>
         public static DuelFrame ForViewer(DuelFrame truth, int viewerSide, bool opponentReplicated, PlayerEntry lastSeen)
         {
             DuelFrame copy = truth.ShallowCopy();
             int other = 1 - viewerSide;
             copy.Players[other] = opponentReplicated ? truth.Players[other].WithoutVitals() : truth.Players[other].AsHidden(lastSeen);
+            if (!opponentReplicated)
+            {
+                List<EntityEntry> kept = null;
+                for (int i = 0; i < truth.Entities.Count; i++)
+                {
+                    EntityEntry e = truth.Entities[i];
+                    bool drop = e.Owner == other && EntityEntry.IsOwnerAttached(e.Kind);
+                    if (drop && kept == null) kept = truth.Entities.GetRange(0, i);
+                    else if (!drop && kept != null) kept.Add(e);
+                }
+
+                if (kept != null) copy.Entities = kept;
+            }
+
             return copy;
         }
 
-        /// <summary>Extra distance beyond the 4 m silhouette at which an invisible opponent's pose is already sent.</summary>
-        public const float RevealMarginMeters = 1f;
-
-        /// <summary>Closing-speed look-ahead of the early reveal (longer than a typical round trip), so a peek never pops in.</summary>
-        public const float RevealLookAheadSec = 0.25f;
-
         /// <summary>
-        /// Whether <paramref name="target"/>'s live pose may be sent to <paramref name="viewer"/>: always when visible
-        /// (DuelWorld.IsVisibleTo, spec L120), and slightly before an invisible player comes within the 4 m silhouette
-        /// radius (1 m plus a quarter second of closing speed), so the client can draw the silhouette exactly at 4 m.
-        /// The client itself applies the 4 m rule when drawing (ClientDuel.OpponentVisible).
+        /// Whether <paramref name="target"/>'s live pose may be sent to <paramref name="viewer"/>: exactly when it is
+        /// visible to it (DuelWorld.IsVisibleTo: not invisible, or within the 4 m silhouette radius, spec L120). The
+        /// authoritative boundary applies before serialization, so a modified client never receives an invisible
+        /// player's coordinates beyond 4 m; the honest client draws the silhouette from the first replicated frame
+        /// (ClientDuel never interpolates from a hidden pose).
         /// </summary>
-        public static bool ReplicatesTo(DuelWorld world, int viewer, int target)
-        {
-            if (world.IsVisibleTo(viewer, target)) return true;
-            DuelPlayer t = world.Player(target);
-            DuelPlayer v = world.Player(viewer);
-            float closing = (t.Motor.Velocity.Length() + v.Motor.Velocity.Length()) * RevealLookAheadSec;
-            return Vec3.Distance(v.Position, t.Position) <= GlobalRules.Statuses.InvisibilitySilhouetteRadius + RevealMarginMeters + closing;
-        }
+        public static bool ReplicatesTo(DuelWorld world, int viewer, int target) => world.IsVisibleTo(viewer, target);
 
         /// <summary>The frame a delayed spectator receives (spec L391): public combat including health, no private state.</summary>
         public static DuelFrame ForSpectator(DuelFrame truth) => truth.ShallowCopy();
@@ -241,8 +245,10 @@ namespace Confluence.Net.Game.Snapshots
             foreach (SpellEntity entity in runtime.Entities)
             {
                 if (!entity.Alive || into.Count >= Wire.WireLimits.MaxEntities) continue;
+                // Owner-attached entities (movement, buff, other) have no position of their own: the wire carries the
+                // origin and the client draws them on the owner's replicated pose, so they never locate a hidden owner.
                 EntityKind kind = EntityKind.Other;
-                Vec3 position = world.Player(Clamp(entity.Owner)).Position;
+                Vec3 position = Vec3.Zero;
                 Vec3 velocity = Vec3.Zero;
                 float radius = 0f;
                 int extra = 0;
@@ -404,7 +410,5 @@ namespace Confluence.Net.Game.Snapshots
         }
 
         private static byte B(int units) => (byte)Math.Max(0, Math.Min(255, units));
-
-        private static int Clamp(int owner) => owner == 1 ? 1 : 0;
     }
 }
