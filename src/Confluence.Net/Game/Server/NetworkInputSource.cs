@@ -351,13 +351,15 @@ namespace Confluence.Net.Game.Server
                 Stats.ViewsBackward++;
             }
 
+            // Monotonicity applies to the displayed timeline, before the hard rewind bound (a high-ping client's views
+            // all sit below the clamp and are still in order).
+            _lastView = view;
             int clamped = LagCompensation.ClampViewTick(view, stepTick, NewestShownTick);
             if (clamped != view) Stats.ViewsClamped++;
             if (clamped != claimed) ClampedViewTicks++;
             else Stats.ViewsAccepted++;
             if (clamped > 0)
             {
-                _lastView = clamped;
                 int rewind = stepTick - clamped;
                 Stats.RewindTickSum += rewind;
                 Stats.RewindSamples++;

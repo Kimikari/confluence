@@ -212,8 +212,8 @@ namespace Confluence.Net.Game.Wire
 
         public List<InputCommand<PlayerInput>> Commands { get; } = new List<InputCommand<PlayerInput>>();
 
-        /// <summary>Largest declarable interpolation delay: the 150 ms rewind (spec L423).</summary>
-        public const int MaxInterpolationTicks = 9;
+        /// <summary>Largest declarable interpolation delay (500 ms); lag compensation still rewinds at most 150 ms (L423).</summary>
+        public const int MaxInterpolationTicks = 30;
 
         public void Serialize(NetWriter writer)
         {

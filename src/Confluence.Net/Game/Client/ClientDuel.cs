@@ -134,6 +134,23 @@ namespace Confluence.Net.Game.Client
 
         public int Snaps { get; private set; }
 
+        private readonly float[] _corrections = new float[1024];
+        private int _correctionNext;
+        private int _correctionCount;
+
+        /// <summary>95th percentile of the last 1024 reconciliation corrections in meters (research §2.3.2 metric).</summary>
+        public float CorrectionP95
+        {
+            get
+            {
+                if (_correctionCount == 0) return 0f;
+                var sorted = new float[_correctionCount];
+                Array.Copy(_corrections, sorted, _correctionCount);
+                Array.Sort(sorted);
+                return sorted[Math.Min(_correctionCount - 1, (int)Math.Ceiling(_correctionCount * 0.95) - 1)];
+            }
+        }
+
         // ---- Interpolation ----------------------------------------------------------------------------------------
 
         /// <summary>The duel tick remote entities are drawn at (about 100 ms behind the server estimate).</summary>
@@ -301,6 +318,9 @@ namespace Confluence.Net.Game.Client
                 Vec3 delta = Predicted.Position - state.Position;
                 float distance = delta.Length();
                 LastCorrection = distance;
+                _corrections[_correctionNext] = distance;
+                _correctionNext = (_correctionNext + 1) % _corrections.Length;
+                if (_correctionCount < _corrections.Length) _correctionCount++;
                 if (distance > MaxCorrection) MaxCorrection = distance;
                 if (distance > 0.01f) Corrections++;
                 if (distance > SnapDistance)

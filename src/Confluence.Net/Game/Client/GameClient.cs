@@ -45,8 +45,11 @@ namespace Confluence.Net.Game.Client
 
         public INetClock Clock { get; set; }
 
-        /// <summary>Remote entities render this far behind the server estimate (ARCHITECTURE: about 100 ms).</summary>
-        public int InterpolationDelayMs { get; set; } = NetRules.InterpolationDelayMs;
+        /// <summary>
+        /// Ceiling of the adaptive interpolation delay of remote entities (InterpolationClock; it settles at 50-100 ms on
+        /// good links, ARCHITECTURE "about 100 ms").
+        /// </summary>
+        public int InterpolationDelayMs { get; set; } = 250;
 
         /// <summary>Follow other duels as a delayed spectator whenever this player is outside a live duel (spec L49).</summary>
         public bool AutoSpectate { get; set; }

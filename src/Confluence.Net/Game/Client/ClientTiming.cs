@@ -4,8 +4,10 @@ namespace Confluence.Net.Game.Client
 {
     /// <summary>
     /// Adaptive interpolation delay (docs/research/netcode.md §2.2.1): remote entities render behind the server clock
-    /// estimate by the 95th percentile of measured snapshot lateness plus one snapshot interval, clamped to
-    /// [<see cref="MinDelayTicks"/>, <see cref="MaxDelayTicks"/>] (50-100 ms; ARCHITECTURE "about 100 ms" is the ceiling).
+    /// estimate by the 95th percentile of measured snapshot lateness (the one-way delay plus jitter) plus one snapshot
+    /// interval, clamped to [<see cref="MinDelayTicks"/>, <see cref="MaxDelayTicks"/>] (50-250 ms). On the links the
+    /// design targets this is 50-100 ms (ARCHITECTURE "about 100 ms"); a slower link gets a longer delay so remote
+    /// motion stays smooth, and lag compensation clamps its rewind at 150 ms instead (spec L423: the shooter must lead).
     /// The delay never jumps: it moves by at most <see cref="SlewFraction"/> of elapsed time, which time-scales the render
     /// clock by a few percent. A smaller delay leaves more of the 150 ms rewind (spec L423) for network latency.
     /// <para>
@@ -17,7 +19,7 @@ namespace Confluence.Net.Game.Client
     public sealed class InterpolationClock
     {
         public const double MinDelayTicks = 3.0;
-        public const double MaxDelayTicks = 6.0;
+        public const double MaxDelayTicks = 15.0;
         public const double SlewFraction = 0.05;
         private const int Window = 64;
 

@@ -6,7 +6,9 @@ namespace Confluence.Net.Game.Server
     /// <summary>
     /// Application-level link measurement of one duelist's snapshot stream (docs/research/netcode.md §2.8.4): the round
     /// trip from a snapshot's send to the first input packet acknowledging it (windowed median, minimum, and jitter), and
-    /// snapshot loss from the client's received counter against what was sent one round trip earlier. LiteNetLib's
+    /// snapshot loss from the client's received counter against what was sent one round trip earlier, over a sliding
+    /// 4 s window (one lost snapshot of a 1 s window at 20-30 Hz would already be 3-5%, so D-115's 5% threshold is
+    /// measured over 80-120 snapshots instead of 20-30; the selector's 500 ms persistence still applies). LiteNetLib's
     /// RoundTripTime (a running mean in which a lost pong counts a whole ping interval) and its mixed-direction
     /// PacketLoss stay diagnostics only; these numbers drive the 30/20 Hz selector (spec L421, D-115) and the expected
     /// view of lag compensation (spec L423).
@@ -15,7 +17,8 @@ namespace Confluence.Net.Game.Server
     {
         private const int SentRing = 128;
         private const int RttWindow = 32;
-        private const long LossWindowMs = 1000;
+        private const long LossBucketMs = 500;
+        private const int LossBuckets = 9; // 8 intervals = 4 s
 
         private readonly int[] _sentTick = new int[SentRing];
         private readonly long[] _sentMs = new long[SentRing];
@@ -28,9 +31,11 @@ namespace Confluence.Net.Game.Server
         private int _rttNext;
         private int _lastAckTick = -1;
         private long _received;
-        private long _lossStartMs = -1;
-        private long _lossSent0;
-        private long _lossReceived0;
+        private readonly long[] _bucketSent = new long[LossBuckets];
+        private readonly long[] _bucketReceived = new long[LossBuckets];
+        private long _lastBucketMs = -1;
+        private int _bucketNext;
+        private int _bucketCount;
 
         public SnapshotLinkMonitor()
         {
@@ -80,22 +85,18 @@ namespace Confluence.Net.Game.Server
         /// <summary>Updates the loss window; call regularly (every few ticks).</summary>
         public void Update(long nowMs)
         {
-            if (_lossStartMs < 0)
-            {
-                _lossStartMs = nowMs;
-                _lossSent0 = SentBefore(nowMs - RttMs);
-                _lossReceived0 = _received;
-                return;
-            }
-
-            if (nowMs - _lossStartMs < LossWindowMs) return;
-            long sent = SentBefore(nowMs - RttMs);
-            long sentDelta = sent - _lossSent0;
-            long receivedDelta = _received - _lossReceived0;
+            if (_lastBucketMs >= 0 && nowMs - _lastBucketMs < LossBucketMs) return;
+            _lastBucketMs = nowMs;
+            _bucketSent[_bucketNext] = SentBefore(nowMs - RttMs);
+            _bucketReceived[_bucketNext] = _received;
+            int newest = _bucketNext;
+            _bucketNext = (_bucketNext + 1) % LossBuckets;
+            if (_bucketCount < LossBuckets) _bucketCount++;
+            if (_bucketCount < 2) return;
+            int oldest = (_bucketNext - _bucketCount + LossBuckets) % LossBuckets;
+            long sentDelta = _bucketSent[newest] - _bucketSent[oldest];
+            long receivedDelta = _bucketReceived[newest] - _bucketReceived[oldest];
             LossFraction = sentDelta > 0 ? (float)Math.Max(0.0, Math.Min(1.0, 1.0 - receivedDelta / (double)sentDelta)) : 0f;
-            _lossStartMs = nowMs;
-            _lossSent0 = sent;
-            _lossReceived0 = _received;
         }
 
         /// <summary>The selector's link signals: application RTT and snapshot loss, the transport's reliable backlog.</summary>
@@ -115,7 +116,9 @@ namespace Confluence.Net.Game.Server
             _sent = 0;
             _received = 0;
             _lastAckTick = -1;
-            _lossStartMs = -1;
+            _lastBucketMs = -1;
+            _bucketCount = 0;
+            _bucketNext = 0;
             LossFraction = 0f;
         }
 
