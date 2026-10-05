@@ -18,7 +18,39 @@ namespace Confluence.Net.Game.Snapshots
 
         public abstract void WriteBody(NetWriter writer);
 
+        /// <summary>
+        /// Writes this entry as a change of <paramref name="previous"/>, the receiver's entry of the same key (research
+        /// §2.4.4 field groups: unchanged groups cost nothing). The default writes the full body.
+        /// </summary>
+        public virtual void WriteBodyAgainst(NetWriter writer, FrameEntry previous) => WriteBody(writer);
+
         public abstract bool SameAs(FrameEntry other);
+
+        /// <summary>Reads a field-group mask and rejects undefined bits.</summary>
+        protected static byte ReadMask(NetReader r, byte defined)
+        {
+            byte mask = r.ReadByte();
+            if ((mask & ~defined) != 0) throw new NetReadException(NetReadError.InvalidValue, "unknown field group");
+            return mask;
+        }
+
+        protected static void WriteVelocityDelta(NetWriter w, QuantizedVec3 value, QuantizedVec3 previous)
+        {
+            w.WriteVarInt(value.X - previous.X);
+            w.WriteVarInt(value.Y - previous.Y);
+            w.WriteVarInt(value.Z - previous.Z);
+        }
+
+        protected static QuantizedVec3 ReadVelocityDelta(NetReader r, QuantizedVec3 previous)
+        {
+            return new QuantizedVec3(VelocityAxis((long)previous.X + r.ReadVarInt()), VelocityAxis((long)previous.Y + r.ReadVarInt()), VelocityAxis((long)previous.Z + r.ReadVarInt()));
+        }
+
+        private static int VelocityAxis(long v)
+        {
+            if (v < -(1 << 20) || v > 1 << 20) throw new NetReadException(NetReadError.InvalidValue, "velocity out of range");
+            return (int)v;
+        }
     }
 
     /// <summary>Keyed sections encoded as removals plus upserts against the baseline section (both sorted by key).</summary>
@@ -37,6 +69,15 @@ namespace Confluence.Net.Game.Snapshots
         {
             var removed = new List<int>();
             var upserts = new List<T>();
+            Diff(current, baseline, removed, upserts);
+            Write(writer, removed, upserts, baseline);
+        }
+
+        /// <summary>The keys removed since <paramref name="baseline"/> and the entries that are new or differ (both ascending).</summary>
+        public static void Diff<T>(List<T> current, List<T> baseline, List<int> removed, List<T> upserts) where T : FrameEntry
+        {
+            removed.Clear();
+            upserts.Clear();
             int i = 0;
             int j = 0;
             int nb = baseline == null ? 0 : baseline.Count;
@@ -59,7 +100,11 @@ namespace Confluence.Net.Game.Snapshots
                     j++;
                 }
             }
+        }
 
+        /// <summary>Writes removals and upserts (each ascending by key) in the layout <see cref="ReadDelta"/> reads.</summary>
+        public static void Write<T>(NetWriter writer, List<int> removed, List<T> upserts, List<T> baseline = null) where T : FrameEntry
+        {
             writer.WriteVarUInt((uint)removed.Count);
             int last = -1;
             foreach (int key in removed)
@@ -70,16 +115,47 @@ namespace Confluence.Net.Game.Snapshots
 
             writer.WriteVarUInt((uint)upserts.Count);
             last = -1;
+            int b = 0;
+            int nb = baseline == null ? 0 : baseline.Count;
             foreach (T entry in upserts)
             {
                 writer.WriteVarUInt((uint)(entry.Key - last - 1));
                 last = entry.Key;
-                entry.WriteBody(writer);
+                while (b < nb && baseline[b].Key < entry.Key) b++;
+                if (b < nb && baseline[b].Key == entry.Key) entry.WriteBodyAgainst(writer, baseline[b]);
+                else entry.WriteBody(writer);
             }
+        }
+
+        /// <summary>The entry of <paramref name="key"/> in a sorted section, or null.</summary>
+        public static T Find<T>(List<T> section, int key) where T : FrameEntry
+        {
+            if (section == null) return null;
+            int lo = 0;
+            int hi = section.Count - 1;
+            while (lo <= hi)
+            {
+                int mid = (lo + hi) >> 1;
+                int k = section[mid].Key;
+                if (k == key) return section[mid];
+                if (k < key) lo = mid + 1;
+                else hi = mid - 1;
+            }
+
+            return null;
         }
 
         /// <summary>Reads a section written by <see cref="WriteDelta"/> on top of <paramref name="baseline"/>.</summary>
         public static List<T> ReadDelta<T>(NetReader reader, List<T> baseline, int max, Func<NetReader, int, T> readEntry) where T : FrameEntry
+        {
+            return ReadDelta(reader, baseline, max, readEntry, null);
+        }
+
+        /// <summary>
+        /// As <see cref="ReadDelta{T}(NetReader, List{T}, int, Func{NetReader, int, T})"/>; upserts of keys the baseline
+        /// holds are read with <paramref name="readAgainst"/> on top of the held entry when given.
+        /// </summary>
+        public static List<T> ReadDelta<T>(NetReader reader, List<T> baseline, int max, Func<NetReader, int, T> readEntry, Func<NetReader, int, T, T> readAgainst) where T : FrameEntry
         {
             var byKey = new SortedDictionary<int, T>();
             if (baseline != null)
@@ -98,11 +174,60 @@ namespace Confluence.Net.Game.Snapshots
             for (int k = 0; k < upserts; k++)
             {
                 key = NextKey(reader, key);
-                byKey[(int)key] = readEntry(reader, (int)key);
+                if (readAgainst != null && byKey.TryGetValue((int)key, out T previous)) byKey[(int)key] = readAgainst(reader, (int)key, previous);
+                else byKey[(int)key] = readEntry(reader, (int)key);
             }
 
             if (byKey.Count > max) throw new NetReadException(NetReadError.CountOutOfRange, "section exceeds " + max + " entries");
             return new List<T>(byKey.Values);
+        }
+
+        /// <summary>
+        /// The section a receiver holds after applying <paramref name="removed"/> and <paramref name="upserts"/> to
+        /// <paramref name="baseline"/> (null = empty): exactly what <see cref="ReadDelta"/> rebuilds.
+        /// </summary>
+        public static List<T> Apply<T>(List<T> baseline, List<int> removed, List<T> upserts) where T : FrameEntry
+        {
+            var result = new List<T>((baseline?.Count ?? 0) + upserts.Count);
+            int b = 0;
+            int u = 0;
+            int r = 0;
+            int nb = baseline == null ? 0 : baseline.Count;
+            while (b < nb || u < upserts.Count)
+            {
+                int bk = b < nb ? baseline[b].Key : int.MaxValue;
+                int uk = u < upserts.Count ? upserts[u].Key : int.MaxValue;
+                if (uk <= bk)
+                {
+                    result.Add(upserts[u++]);
+                    if (uk == bk) b++;
+                    continue;
+                }
+
+                while (r < removed.Count && removed[r] < bk) r++;
+                if (r < removed.Count && removed[r] == bk)
+                {
+                    b++;
+                    continue;
+                }
+
+                result.Add(baseline[b++]);
+            }
+
+            return result;
+        }
+
+        /// <summary>Bytes a varint takes.</summary>
+        public static int VarUIntSize(uint value)
+        {
+            int n = 1;
+            while (value >= 0x80)
+            {
+                value >>= 7;
+                n++;
+            }
+
+            return n;
         }
 
         public static bool SameSection<T>(List<T> a, List<T> b) where T : FrameEntry
@@ -179,6 +304,56 @@ namespace Confluence.Net.Game.Snapshots
             w.WriteVarInt(Extra);
         }
 
+        private const byte EPos = 1, EVel = 2, EIdentity = 4, EExtra = 8, EAll = 15;
+
+        public override void WriteBodyAgainst(NetWriter w, FrameEntry previous)
+        {
+            if (!(previous is EntityEntry p))
+            {
+                WriteBody(w);
+                return;
+            }
+
+            byte mask = 0;
+            if (Position != p.Position) mask |= EPos;
+            if (Velocity != p.Velocity) mask |= EVel;
+            if (Kind != p.Kind || Owner != p.Owner || SpellId != p.SpellId || RadiusCm != p.RadiusCm) mask |= EIdentity;
+            if (Extra != p.Extra) mask |= EExtra;
+            w.WriteByte(mask);
+            if ((mask & EPos) != 0) w.WritePositionDelta(Position, p.Position);
+            if ((mask & EVel) != 0) WriteVelocityDelta(w, Velocity, p.Velocity);
+            if ((mask & EIdentity) != 0)
+            {
+                w.WriteByte((byte)Kind);
+                w.WriteSeat(Owner);
+                w.WriteId(SpellId);
+                w.WriteVarUInt((uint)Math.Max(0, RadiusCm));
+            }
+
+            if ((mask & EExtra) != 0) w.WriteVarInt(Extra);
+        }
+
+        public static EntityEntry ReadAgainst(NetReader r, int key, EntityEntry p)
+        {
+            byte mask = ReadMask(r, EAll);
+            QuantizedVec3 pos = (mask & EPos) != 0 ? r.ReadPositionDelta(p.Position) : p.Position;
+            QuantizedVec3 vel = (mask & EVel) != 0 ? ReadVelocityDelta(r, p.Velocity) : p.Velocity;
+            EntityKind kind = p.Kind;
+            int owner = p.Owner;
+            string spell = p.SpellId;
+            int radius = p.RadiusCm;
+            if ((mask & EIdentity) != 0)
+            {
+                kind = (EntityKind)r.ReadByteInRange(0, (byte)EntityKind.Buff);
+                owner = r.ReadSeat();
+                spell = r.ReadId();
+                radius = (int)Math.Min(1 << 20, r.ReadVarUInt());
+            }
+
+            int extra = (mask & EExtra) != 0 ? r.ReadVarInt() : p.Extra;
+            return new EntityEntry(key, kind, owner, spell, pos, vel, radius, extra);
+        }
+
         public static EntityEntry Read(NetReader r, int key)
         {
             var kind = (EntityKind)r.ReadByteInRange(0, (byte)EntityKind.Buff);
@@ -232,6 +407,56 @@ namespace Confluence.Net.Game.Snapshots
             w.WriteVarUInt((uint)Math.Max(0, RadiusCm));
             w.WriteVarInt(ExpireTick);
             w.WriteVarInt(HealthDeci);
+        }
+
+        private const byte OPos = 1, OIdentity = 2, OExpire = 4, OHealth = 8, OAll = 15;
+
+        public override void WriteBodyAgainst(NetWriter w, FrameEntry previous)
+        {
+            if (!(previous is OwnedEntry p))
+            {
+                WriteBody(w);
+                return;
+            }
+
+            byte mask = 0;
+            if (Position != p.Position) mask |= OPos;
+            if (Kind != p.Kind || Owner != p.Owner || DefinitionId != p.DefinitionId || RadiusCm != p.RadiusCm) mask |= OIdentity;
+            if (ExpireTick != p.ExpireTick) mask |= OExpire;
+            if (HealthDeci != p.HealthDeci) mask |= OHealth;
+            w.WriteByte(mask);
+            if ((mask & OPos) != 0) w.WritePositionDelta(Position, p.Position);
+            if ((mask & OIdentity) != 0)
+            {
+                w.WriteByte(Kind);
+                w.WriteSeat(Owner);
+                w.WriteId(DefinitionId);
+                w.WriteVarUInt((uint)Math.Max(0, RadiusCm));
+            }
+
+            if ((mask & OExpire) != 0) w.WriteVarInt(ExpireTick);
+            if ((mask & OHealth) != 0) w.WriteVarInt(HealthDeci);
+        }
+
+        public static OwnedEntry ReadAgainst(NetReader r, int key, OwnedEntry p)
+        {
+            byte mask = ReadMask(r, OAll);
+            QuantizedVec3 pos = (mask & OPos) != 0 ? r.ReadPositionDelta(p.Position) : p.Position;
+            byte kind = p.Kind;
+            int owner = p.Owner;
+            string def = p.DefinitionId;
+            int radius = p.RadiusCm;
+            if ((mask & OIdentity) != 0)
+            {
+                kind = r.ReadByteInRange(0, 1);
+                owner = r.ReadSeat();
+                def = r.ReadId();
+                radius = (int)Math.Min(1 << 20, r.ReadVarUInt());
+            }
+
+            int expire = (mask & OExpire) != 0 ? r.ReadVarInt() : p.ExpireTick;
+            int health = (mask & OHealth) != 0 ? r.ReadVarInt() : p.HealthDeci;
+            return new OwnedEntry(key, kind, owner, def, pos, radius, expire, health);
         }
 
         public static OwnedEntry Read(NetReader r, int key)
@@ -320,6 +545,107 @@ namespace Confluence.Net.Game.Snapshots
             w.WriteVarUInt((uint)SizeX);
             w.WriteVarUInt((uint)SizeZ);
             w.WriteBlob(Bits, 0, Bits.Length);
+        }
+
+        private const byte VOffset = 1, VExtent = 2, VShape = 4, VAll = 7;
+
+        /// <summary>Wind drift changes only the offset group; the bitmap is resent only when the columns change (§2.4.6).</summary>
+        public override void WriteBodyAgainst(NetWriter w, FrameEntry previous)
+        {
+            if (!(previous is VolumeEntry p))
+            {
+                WriteBody(w);
+                return;
+            }
+
+            byte mask = 0;
+            if (OffsetXmm != p.OffsetXmm || OffsetZmm != p.OffsetZmm) mask |= VOffset;
+            if (Kind != p.Kind || Owner != p.Owner || BaseYCm != p.BaseYCm || HeightCm != p.HeightCm || BlocksSight != p.BlocksSight || ExpiresTick != p.ExpiresTick) mask |= VExtent;
+            if (!SameShape(p)) mask |= VShape;
+            w.WriteByte(mask);
+            if ((mask & VOffset) != 0)
+            {
+                w.WriteVarInt(OffsetXmm - p.OffsetXmm);
+                w.WriteVarInt(OffsetZmm - p.OffsetZmm);
+            }
+
+            if ((mask & VExtent) != 0)
+            {
+                w.WriteByte(Kind);
+                w.WriteSeat(Owner);
+                w.WriteVarInt(BaseYCm);
+                w.WriteVarUInt((uint)Math.Max(0, HeightCm));
+                w.WriteBool(BlocksSight);
+                w.WriteVarInt(ExpiresTick);
+            }
+
+            if ((mask & VShape) != 0)
+            {
+                w.WriteVarInt(MinX);
+                w.WriteVarInt(MinZ);
+                w.WriteVarUInt((uint)SizeX);
+                w.WriteVarUInt((uint)SizeZ);
+                w.WriteBlob(Bits, 0, Bits.Length);
+            }
+        }
+
+        public static VolumeEntry ReadAgainst(NetReader r, int key, VolumeEntry p)
+        {
+            byte mask = ReadMask(r, VAll);
+            int ox = p.OffsetXmm;
+            int oz = p.OffsetZmm;
+            if ((mask & VOffset) != 0)
+            {
+                ox = OffsetAxis((long)p.OffsetXmm + r.ReadVarInt());
+                oz = OffsetAxis((long)p.OffsetZmm + r.ReadVarInt());
+            }
+
+            byte kind = p.Kind;
+            int owner = p.Owner;
+            int baseY = p.BaseYCm;
+            int height = p.HeightCm;
+            bool blocks = p.BlocksSight;
+            int expires = p.ExpiresTick;
+            if ((mask & VExtent) != 0)
+            {
+                kind = r.ReadByteInRange(0, 15);
+                owner = r.ReadSeat();
+                baseY = r.ReadVarIntInRange(-100000, 100000);
+                height = (int)Math.Min(100000, r.ReadVarUInt());
+                blocks = r.ReadBool();
+                expires = r.ReadVarInt();
+            }
+
+            int minX = p.MinX;
+            int minZ = p.MinZ;
+            int sizeX = p.SizeX;
+            int sizeZ = p.SizeZ;
+            byte[] bits = p.Bits;
+            if ((mask & VShape) != 0)
+            {
+                minX = r.ReadVarIntInRange(-4096, 4096);
+                minZ = r.ReadVarIntInRange(-4096, 4096);
+                sizeX = r.ReadCountValue(0, 1024);
+                sizeZ = r.ReadCountValue(0, 1024);
+                bits = r.ReadBlob(WireLimits.MaxVolumeBitmapBytes);
+                if (bits.Length != (sizeX * sizeZ + 7) / 8) throw new NetReadException(NetReadError.InvalidValue, "volume bitmap size mismatch");
+            }
+
+            return new VolumeEntry(key, kind, owner, baseY, height, ox, oz, blocks, expires, minX, minZ, sizeX, sizeZ, bits);
+        }
+
+        private static int OffsetAxis(long v)
+        {
+            if (v < -1000000 || v > 1000000) throw new NetReadException(NetReadError.InvalidValue, "volume offset out of range");
+            return (int)v;
+        }
+
+        private bool SameShape(VolumeEntry o)
+        {
+            if (o.MinX != MinX || o.MinZ != MinZ || o.SizeX != SizeX || o.SizeZ != SizeZ || o.Bits.Length != Bits.Length) return false;
+            for (int i = 0; i < Bits.Length; i++)
+                if (Bits[i] != o.Bits[i]) return false;
+            return true;
         }
 
         public static VolumeEntry Read(NetReader r, int key)
@@ -469,6 +795,49 @@ namespace Confluence.Net.Game.Snapshots
             w.WriteUShort(Yaw);
             w.WriteVarInt(DurabilityDeci);
             w.WriteByte((byte)((Destroyed ? 1 : 0) | (Moving ? 2 : 0)));
+        }
+
+        private const byte PPos = 1, PYaw = 2, PDurability = 4, PFlags = 8, PDefinition = 16, PAll = 31;
+
+        public override void WriteBodyAgainst(NetWriter w, FrameEntry previous)
+        {
+            if (!(previous is PropEntry p))
+            {
+                WriteBody(w);
+                return;
+            }
+
+            byte mask = 0;
+            if (Position != p.Position) mask |= PPos;
+            if (Yaw != p.Yaw) mask |= PYaw;
+            if (DurabilityDeci != p.DurabilityDeci) mask |= PDurability;
+            if (Destroyed != p.Destroyed || Moving != p.Moving) mask |= PFlags;
+            if (DefinitionId != p.DefinitionId) mask |= PDefinition;
+            w.WriteByte(mask);
+            if ((mask & PPos) != 0) w.WritePositionDelta(Position, p.Position);
+            if ((mask & PYaw) != 0) w.WriteUShort(Yaw);
+            if ((mask & PDurability) != 0) w.WriteVarInt(DurabilityDeci);
+            if ((mask & PFlags) != 0) w.WriteByte((byte)((Destroyed ? 1 : 0) | (Moving ? 2 : 0)));
+            if ((mask & PDefinition) != 0) w.WriteId(DefinitionId);
+        }
+
+        public static PropEntry ReadAgainst(NetReader r, int key, PropEntry p)
+        {
+            byte mask = ReadMask(r, PAll);
+            QuantizedVec3 pos = (mask & PPos) != 0 ? r.ReadPositionDelta(p.Position) : p.Position;
+            ushort yaw = (mask & PYaw) != 0 ? r.ReadUShort() : p.Yaw;
+            int durability = (mask & PDurability) != 0 ? r.ReadVarInt() : p.DurabilityDeci;
+            bool destroyed = p.Destroyed;
+            bool moving = p.Moving;
+            if ((mask & PFlags) != 0)
+            {
+                byte flags = r.ReadByteInRange(0, 3);
+                destroyed = (flags & 1) != 0;
+                moving = (flags & 2) != 0;
+            }
+
+            string def = (mask & PDefinition) != 0 ? r.ReadId() : p.DefinitionId;
+            return new PropEntry(key, def, pos, yaw, durability, destroyed, moving);
         }
 
         public static PropEntry Read(NetReader r, int key)

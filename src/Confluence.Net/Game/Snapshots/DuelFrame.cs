@@ -162,6 +162,155 @@ namespace Confluence.Net.Game.Snapshots
             return true;
         }
 
+        private const byte PlPos = 1, PlVel = 2, PlView = 4, PlBits = 8, PlCast = 16, PlMelee = 32, PlVitals = 64, PlStatuses = 128;
+
+        /// <summary>Writes this entry as a change of the receiver's baseline entry (field groups, research §2.4.4).</summary>
+        public void WriteAgainst(NetWriter w, PlayerEntry p)
+        {
+            byte mask = 0;
+            if (Position != p.Position) mask |= PlPos;
+            if (Velocity != p.Velocity) mask |= PlVel;
+            if (Yaw != p.Yaw || Pitch != p.Pitch) mask |= PlView;
+            if (Bits != p.Bits) mask |= PlBits;
+            if (ActiveWeapon != p.ActiveWeapon || CastPhase != p.CastPhase || CastSpellId != p.CastSpellId) mask |= PlCast;
+            if (MeleePhase != p.MeleePhase || MeleeSerial != p.MeleeSerial) mask |= PlMelee;
+            if (HealthDeci != p.HealthDeci || MaxHealthDeci != p.MaxHealthDeci || ShieldDeci != p.ShieldDeci) mask |= PlVitals;
+            if (!SameStatuses(p)) mask |= PlStatuses;
+            w.WriteByte(mask);
+            if ((mask & PlPos) != 0) w.WritePositionDelta(Position, p.Position);
+            if ((mask & PlVel) != 0)
+            {
+                w.WriteVarInt(Velocity.X - p.Velocity.X);
+                w.WriteVarInt(Velocity.Y - p.Velocity.Y);
+                w.WriteVarInt(Velocity.Z - p.Velocity.Z);
+            }
+
+            if ((mask & PlView) != 0)
+            {
+                w.WriteUShort(Yaw);
+                w.WriteUShort(Pitch);
+            }
+
+            if ((mask & PlBits) != 0) w.WriteVarUInt((uint)Bits);
+            if ((mask & PlCast) != 0)
+            {
+                w.WriteByte(ActiveWeapon);
+                w.WriteByte(CastPhase);
+                w.WriteId(CastSpellId);
+            }
+
+            if ((mask & PlMelee) != 0)
+            {
+                w.WriteByte(MeleePhase);
+                w.WriteVarInt(MeleeSerial);
+            }
+
+            if ((mask & PlVitals) != 0)
+            {
+                w.WriteVarInt(HealthDeci);
+                w.WriteVarInt(MaxHealthDeci);
+                w.WriteVarInt(ShieldDeci);
+            }
+
+            if ((mask & PlStatuses) != 0) WriteStatuses(w);
+        }
+
+        public static PlayerEntry ReadAgainst(NetReader r, PlayerEntry b)
+        {
+            byte mask = r.ReadByte();
+            var p = (PlayerEntry)b.MemberwiseClone();
+            p.Statuses = new List<StatusWire>(b.Statuses);
+            if ((mask & PlPos) != 0) p.Position = r.ReadPositionDelta(b.Position);
+            if ((mask & PlVel) != 0)
+            {
+                p.Velocity = new QuantizedVec3(VelocityAxis((long)b.Velocity.X + r.ReadVarInt()), VelocityAxis((long)b.Velocity.Y + r.ReadVarInt()),
+                    VelocityAxis((long)b.Velocity.Z + r.ReadVarInt()));
+            }
+
+            if ((mask & PlView) != 0)
+            {
+                p.Yaw = r.ReadUShort();
+                p.Pitch = r.ReadUShort();
+            }
+
+            if ((mask & PlBits) != 0) p.Bits = ReadBits(r);
+            if ((mask & PlCast) != 0)
+            {
+                p.ActiveWeapon = r.ReadByteInRange(0, 1);
+                p.CastPhase = r.ReadByteInRange(0, (byte)Casting.CastPhase.Recovery);
+                p.CastSpellId = r.ReadId();
+            }
+
+            if ((mask & PlMelee) != 0)
+            {
+                p.MeleePhase = r.ReadByteInRange(0, 3);
+                p.MeleeSerial = r.ReadVarInt();
+            }
+
+            if ((mask & PlVitals) != 0)
+            {
+                p.HealthDeci = r.ReadVarIntInRange(-1, 1000000);
+                p.MaxHealthDeci = r.ReadVarIntInRange(-1, 1000000);
+                p.ShieldDeci = r.ReadVarIntInRange(-1, 1000000);
+            }
+
+            if ((mask & PlStatuses) != 0)
+            {
+                p.Statuses = new List<StatusWire>();
+                ReadStatuses(r, p.Statuses);
+            }
+
+            return p;
+        }
+
+        private bool SameStatuses(PlayerEntry o)
+        {
+            if (o.Statuses.Count != Statuses.Count) return false;
+            for (int i = 0; i < Statuses.Count; i++)
+                if (!Statuses[i].Equals(o.Statuses[i])) return false;
+            return true;
+        }
+
+        private void WriteStatuses(NetWriter w)
+        {
+            w.WriteVarUInt((uint)Statuses.Count);
+            foreach (StatusWire s in Statuses)
+            {
+                w.WriteByte(s.Kind);
+                w.WriteId(s.DefinitionId);
+                w.WriteVarInt(s.ExpireTick);
+                w.WriteVarInt(s.IntensityCenti);
+            }
+        }
+
+        private static void ReadStatuses(NetReader r, List<StatusWire> into)
+        {
+            int n = r.ReadCount(WireLimits.MaxStatuses, 3);
+            for (int i = 0; i < n; i++)
+            {
+                into.Add(new StatusWire
+                {
+                    Kind = r.ReadByteInRange(0, 31),
+                    DefinitionId = r.ReadId(),
+                    ExpireTick = r.ReadVarInt(),
+                    IntensityCenti = r.ReadVarInt(),
+                });
+            }
+        }
+
+        private static PlayerBits ReadBits(NetReader r)
+        {
+            uint bits = r.ReadVarUInt();
+            if ((bits & ~(uint)PlayerBits.All) != 0) throw new NetReadException(NetReadError.InvalidValue, "unknown player bits");
+            return (PlayerBits)bits;
+        }
+
+        private static int VelocityAxis(long v)
+        {
+            if (v < -(1 << 20) || v > 1 << 20) throw new NetReadException(NetReadError.InvalidValue, "velocity out of range");
+            return (int)v;
+        }
+
         /// <summary>A copy with the private vitals hidden (what the opponent may see).</summary>
         public PlayerEntry WithoutVitals()
         {
@@ -291,6 +440,198 @@ namespace Confluence.Net.Game.Snapshots
             p.Judgement = r.ReadVarIntInRange(-2, 1);
             p.BoundaryOutsideTicks = (int)Math.Min(int.MaxValue, r.ReadVarUInt());
             return p;
+        }
+
+        private const byte PrMotor = 1, PrVitals = 2, PrSlots = 4, PrMachine = 8, PrContext = 16, PrTuning = 32, PrMisc = 64, PrAll = 127;
+
+        /// <summary>
+        /// Writes this private state as a change of the receiver's previous one (field groups, research §2.4.4): an
+        /// unchanged motor tuning, context, or grammar costs nothing; the motor is exact whenever it changed.
+        /// </summary>
+        public void WriteAgainst(NetWriter w, PrivateEntry p)
+        {
+            byte mask = 0;
+            if (!SameMotor(Motor, p.Motor)) mask |= PrMotor;
+            if (Health != p.Health || MaxHealth != p.MaxHealth || Mana != p.Mana || MaxMana != p.MaxMana || Stamina != p.Stamina ||
+                MaxStamina != p.MaxStamina || Shield != p.Shield || ReserveShield != p.ReserveShield || HealingRemaining != p.HealingRemaining)
+            {
+                mask |= PrVitals;
+            }
+
+            if (SelectedSlot != p.SelectedSlot || SignatureCooldownTicks != p.SignatureCooldownTicks || !SameInts(CooldownTicks, p.CooldownTicks)) mask |= PrSlots;
+            if (MachinePhase != p.MachinePhase || MachineSpellId != p.MachineSpellId || MachinePhaseEndTick != p.MachinePhaseEndTick || !SameGrammar(Grammar, p.Grammar)) mask |= PrMachine;
+            if (CastMovementFactor != p.CastMovementFactor || CastSuppressesSprint != p.CastSuppressesSprint || CastChanneling != p.CastChanneling ||
+                SpeedMultiplier != p.SpeedMultiplier || Traction != p.Traction || SurfaceKind != p.SurfaceKind || SurfaceSlow != p.SurfaceSlow || Locks != p.Locks)
+            {
+                mask |= PrContext;
+            }
+
+            if (!SameTuning(Tuning, p.Tuning)) mask |= PrTuning;
+            if (ControlImmuneUntil != p.ControlImmuneUntil || Judgement != p.Judgement || BoundaryOutsideTicks != p.BoundaryOutsideTicks) mask |= PrMisc;
+            w.WriteByte(mask);
+            if ((mask & PrMotor) != 0) WriteMotor(w, Motor);
+            if ((mask & PrVitals) != 0) WriteVitals(w);
+            if ((mask & PrSlots) != 0) WriteSlots(w);
+            if ((mask & PrMachine) != 0) WriteMachine(w);
+            if ((mask & PrContext) != 0) WriteContext(w);
+            if ((mask & PrTuning) != 0) WriteTuning(w, Tuning);
+            if ((mask & PrMisc) != 0) WriteMisc(w);
+        }
+
+        public static PrivateEntry ReadAgainst(NetReader r, PrivateEntry b)
+        {
+            byte mask = r.ReadByte();
+            if ((mask & ~PrAll) != 0) throw new NetReadException(NetReadError.InvalidValue, "unknown private field group");
+            var p = (PrivateEntry)b.MemberwiseClone();
+            p.CooldownTicks = (int[])b.CooldownTicks.Clone();
+            if ((mask & PrMotor) != 0) p.Motor = ReadMotor(r);
+            if ((mask & PrVitals) != 0) p.ReadVitals(r);
+            if ((mask & PrSlots) != 0) p.ReadSlots(r);
+            if ((mask & PrMachine) != 0) p.ReadMachine(r);
+            if ((mask & PrContext) != 0) p.ReadContext(r);
+            if ((mask & PrTuning) != 0) p.Tuning = ReadTuning(r);
+            if ((mask & PrMisc) != 0) p.ReadMisc(r);
+            return p;
+        }
+
+        private void WriteVitals(NetWriter w)
+        {
+            w.WriteFloat(Health);
+            w.WriteFloat(MaxHealth);
+            w.WriteFloat(Mana);
+            w.WriteFloat(MaxMana);
+            w.WriteFloat(Stamina);
+            w.WriteFloat(MaxStamina);
+            w.WriteFloat(Shield);
+            w.WriteFloat(ReserveShield);
+            w.WriteFloat(HealingRemaining);
+        }
+
+        private void ReadVitals(NetReader r)
+        {
+            Health = r.ReadFloat();
+            MaxHealth = r.ReadFloat();
+            Mana = r.ReadFloat();
+            MaxMana = r.ReadFloat();
+            Stamina = r.ReadFloat();
+            MaxStamina = r.ReadFloat();
+            Shield = r.ReadFloat();
+            ReserveShield = r.ReadFloat();
+            HealingRemaining = r.ReadFloat();
+        }
+
+        private void WriteSlots(NetWriter w)
+        {
+            w.WriteByte((byte)SelectedSlot);
+            w.WriteVarUInt((uint)CooldownTicks.Length);
+            foreach (int c in CooldownTicks) w.WriteVarUInt((uint)Math.Max(0, c));
+            w.WriteVarUInt((uint)Math.Max(0, SignatureCooldownTicks));
+        }
+
+        private void ReadSlots(NetReader r)
+        {
+            SelectedSlot = r.ReadByteInRange(0, 5);
+            int n = r.ReadCount(6, 1);
+            CooldownTicks = new int[n];
+            for (int i = 0; i < n; i++) CooldownTicks[i] = (int)Math.Min(int.MaxValue, r.ReadVarUInt());
+            SignatureCooldownTicks = (int)Math.Min(int.MaxValue, r.ReadVarUInt());
+        }
+
+        private void WriteMachine(NetWriter w)
+        {
+            w.WriteByte(MachinePhase);
+            w.WriteId(MachineSpellId);
+            w.WriteVarInt(MachinePhaseEndTick);
+            WriteGrammar(w, Grammar);
+        }
+
+        private void ReadMachine(NetReader r)
+        {
+            MachinePhase = r.ReadByteInRange(0, (byte)Casting.CastPhase.Recovery);
+            MachineSpellId = r.ReadId();
+            MachinePhaseEndTick = r.ReadVarInt();
+            Grammar = ReadGrammar(r);
+        }
+
+        private void WriteContext(NetWriter w)
+        {
+            w.WriteFloat(CastMovementFactor);
+            w.WriteBool(CastSuppressesSprint);
+            w.WriteBool(CastChanneling);
+            w.WriteFloat(SpeedMultiplier);
+            w.WriteFloat(Traction);
+            w.WriteByte(SurfaceKind);
+            w.WriteFloat(SurfaceSlow);
+            w.WriteByte((byte)Locks);
+        }
+
+        private void ReadContext(NetReader r)
+        {
+            CastMovementFactor = r.ReadFloat();
+            CastSuppressesSprint = r.ReadBool();
+            CastChanneling = r.ReadBool();
+            SpeedMultiplier = r.ReadFloat();
+            Traction = r.ReadFloat();
+            SurfaceKind = r.ReadByteInRange(0, 15);
+            SurfaceSlow = r.ReadFloat();
+            Locks = (MotorLocks)r.ReadByteInRange(0, (byte)MotorLocks.All);
+        }
+
+        private void WriteMisc(NetWriter w)
+        {
+            w.WriteVarInt(ControlImmuneUntil);
+            w.WriteVarInt(Judgement);
+            w.WriteVarUInt((uint)Math.Max(0, BoundaryOutsideTicks));
+        }
+
+        private void ReadMisc(NetReader r)
+        {
+            ControlImmuneUntil = r.ReadVarInt();
+            Judgement = r.ReadVarIntInRange(-2, 1);
+            BoundaryOutsideTicks = (int)Math.Min(int.MaxValue, r.ReadVarUInt());
+        }
+
+        private static bool SameInts(int[] a, int[] b)
+        {
+            if (a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; i++)
+                if (a[i] != b[i]) return false;
+            return true;
+        }
+
+        private static bool SameMotor(MotorState a, MotorState b)
+        {
+            return a.Position == b.Position && a.Velocity == b.Velocity && a.YawDeg == b.YawDeg && a.PitchDeg == b.PitchDeg && a.Grounded == b.Grounded &&
+                a.Crouched == b.Crouched && a.Sprinting == b.Sprinting && a.GroundNormal == b.GroundNormal && a.GroundSolidId == b.GroundSolidId &&
+                a.AirPeakY == b.AirPeakY && a.SupportY == b.SupportY && a.DodgeTicks == b.DodgeTicks && a.DodgeVelocity == b.DodgeVelocity &&
+                a.DodgeCooldownTicks == b.DodgeCooldownTicks && a.DisplaceTicks == b.DisplaceTicks && a.DisplaceVelocity == b.DisplaceVelocity &&
+                a.DisplaceKind == b.DisplaceKind && a.LastGroundedPosition == b.LastGroundedPosition;
+        }
+
+        private static bool SameTuning(MotorTuning a, MotorTuning b)
+        {
+            if (a.Specified != b.Specified) return false;
+            if (!a.Specified) return true;
+            return a.WalkSpeed == b.WalkSpeed && a.SprintSpeed == b.SprintSpeed && a.CrouchSpeed == b.CrouchSpeed && a.WalkMultiplier == b.WalkMultiplier &&
+                a.SprintMultiplier == b.SprintMultiplier && a.SprintStaminaPerSecond == b.SprintStaminaPerSecond && a.JumpStaminaCost == b.JumpStaminaCost &&
+                a.DodgeStaminaCost == b.DodgeStaminaCost && a.DodgeDistance == b.DodgeDistance && a.DodgeCooldownTicks == b.DodgeCooldownTicks;
+        }
+
+        [ThreadStatic] private static NetWriter _grammarA;
+        [ThreadStatic] private static NetWriter _grammarB;
+
+        private static bool SameGrammar(GrammarUiState a, GrammarUiState b)
+        {
+            NetWriter wa = _grammarA ?? (_grammarA = new NetWriter(128));
+            NetWriter wb = _grammarB ?? (_grammarB = new NetWriter(128));
+            wa.Reset();
+            wb.Reset();
+            WriteGrammar(wa, a);
+            WriteGrammar(wb, b);
+            if (wa.Length != wb.Length) return false;
+            for (int i = 0; i < wa.Length; i++)
+                if (wa.Buffer[i] != wb.Buffer[i]) return false;
+            return true;
         }
 
         public static void WriteMotor(NetWriter w, MotorState m)
@@ -490,6 +831,12 @@ namespace Confluence.Net.Game.Snapshots
         public List<CellEntry> Cells = new List<CellEntry>();
         public List<PropEntry> Props = new List<PropEntry>();
         public List<SolidEntry> Solids = new List<SolidEntry>();
+
+        /// <summary>
+        /// The receiver's private state as of this frame (baseline bookkeeping only: the next snapshot's private state is
+        /// delta-coded against it). Null for spectator frames.
+        /// </summary>
+        public PrivateEntry Own;
 
         /// <summary>The match tick minus the duel tick: converts the client's match-clock estimate to duel ticks.</summary>
         public int MatchTickOffset => MatchTick - Tick;

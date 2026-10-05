@@ -91,6 +91,9 @@ namespace Confluence.Net.Game.Server
         private const int SentHistory = 64;
         private const int RateUpdateTicks = 10;
 
+        /// <summary>Message id, snapshot header, and input status bytes in front of a snapshot body (upper bound).</summary>
+        private const int SnapshotOverheadBytes = 24;
+
         private readonly Catalogue _catalogue;
         private readonly ArenaGenerator _generator;
         private readonly ArenaCache _arenaCache;
@@ -766,7 +769,7 @@ namespace Confluence.Net.Game.Server
                 for (int side = 0; side < 2; side++)
                 {
                     Stream stream = live.Streams[side];
-                    if (stream != null && stream.SendNow) SendSnapshot(stream, FrameCapture.ForViewer(truth, side), FrameCapture.CapturePrivate(world, side), over);
+                    if (stream != null && stream.SendNow) SendSnapshot(stream, FrameCapture.ForViewer(truth, side), FrameCapture.CapturePrivate(world, side), over, world);
                 }
 
                 if (spectatorPush)
@@ -822,11 +825,25 @@ namespace Confluence.Net.Game.Server
             }
         }
 
-        private void SendSnapshot(Stream stream, DuelFrame frame, PrivateEntry own, bool forceReliable)
+        private void SendSnapshot(Stream stream, DuelFrame frame, PrivateEntry own, bool forceReliable, DuelWorld world)
         {
             DuelFrame baseline = stream.BaselineFor(frame.Tick);
+            int limit = Transport.MaxUnreliablePayload(stream.Seat.Session) - SnapshotOverheadBytes;
             _body.Reset();
-            SnapshotCodec.EncodeBody(_body, frame, baseline, own);
+            DuelFrame held = frame;
+            bool overBudget = false;
+            if (forceReliable)
+            {
+                // The final state of a duel always arrives, complete.
+                SnapshotCodec.EncodeBody(_body, frame, baseline, own);
+            }
+            else
+            {
+                stream.Prepare(world, own);
+                held = SnapshotCodec.EncodeBody(_body, frame, baseline, own, limit, stream.Priority, out int deferred, out overBudget);
+                stream.NoteDeferrals(frame, held, deferred);
+            }
+
             var header = new SnapshotHeader(frame.Tick, stream.Seat.Input != null ? stream.Seat.Input.LastProcessedSequence : 0u,
                 baseline != null ? baseline.Tick : SnapshotHeader.NoBaseline);
             var msg = new SnapshotMessage
@@ -837,8 +854,7 @@ namespace Confluence.Net.Game.Server
                 InputQueue = stream.Seat.Input != null ? stream.Seat.Input.QueueDepth : 0,
                 InputStarved = stream.Seat.Input != null ? (uint)Math.Min(uint.MaxValue, stream.Seat.Input.Buffer.StarvedTicks) : 0u,
             };
-            int limit = Transport.MaxUnreliablePayload(stream.Seat.Session) - 24; // message id and header
-            bool reliable = forceReliable || _body.Length > limit;
+            bool reliable = forceReliable || overBudget || _body.Length > limit;
             MessageType<SnapshotMessage> type = reliable ? GameProtocol.SnapshotReliable : GameProtocol.Snapshot;
             if (Transport.Send(stream.Seat.Session, type, msg))
             {
@@ -854,7 +870,7 @@ namespace Confluence.Net.Game.Server
                 Sent?.Invoke(stream.Seat.Index, type, msg);
             }
 
-            stream.Remember(frame);
+            stream.Remember(held);
             if (stream.Seat.Input != null) stream.Seat.Input.NewestShownTick = frame.Tick;
         }
 
@@ -1229,6 +1245,7 @@ namespace Confluence.Net.Game.Server
             {
                 Seat = seat;
                 Side = side;
+                Priority = Score;
             }
 
             public Seat Seat { get; }
@@ -1236,6 +1253,93 @@ namespace Confluence.Net.Game.Server
             public SnapshotRateSelector Rate { get; } = new SnapshotRateSelector();
             public SnapshotLinkMonitor Monitor { get; } = new SnapshotLinkMonitor();
             public SessionMetrics.SnapshotStats Snap { get; } = new SessionMetrics.SnapshotStats();
+
+            private readonly Dictionary<long, int> _deferrals = new Dictionary<long, int>();
+            private Confluence.Reactions.Grid.CellGrid _grid;
+            private Confluence.Core.Geometry.Vec3 _viewer;
+
+            /// <summary>Scores deferred entries for the next budgeted encode (lower first).</summary>
+            public Func<BudgetedSection, FrameEntry, float> Priority { get; }
+
+            /// <summary>The receiver's position and the reaction grid the priority uses for this encode.</summary>
+            public void Prepare(DuelWorld world, PrivateEntry own)
+            {
+                _grid = (world.Materials as Confluence.Sim.World.Materials.ReactionMaterials)?.World?.Grid;
+                _viewer = own != null ? own.Motor.Position : world.Player(Side).Position;
+            }
+
+            /// <summary>
+            /// Priority accumulator (research §2.4.1): distance from the receiver in meters, minus 2 m per earlier deferral
+            /// (nothing starves), minus 4 m for sight-blocking volumes (steam blocks targeting, spec L167) and 2 m for
+            /// cells whose state bits changed gameplay (ice, burning, charged, wet).
+            /// </summary>
+            private float Score(BudgetedSection section, FrameEntry entry)
+            {
+                Confluence.Core.Geometry.Vec3 at = _viewer;
+                float bonus = 0f;
+                switch (entry)
+                {
+                    case PropEntry prop:
+                        at = Quantization.DequantizePosition(prop.Position);
+                        break;
+                    case CellEntry cell:
+                        if (_grid != null && cell.Key < _grid.CellCount)
+                        {
+                            Confluence.Core.Geometry.Vec2 c = _grid.CellCenter(cell.Key);
+                            at = new Confluence.Core.Geometry.Vec3(c.X, _viewer.Y, c.Y);
+                        }
+
+                        if ((cell.Bits & (CellBits.Ice | CellBits.Burning | CellBits.Charged | CellBits.Wet)) != 0) bonus += 2f;
+                        break;
+                    case VolumeEntry volume:
+                        if (_grid != null)
+                        {
+                            Confluence.Core.Geometry.Vec2 c = _grid.CellCenter(volume.MinX + volume.SizeX / 2, volume.MinZ + volume.SizeZ / 2);
+                            at = new Confluence.Core.Geometry.Vec3(c.X + volume.OffsetXmm / 1000f, _viewer.Y, c.Y + volume.OffsetZmm / 1000f);
+                        }
+
+                        if (volume.BlocksSight) bonus += 4f;
+                        break;
+                }
+
+                _deferrals.TryGetValue(DeferralKey(section, entry.Key), out int waited);
+                return Confluence.Core.Geometry.Vec3.Distance(_viewer, at) - bonus - 2f * waited;
+            }
+
+            /// <summary>Counts how often each changed entry was deferred; sent entries start over.</summary>
+            public void NoteDeferrals(DuelFrame frame, DuelFrame held, int deferred)
+            {
+                if (deferred > 0)
+                {
+                    Snap.Partial++;
+                    Snap.Deferred += deferred;
+                }
+
+                if (deferred == 0)
+                {
+                    if (_deferrals.Count > 0) _deferrals.Clear();
+                    return;
+                }
+
+                Note(BudgetedSection.Props, frame.Props, held.Props);
+                Note(BudgetedSection.Volumes, frame.Volumes, held.Volumes);
+                Note(BudgetedSection.Cells, frame.Cells, held.Cells);
+            }
+
+            private void Note<T>(BudgetedSection section, List<T> wanted, List<T> held) where T : FrameEntry
+            {
+                int h = 0;
+                foreach (T e in wanted)
+                {
+                    while (h < held.Count && held[h].Key < e.Key) h++;
+                    bool sent = h < held.Count && held[h].Key == e.Key && ReferenceEquals(held[h], e);
+                    long key = DeferralKey(section, e.Key);
+                    if (sent) _deferrals.Remove(key);
+                    else _deferrals[key] = _deferrals.TryGetValue(key, out int n) ? n + 1 : 1;
+                }
+            }
+
+            private static long DeferralKey(BudgetedSection section, int key) => ((long)section << 32) | (uint)key;
             public List<WireDuelEvent> PendingEvents { get; } = new List<WireDuelEvent>();
             public bool SendNow;
             public int AckedTick = -1;
