@@ -99,6 +99,27 @@ namespace Confluence.Sim.Tests.Content.Halen
             Assert.NotNull(DeepglassPrisonTests.HitOn(climb));
         }
 
+        [Theory]
+        [InlineData(-5.55f, 0.1f)]
+        [InlineData(-5.6f, 0.1f)]
+        [InlineData(-5.55f, 0.6f)]
+        [InlineData(-5.3f, 0.6f)]
+        [Verifies("AUG-445")]
+        public void A_Crate_Directly_In_Front_Of_The_Caster_Stops_The_Rolling_Bubble(float frontFace, float thickness)
+        {
+            // Counterplay "block rolling route" also holds when the block touches the caster: the bubble's muzzle offset
+            // is rolled through the normal sweep, so it can neither skip the block nor start inside it.
+            Assert.Equal(-6f, HalenTestKit.Duel(HalenTestKit.Halen(new[] { DeepglassPrison.Id })).P0.Position.Z, 3);
+            Solid crate = TestWorlds.Box(70, new Vec3(0f, 0f, frontFace + thickness * 0.5f), new Vec3(4f, 1f, thickness));
+            HalenDuel d = DeepglassPrisonTests.Fire(With(PrisonRoll.Id, 1, HalenTestKit.Layout(crate)));
+            d.Run(90);
+            Assert.Null(DeepglassPrisonTests.HitOn(d));
+            Assert.False(d.P1.Statuses.IsRooted);
+            SpellEvent impact = d.SpellEvents(SpellEventKind.ProjectileImpact).Single();
+            Assert.Equal(70, impact.SolidId);
+            Assert.True(impact.Position.Z <= frontFace + 0.01f, "stopped at the crate's near face");
+        }
+
         [Fact]
         [Verifies("AUG-445")]
         public void The_Rolling_Root_Still_Obeys_Hard_Control_Immunity()

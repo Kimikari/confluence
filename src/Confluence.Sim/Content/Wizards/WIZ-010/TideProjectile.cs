@@ -96,12 +96,16 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
             float speed = Speed * cast.ProjectileSpeedMultiplier; // a projectile-speed mastery reward (spec L480)
             Vec3 origin;
             Vec3 dir;
+            float preRoll = 0f;
             if (Rolling)
             {
+                // The bubble starts on the ground at the caster's own position; its first step rolls the muzzle offset
+                // (capsule radius + bubble radius) through the normal rolling sweep, so a crate or low wall the caster
+                // stands against stops it (AUG-445 counterplay "block rolling route") and it never starts inside a solid.
                 dir = FlatAim(ctx, cast.Caster, aim);
                 Vec3 feet = ctx.Player(cast.Caster).Position;
-                Vec3 start = feet + dir * (GlobalRules.Movement.CapsuleRadius + Radius + 0.05f);
-                origin = new Vec3(start.X, HalenRules.GroundY(ctx.Collision, start + new Vec3(0f, GlobalRules.Movement.StepHeight, 0f)) + Radius + RollClearance, start.Z);
+                preRoll = GlobalRules.Movement.CapsuleRadius + Radius + 0.05f;
+                origin = new Vec3(feet.X, HalenRules.GroundY(ctx.Collision, feet + new Vec3(0f, GlobalRules.Movement.StepHeight, 0f)) + Radius + RollClearance, feet.Z);
             }
             else
             {
@@ -109,7 +113,7 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
                 dir = aim;
             }
 
-            TideProjectileEntity p = ctx.Spawn(new TideProjectileEntity(cast, this, origin, dir, speed));
+            TideProjectileEntity p = ctx.Spawn(new TideProjectileEntity(cast, this, origin, dir, speed, preRoll));
             ctx.Emit(SpellEventKind.ProjectileLaunched, cast, origin, dir, p.Id, speed);
         }
 
@@ -124,11 +128,13 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
         private PayloadSpec _payload;
         private float _travelled;
         private bool _banked;
+        private float _preRoll; // AUG-445: muzzle offset rolled in the first step, not counted toward the range
 
-        internal TideProjectileEntity(CastRecord cast, TideProjectileDelivery spec, Vec3 position, Vec3 direction, float speed)
+        internal TideProjectileEntity(CastRecord cast, TideProjectileDelivery spec, Vec3 position, Vec3 direction, float speed, float preRoll = 0f)
             : base(cast)
         {
             _spec = spec;
+            _preRoll = Math.Max(0f, preRoll);
             _payload = cast.Form.Payload;
             Position = position;
             Direction = direction.Normalized();
@@ -152,7 +158,12 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
                 last = true;
             }
 
-            if (_spec.Rolling) StepRolling(ctx, length, last);
+            if (_spec.Rolling)
+            {
+                float free = _preRoll;
+                _preRoll = 0f;
+                StepRolling(ctx, length, free, last);
+            }
             else StepFlying(ctx, length, last);
         }
 
@@ -174,11 +185,13 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
         }
 
         // AUG-445: ride the ground; rising ground above the step height or a wall stops the bubble.
-        private void StepRolling(SpellContext ctx, float length, bool last)
+        // `free`: distance rolled this step that does not count toward the range (the first step's muzzle offset).
+        private void StepRolling(SpellContext ctx, float length, float free, bool last)
         {
             float r = _spec.Radius;
             float groundHere = Position.Y - r - TideProjectileDelivery.RollClearance;
-            Vec3 ahead = Position + Direction * length;
+            float rolled = length + free;
+            Vec3 ahead = Position + Direction * rolled;
             float probeTop = groundHere + GlobalRules.Movement.StepHeight + r;
             float groundNext;
             if (!ctx.Collision.Raycast(new Vec3(ahead.X, probeTop, ahead.Z), Vec3.Down, GlobalRules.Movement.StepHeight + r + TideProjectileDelivery.RollMaxDrop,
@@ -237,7 +250,7 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
             if (best.Found)
             {
                 Position = best.Point;
-                _travelled += best.Distance * (length / segLength);
+                _travelled += Math.Max(0f, best.Distance * (rolled / segLength) - free);
                 Impact(ctx, best);
                 return;
             }
@@ -337,6 +350,7 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
             h.Add(Speed);
             h.Add(_travelled);
             h.Add(_banked);
+            h.Add(_preRoll);
         }
     }
 }
