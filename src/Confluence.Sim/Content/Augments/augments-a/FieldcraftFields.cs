@@ -322,7 +322,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 }
             }
 
-            public override void Hash(ref StateHasher h) => h.Add(_edgeCast.Sequence);
+            public override void Hash(ref StateHasher h) => h.Add((ulong)_edgeCast.Packed);
         }
     }
 

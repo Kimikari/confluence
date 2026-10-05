@@ -155,6 +155,27 @@ namespace Confluence.Sim.Effects
             World.RecordEvent(new EffectEvent { Change = EffectChange.Cue, SourceId = SourceId, EffectKey = Key, Cue = cue, Amount = amount }, Player);
         }
 
+        /// <summary>
+        /// A public inert marker with geometry owned by this record, visible to both players for
+        /// <paramref name="durationTicks"/> (no rule effect; see <see cref="MarkerEvent"/>).
+        /// </summary>
+        protected MarkerEvent EmitMarker(string cue, Core.Geometry.Vec3 from, Core.Geometry.Vec3 to, Core.Geometry.Vec3 direction, int durationTicks, float amount = 0f)
+        {
+            int ticks = Math.Max(1, durationTicks);
+            return World.RecordEvent(new MarkerEvent
+            {
+                SourceId = SourceId,
+                EffectKey = Key,
+                Cue = cue,
+                From = from,
+                To = to,
+                Direction = direction,
+                DurationTicks = ticks,
+                ExpireTick = Now + ticks,
+                Amount = amount,
+            }, Player);
+        }
+
         public override string ToString() => SourceId + " hook";
     }
 

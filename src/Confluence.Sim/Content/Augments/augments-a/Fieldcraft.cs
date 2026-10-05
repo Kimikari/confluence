@@ -309,6 +309,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 }
 
                 h.Add(_casts.Count);
+                for (int i = 0; i < _casts.Count; i++) h.Add((ulong)_casts[i].Packed);
                 h.Add(_contactSolid);
                 h.Add(_contactTick);
             }

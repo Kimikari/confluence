@@ -65,6 +65,17 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
         }
 
         public int PaymentOf(CastEventId cast) => _byCast.TryGetValue(cast, out int id) ? id : 0;
+
+        public void Hash(ref StateHasher h)
+        {
+            h.Add(_lastPayment);
+            h.Add(_order.Count);
+            foreach (CastEventId id in _order) // the queue's order is the commit order
+            {
+                h.Add((ulong)id.Packed);
+                h.Add(PaymentOf(id));
+            }
+        }
     }
 
     /// <summary>
@@ -603,6 +614,8 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
             {
                 h.Add(_failedSpell);
                 h.Add(_failedTick);
+                h.Add(_success != null ? _success.Id : 0);
+                _payments.Hash(ref h);
             }
         }
     }

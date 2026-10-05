@@ -400,6 +400,8 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
             {
                 h.Add((ulong)_cast.Packed);
                 h.Add(_grounded);
+                h.Add(_released != null ? _released.Id : 0);
+                _payments.Hash(ref h);
             }
         }
     }
@@ -461,9 +463,11 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
     /// enemy within 1 m." Rank 1 "Leave inert glowing path for 0.5 s; next different spell within 1 s costs 2 less mana.",
     /// rank 2 "Leave inert glowing path for 0.75 s; next different spell within 1 s costs 3 less mana." Drawback "Trail helps
     /// opponent track casting direction; 4 s cooldown." A projectile of a spell without wizard transformations that ends
-    /// without striking the enemy after passing within 1 m of the enemy's body leaves an inert glowing trail (a public cue
-    /// from the launch point along its flight, no rule effect) and makes the next different spell committed within 1 s
-    /// cost 2 (3) less inside the 70% floor (spec L124). At most once per 4 s.
+    /// without striking the enemy after passing within 1 m of the enemy's body leaves an inert glowing path for 0.5 s
+    /// (0.75 s): a public <see cref="MarkerEvent"/> both players receive, from the projectile's launch point (the caster's
+    /// release position) to where its flight ended, with the launch direction — so the opponent can read where the cast
+    /// came from and in which direction it was aimed (the drawback). It has no collision or rule effect. The next different
+    /// spell committed within 1 s costs 2 (3) less inside the 70% floor (spec L124). At most once per 4 s.
     /// </summary>
     [ContentBehavior(Id)]
     public sealed class VisibleAfterimage : IAugmentBehavior
@@ -483,7 +487,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
             host.Attach(new Hook(AugmentsAKit.ByRank(rank, Rank1TrailSec, Rank2TrailSec), AugmentsAKit.ByRank(rank, Rank1Mana, Rank2Mana)));
         }
 
-        /// <summary>The trail cue's name in <see cref="EffectEvent.Cue"/>; its Amount is the trail's duration in seconds.</summary>
+        /// <summary>The trail marker's name in <see cref="MarkerEvent.Cue"/>; its Amount is the trail's duration in seconds.</summary>
         public const string TrailCue = "afterimage-trail";
 
         private sealed class Hook : EffectHook
@@ -509,7 +513,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                     CastRecord cast = AugmentsAKit.FindCast(World, s.CastId);
                     if (cast != null && cast.Form.AppliedTransforms.Count == 0)
                     {
-                        _flights.Add(new Flight { EntityId = s.EntityId, Cast = s.CastId, SpellId = s.SpellId, Last = s.Position, Nearest = float.MaxValue });
+                        _flights.Add(new Flight { EntityId = s.EntityId, Cast = s.CastId, SpellId = s.SpellId, Launch = s.Position, Direction = s.Direction, Last = s.Position, Nearest = float.MaxValue });
                     }
                 }
                 else if (e is DamageEvent d && d.Attacker == Player && d.Target == 1 - Player && d.Kind == DamageKind.Direct)
@@ -551,7 +555,8 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                         _lastActivation = Now;
                         _missedSpell = f.SpellId;
                         _windowEnd = Now + AugmentsAKit.Ticks(WindowSec);
-                        EmitCue(TrailCue, _trailSec); // the inert path is visible to both players (the drawback)
+                        // The inert path from the release point along the flight, visible to both players (the drawback).
+                        EmitMarker(TrailCue, f.Launch, f.Last, f.Direction, AugmentsAKit.Ticks(_trailSec), _trailSec);
                     }
                 }
             }
@@ -579,8 +584,23 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
             public override void Hash(ref StateHasher h)
             {
                 h.Add(_flights.Count);
+                for (int i = 0; i < _flights.Count; i++)
+                {
+                    Flight f = _flights[i];
+                    h.Add(f.EntityId);
+                    h.Add((ulong)f.Cast.Packed);
+                    h.Add(f.SpellId);
+                    h.Add(f.Launch);
+                    h.Add(f.Direction);
+                    h.Add(f.Last);
+                    h.Add(f.Nearest);
+                    h.Add(f.Hit);
+                }
+
                 h.Add(_lastActivation);
+                h.Add(_missedSpell);
                 h.Add(_windowEnd);
+                h.Add(_used);
             }
 
             private sealed class Flight
@@ -588,6 +608,8 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 public int EntityId;
                 public CastEventId Cast;
                 public string SpellId;
+                public Vec3 Launch;
+                public Vec3 Direction;
                 public Vec3 Last;
                 public float Nearest;
                 public bool Hit;
@@ -682,7 +704,22 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 }
             }
 
-            public override void Hash(ref StateHasher h) => h.Add(_impactTick);
+            public override void Hash(ref StateHasher h)
+            {
+                h.Add(_impactTick);
+                h.Add(_impact);
+                h.Add((ulong)_impactCast.Packed);
+                h.Add(_impactEntity);
+                var keys = new List<int>(_launches.Keys);
+                keys.Sort(); // stable order whatever the dictionary's internal layout
+                h.Add(keys.Count);
+                for (int i = 0; i < keys.Count; i++)
+                {
+                    h.Add(keys[i]);
+                    h.Add(_launches[keys[i]]);
+                    h.Add((ulong)_casts[keys[i]].Packed);
+                }
+            }
         }
 
         /// <summary>

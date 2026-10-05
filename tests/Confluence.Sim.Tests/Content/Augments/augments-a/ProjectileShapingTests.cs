@@ -614,8 +614,8 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
 
         // ----- AUG-043 Visible Afterimage ------------------------------------------------------------------
 
-        private static IEnumerable<EffectEvent> Trails(DuelWorld w) =>
-            AKit.Events<EffectEvent>(w).Where(e => e.SourceId == VisibleAfterimage.Id && e.Change == EffectChange.Cue && e.Cue == VisibleAfterimage.TrailCue);
+        private static IEnumerable<MarkerEvent> Trails(DuelWorld w) =>
+            AKit.Events<MarkerEvent>(w).Where(e => e.SourceId == VisibleAfterimage.Id && e.Cue == VisibleAfterimage.TrailCue);
 
         /// <summary>Fireball past an enemy standing <paramref name="offset"/> m to the side, then Cinder Sweep at once.</summary>
         private static DuelWorld NearMiss(int rank, float offset, IEnumerable<ActiveAugment> augments = null, ContentRegistry registry = null, float costReduction = 0f)
@@ -646,9 +646,32 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
             AKit.AssertQuotes(VisibleAfterimage.Id, "untransformed projectile misses an enemy within 1 m", "inert glowing path for 0.5 s", "inert glowing path for 0.75 s", "costs 2 less mana", "costs 3 less mana", "next different spell within 1 s", "4 s cooldown");
             DuelWorld w = NearMiss(rank, 1.2f); // 0.65 m between the surfaces
             Assert.Empty(AKit.Hits(w, 1, DamageKind.Direct));
-            EffectEvent trail = Trails(w).Single();
+            MarkerEvent trail = Trails(w).Single();
             Assert.Equal(trailSec, trail.Amount, 3);
+            Assert.Equal(AKit.Ticks(trailSec), trail.DurationTicks);
+            Assert.True(trail.VisibleAt(trail.Tick) && !trail.VisibleAt(trail.Tick + AKit.Ticks(trailSec)));
             Assert.Equal(15f - discount, CinderPaid(w), 3);
+        }
+
+        [Fact]
+        [Verifies("AUG-043")]
+        public void Visible_Afterimage_Drawback_The_Public_Trail_Shows_The_Release_Point_And_Casting_Direction()
+        {
+            DuelWorld w = NearMiss(2, 1.2f);
+            MarkerEvent trail = Trails(w).Single();
+            SpellEvent launch = AKit.Events<SpellEvent>(w).First(e => e.Player == 0 && e.Kind == SpellEventKind.ProjectileLaunched);
+            // The path starts where the caster released (its eye at the origin side) and runs along the aimed direction.
+            Assert.Equal(launch.Position.X, trail.From.X, 3);
+            Assert.Equal(launch.Position.Y, trail.From.Y, 3);
+            Assert.Equal(launch.Position.Z, trail.From.Z, 3);
+            Assert.Equal(w.Player(0).Eye.Z, trail.From.Z, 1);
+            Assert.Equal(1f, trail.Direction.Z, 3); // player 0 aimed along +Z
+            Assert.True(trail.To.Z > w.Player(1).Position.Z); // the path runs past the enemy it missed
+            Vec3 along = (trail.To - trail.From).Normalized();
+            Assert.Equal(trail.Direction.X, along.X, 2);
+            Assert.Equal(trail.Direction.Z, along.Z, 2);
+            // An authoritative world event: both clients receive it (no rule effect, no collision).
+            Assert.Equal(0, trail.Player);
         }
 
         [Fact]

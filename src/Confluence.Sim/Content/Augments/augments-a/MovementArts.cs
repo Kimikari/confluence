@@ -649,8 +649,9 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
     /// horizontal directions at waist height) costs 12 instead of 10 stamina and adds 0.4 m (0.7 m) of horizontal travel
     /// along the face's normal, spread over <see cref="PushSec"/> right after takeoff (a self displacement under the motor's
     /// collision and the legal boundary, L51); the jump's own vertical arc is unchanged ("no wall flight": no extra height,
-    /// no jump from a wall, no second use within 5 s). A visible cue marks the exit (counterplay "Cover the visible wall
-    /// exit."). Jumps while the cooldown runs cost the normal 10 and get no motion.
+    /// no jump from a wall, no second use within 5 s). A public <see cref="MarkerEvent"/> marks the exit for both players
+    /// from the takeoff point to the shove's destination, with its direction away from the wall (counterplay "Cover the
+    /// visible wall exit."). Jumps while the cooldown runs cost the normal 10 and get no motion.
     /// </summary>
     [ContentBehavior(Id)]
     public sealed class WallReading : IAugmentBehavior
@@ -736,7 +737,9 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                         _restoreVelocity = hv;
                         _restoreAt = Now + ticks;
                         CharacterMotor.BeginDisplacement(ref Self.Motor, DisplacementKind.Dash, hv + _away * (_lateral / (ticks * Confluence.Core.Time.Ticks.Dt)), ticks);
-                        EmitCue(ExitCue, _lateral);
+                        // The visible exit: where the shove starts, where it ends, and its direction (counterplay).
+                        Vec3 from = Self.Position;
+                        EmitMarker(ExitCue, from, from + _away * _lateral, _away, ticks + AugmentsAKit.Ticks(GlobalRules.Movement.JumpAirtimeSec), _lateral);
                     }
                 }
 

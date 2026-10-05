@@ -363,7 +363,40 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
             Assert.Equal(plain.Z, landed.Z, 2);
             Assert.Equal(plainCost + 2f, cost, 3);
             Assert.Equal(plainApex, apex, 2); // no wall flight: the arc's height is unchanged
-            Assert.Contains(AKit.Events<EffectEvent>(w), e => e.SourceId == WallReading.Id && e.Change == EffectChange.Cue && e.Cue == WallReading.ExitCue);
+            MarkerEvent exit = ExitMarker(w);
+            Assert.Equal(landed.X, exit.To.X, 2); // the marker shows where the jump comes down
+            Assert.Equal(landed.Z, exit.To.Z, 2);
+            Assert.Equal(-1f, exit.Direction.X, 3); // away from the wall
+            Assert.Equal(lateral, exit.Amount, 3);
+        }
+
+        private static MarkerEvent ExitMarker(DuelWorld w) =>
+            AKit.Events<MarkerEvent>(w).Single(m => m.SourceId == WallReading.Id && m.Cue == WallReading.ExitCue && m.Player == 0);
+
+        [Fact]
+        [Verifies("AUG-105")]
+        public void Wall_Reading_Counterplay_A_Shot_Prepared_On_The_Visible_Exit_Lands()
+        {
+            // Player 1 (Bram with Fireball) holds a prepared cast; player 0 wall-jumps; player 1 reads the public exit marker,
+            // aims at it and releases: the shot meets player 0 where the motion ends.
+            DuelWorld w = AKit.Duel(AKit.Setup("A", AKit.Bram, AKit.Aug(WallReading.Id, 2)), AKit.Setup("B", AKit.Bram), WallBeside(0.3f));
+            TestWorlds.Place(w, 0, Vec3.Zero, 0f);
+            TestWorlds.Place(w, 1, new Vec3(-8f, 0f, 0f), 90f);
+            AKit.Step(w, 2);
+            PlayerInput hold = PlayerInput.Idle(90f).With(InputButtons.Primary);
+            w.Step(AKit.A.With(InputButtons.Jump), hold);
+            for (int i = 0; i < 3 && !AKit.Events<MarkerEvent>(w).Any(); i++) w.Step(AKit.A, hold);
+            MarkerEvent exit = ExitMarker(w);
+            Assert.True(exit.VisibleAt(w.Tick));
+            Assert.True(exit.From.X > exit.To.X); // the opponent can read the direction of the exit
+
+            PlayerInput aim = SpellTestKit.Aim(w, 1, exit.To + new Vec3(0f, 1.1f, 0f));
+            for (int i = 0; i < 12; i++) w.Step(AKit.A, aim.With(InputButtons.Primary));
+            w.Step(AKit.A, aim); // release
+            for (int i = 0; i < 90 && AKit.Hits(w, 0, DamageKind.Direct).Count == 0; i++) w.Step(AKit.A, aim);
+            DamageEvent hit = AKit.Hits(w, 0, DamageKind.Direct).Single();
+            Assert.Equal(1, hit.Attacker);
+            Assert.Equal(exit.To.X, w.Player(0).Position.X, 2);
         }
 
         [Fact]
