@@ -236,3 +236,8 @@ Next:
    (L353), remapping and the rest of L371 accessibility (Stage 7).
 6. A PanelSettings asset in the build would silence Unity's "ICU data not available" warning (text segmentation
    falls back to basic rules).
+
+Final merge build (2026-10-05, after the Net protocol 4 change): EditMode 73/73, player build, seven smoke views exit 0.
+The first smoke attempt hung in the player's shutdown (`PlayerConnection::Cleanup`) after the sandbox view had written
+its screenshot and logged "Quitting after 9.0 s with exit code 0"; the process was killed after 28 minutes and the
+rerun (`-SkipSync -Smoke`) passed all seven views. Looks like a sporadic development-player shutdown hang; watch for it.
