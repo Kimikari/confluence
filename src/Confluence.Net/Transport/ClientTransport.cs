@@ -127,7 +127,8 @@ namespace Confluence.Net.Transport
 
         public RequestClient<ClientTransport> Requests { get; }
 
-        public ClockSync Clock { get; }
+        /// <summary>Server clock estimate; recreated at the pace a welcome announces (60 ticks/s in real time).</summary>
+        public ClockSync Clock { get; private set; }
 
         public TransportCounters Counters { get; } = new TransportCounters();
 
@@ -216,6 +217,17 @@ namespace Confluence.Net.Transport
                 peer.Disconnect();
                 EnterDisconnected(DisconnectCause.LocalDisconnect, null);
             }
+        }
+
+        /// <summary>
+        /// Discards the clock estimate and probes quickly again (the server's simulation clock started or jumped, for
+        /// example when the match begins after the lobby): stale samples never pin the estimate to the old timeline.
+        /// </summary>
+        public void ResyncClock()
+        {
+            Clock.Reset();
+            _pingsSent = 0;
+            _nextPingMs = _clock.NowMs;
         }
 
         /// <summary>Forgets the player identity (pending requests fail).</summary>
@@ -353,6 +365,7 @@ namespace Confluence.Net.Transport
             State = ClientState.Connected;
 
             long now = _clock.NowMs;
+            if (welcome.TickRate != Clock.TickRate) Clock = new ClockSync(welcome.TickRate);
             Clock.Reset();
             Clock.Seed(welcome.ServerTick, now, _peer != null ? _peer.Ping : 0);
             _pingsSent = 0;

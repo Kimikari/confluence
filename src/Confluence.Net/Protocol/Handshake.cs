@@ -253,7 +253,7 @@ namespace Confluence.Net.Protocol
             PlayerId = reader.ReadVarIntInRange(1, int.MaxValue);
             ReconnectToken = ReconnectToken.Read(reader);
             Resumed = reader.ReadBool();
-            TickRate = reader.ReadVarIntInRange(1, 1000);
+            TickRate = reader.ReadVarIntInRange(1, NetRules.MaxTickRate);
             SnapshotRate = reader.ReadVarIntInRange(1, 1000);
             ReconnectWindowMs = reader.ReadVarIntInRange(0, int.MaxValue);
             ServerTick = TickTime.Read(reader);

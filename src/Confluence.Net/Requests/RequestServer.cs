@@ -111,6 +111,18 @@ namespace Confluence.Net.Requests
             where TRequest : INetMessage, new()
             where TResponse : INetMessage, new()
         {
+            if (handler == null) throw new ArgumentNullException(nameof(handler));
+            Handle(type, (RequestHandlerWithId<PlayerSession, TRequest, TResponse>)((session, id, body) => handler(session, body)));
+        }
+
+        /// <summary>
+        /// Registers a handler that also receives the client's request id. Game commands use it as their idempotency key,
+        /// so a resent request maps to the same transaction in the match host's ledger (spec L429).
+        /// </summary>
+        public void Handle<TRequest, TResponse>(RequestType<TRequest, TResponse> type, RequestHandlerWithId<PlayerSession, TRequest, TResponse> handler)
+            where TRequest : INetMessage, new()
+            where TResponse : INetMessage, new()
+        {
             if (type == null) throw new ArgumentNullException(nameof(type));
             if (handler == null) throw new ArgumentNullException(nameof(handler));
             _registry.On(type.RequestMessage, (session, envelope) => OnRequest(type, handler, session, envelope));
@@ -132,7 +144,7 @@ namespace Confluence.Net.Requests
 
         private void OnRequest<TRequest, TResponse>(
             RequestType<TRequest, TResponse> type,
-            RequestHandler<PlayerSession, TRequest, TResponse> handler,
+            RequestHandlerWithId<PlayerSession, TRequest, TResponse> handler,
             PlayerSession session,
             RequestEnvelope<TRequest> envelope)
             where TRequest : INetMessage, new()
@@ -161,7 +173,7 @@ namespace Confluence.Net.Requests
             Reply<TResponse> reply;
             try
             {
-                reply = handler(session, envelope.Body);
+                reply = handler(session, envelope.RequestId, envelope.Body);
             }
             catch
             {

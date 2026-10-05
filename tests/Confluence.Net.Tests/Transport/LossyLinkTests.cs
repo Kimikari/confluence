@@ -52,6 +52,49 @@ namespace Confluence.Net.Tests.Transport
             }
         }
 
+        /// <summary>
+        /// Research §3: a burst of more than the 64-packet reliable window on the Events lane under 10% loss drains
+        /// within a bound (LiteNetLib queues beyond the window; every lost packet costs one resend).
+        /// </summary>
+        [Fact]
+        public void An_Events_Burst_Beyond_The_Reliable_Window_Drains_Within_A_Bound_Under_Ten_Percent_Loss()
+        {
+            NetworkConditions conditions = NetworkConditions.Symmetric(latencyMs: 40, jitterMs: 5, lossChance: 0.1, seed: 21);
+            using (var rig = new LoopbackRig(LossySettings(), conditions))
+            {
+                const int Count = 200;
+                var arrival = new long[Count];
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                int received = 0;
+                ClientTransport client = rig.NewClient("Bram");
+                client.Messages.On(TestMessages.EventCounter, (c, m) =>
+                {
+                    arrival[m.Value] = watch.ElapsedMilliseconds;
+                    received++;
+                });
+                client.Connect(rig.Endpoint);
+                rig.WaitSettled(client, 20000);
+                Assert.True(rig.PumpUntil(() => false, 1000) == false); // let RTT estimates settle
+                Assert.True(rig.Server.Sessions.TryGet(client.PlayerId, out PlayerSession session));
+
+                long sent = watch.ElapsedMilliseconds;
+                for (int i = 0; i < Count; i++)
+                {
+                    rig.Server.Send(session, TestMessages.EventCounter, new CounterMessage { Value = i });
+                    rig.Server.Flush(); // one packet per message: the burst is 200 packets, over three windows
+                }
+
+                Assert.True(rig.PumpUntil(() => received == Count, 10000), "received " + received);
+                long drain = arrival[Count - 1] - sent;
+                long firstHalf = arrival[Count / 2 - 1] - sent;
+                Assert.True(rig.Link.Dropped > 5, "dropped " + rig.Link.Dropped);
+                // About 3 windows of RTT (80 ms) each plus resends (about 25 ms + 2.1 RTT): well under 2 s.
+                System.Console.WriteLine("burst of " + Count + " drained in " + drain + " ms (half in " + firstHalf + " ms), dropped " + rig.Link.Dropped);
+                Assert.True(drain < 2000, "burst drained in " + drain + " ms");
+                Assert.True(firstHalf < 1500, "first half drained in " + firstHalf + " ms");
+            }
+        }
+
         [Fact]
         public void Reliable_Unordered_Lane_Delivers_Every_Message_Once_Under_Loss()
         {

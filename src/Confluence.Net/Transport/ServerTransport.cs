@@ -76,7 +76,7 @@ namespace Confluence.Net.Transport
             RateLimiter = new RateLimiter();
             Requests = new RequestServer(Messages, (s, channel, framed) => SendFramed(s, channel, framed, framed.Length), _clock, RateLimiter);
             TickClock = new ElapsedTickClock(_clock);
-            _admit = (session, type) => RateLimiter.TryAcquire(session.PlayerId, type.Id, type.RateLimit, _clock.NowMs);
+            _admit = (session, type) => RateLimiter.TryAcquire(session.PlayerId, type.Id, LimitOverride != null ? LimitOverride(type) : type.RateLimit, _clock.NowMs);
 
             Messages.On(ProtocolMessages.ClockPing, OnClockPing);
 
@@ -93,6 +93,12 @@ namespace Confluence.Net.Transport
         }
 
         public MessageRegistry<PlayerSession> Messages { get; }
+
+        /// <summary>
+        /// Optional per-type rate limit replacing a message type's declared one (a server running the labeled
+        /// accelerated test pace scales its input limit with the tick rate).
+        /// </summary>
+        public Func<MessageType, RateLimit> LimitOverride { get; set; }
 
         public RequestServer Requests { get; }
 
@@ -111,6 +117,19 @@ namespace Confluence.Net.Transport
 
         /// <summary>When false only reconnects are accepted (for example after the match started).</summary>
         public bool AcceptNewPlayers { get; set; } = true;
+
+        /// <summary>
+        /// Simulation ticks per wall-clock second announced in the welcome (the client's clock estimate runs at this
+        /// pace). 60 in real time; a labeled accelerated test server announces its faster pace.
+        /// </summary>
+        public int WelcomeTickRate { get; set; } = NetRules.TickRate;
+
+        /// <summary>Largest unreliable or sequenced payload that fits one datagram for this player right now (0 when not connected).</summary>
+        public int MaxUnreliablePayload(PlayerSession session)
+        {
+            if (session == null || !_peerOfPlayer.TryGetValue(session.PlayerId, out NetPeer peer)) return 0;
+            return peer.GetMaxSinglePacketSize(DeliveryMethod.Sequenced);
+        }
 
         public bool IsRunning => _net.IsRunning;
 
@@ -186,6 +205,22 @@ namespace Confluence.Net.Transport
         }
 
         public void Dispose() => Stop();
+
+        /// <summary>
+        /// Clean shutdown: every connected player receives a server-shutdown notice (their client shows why the session
+        /// ended and does not try to resume), queued traffic is flushed, then the socket closes.
+        /// </summary>
+        public void Shutdown(string detail)
+        {
+            if (!_net.IsRunning) return;
+            var connected = new List<PlayerSession>();
+            foreach (PlayerSession s in Sessions.All)
+                if (s.IsConnected) connected.Add(s);
+            Flush();
+            foreach (PlayerSession s in connected) Close(s, DisconnectNoticeReason.ServerShutdown, detail ?? "server shutdown", false);
+            Flush();
+            Stop();
+        }
 
         // ---- Sending ---------------------------------------------------------------------------
 
@@ -407,6 +442,7 @@ namespace Confluence.Net.Transport
                 Resumed = resumed,
                 ReconnectWindowMs = Sessions.ReconnectWindowMs,
                 ServerTick = TickClock.CurrentTick,
+                TickRate = WelcomeTickRate,
             };
             Send(session, ProtocolMessages.Welcome, welcome);
             SessionConnected?.Invoke(session, resumed);
@@ -504,6 +540,12 @@ namespace Confluence.Net.Transport
             if (outcome.IsViolation && _settings.MalformedKickThreshold > 0 && session.Counters.Violations >= _settings.MalformedKickThreshold)
             {
                 Close(session, DisconnectNoticeReason.ProtocolViolation, "too many malformed messages", false);
+            }
+            else if ((outcome.Result == DispatchResult.RateLimited || outcome.Result == DispatchResult.HandlerFault) && _settings.AbuseKickThreshold > 0 &&
+                session.Counters.RateLimited + session.Counters.HandlerFaults >= _settings.AbuseKickThreshold)
+            {
+                // A sustained flood (research §2.6.7): rate-limited or faulting messages far beyond any honest burst.
+                Close(session, DisconnectNoticeReason.ProtocolViolation, "message flood", false);
             }
         }
 

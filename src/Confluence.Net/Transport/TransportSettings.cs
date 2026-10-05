@@ -31,6 +31,12 @@ namespace Confluence.Net.Transport
         /// <summary>Malformed or illegal messages tolerated per connection before it is closed (0 disables).</summary>
         public int MalformedKickThreshold { get; set; } = NetRules.MalformedKickThreshold;
 
+        /// <summary>
+        /// Rate-limited plus handler-faulting messages tolerated per connection before it is closed as a flood (0
+        /// disables). Honest clients stay far below it: their bursts fit the limits (research §2.6.7).
+        /// </summary>
+        public int AbuseKickThreshold { get; set; } = NetRules.AbuseKickThreshold;
+
         /// <summary>When true, exceptions thrown by message handlers propagate out of Poll (useful in tests).</summary>
         public bool RethrowHandlerExceptions { get; set; }
 

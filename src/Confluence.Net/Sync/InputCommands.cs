@@ -257,31 +257,65 @@ namespace Confluence.Net.Sync
     /// used when it arrives, so a late client gains a tick of buffering instead of losing actions.</item>
     /// </list>
     /// At most <see cref="MaxBufferedTicks"/> inputs wait ahead of consumption; surplus oldest inputs are skipped
-    /// so a client running fast cannot bank latency.
+    /// so a client running fast cannot bank latency. A queue that stays deeper than <see cref="SurplusTargetTicks"/>
+    /// for <see cref="SurplusPatienceTicks"/> consecutive ticks is cut back to the target the same way (a hiccup must
+    /// not add latency for the rest of the session; docs/research/netcode.md §2.1.1). Skipped inputs are never silently
+    /// lost: their one-shot data (taps, grammar events) is folded into the next consumed input by the optional
+    /// <c>mergeSkipped</c> function.
     /// </summary>
     public sealed class InputReceiveBuffer<T>
     {
         private readonly SortedDictionary<uint, T> _pending = new SortedDictionary<uint, T>();
         private readonly List<InputCommand<T>> _scratch = new List<InputCommand<T>>();
         private readonly T _neutral;
+        private readonly Func<T, T, T> _mergeSkipped;
         private uint _nextSequence;
         private uint _newestReceived;
         private T _lastKnown;
         private int _starvedRun;
+        private int _surplusRun;
+        private bool _hasCarry;
+        private T _carry;
 
-        public InputReceiveBuffer(T neutral = default, int maxRepeatTicks = NetRules.InputMaxRepeatTicks, int maxBufferedTicks = NetRules.InputMaxBufferedTicks)
+        /// <param name="mergeSkipped">
+        /// (skipped, next) -> next carrying the skipped input's one-shot data; null drops skipped inputs entirely.
+        /// </param>
+        public InputReceiveBuffer(T neutral = default, int maxRepeatTicks = NetRules.InputMaxRepeatTicks, int maxBufferedTicks = NetRules.InputMaxBufferedTicks,
+            Func<T, T, T> mergeSkipped = null, int surplusTargetTicks = 0, int surplusPatienceTicks = NetRules.InputSurplusPatienceTicks)
         {
             if (maxRepeatTicks < 0) throw new ArgumentOutOfRangeException(nameof(maxRepeatTicks));
             if (maxBufferedTicks < 1) throw new ArgumentOutOfRangeException(nameof(maxBufferedTicks));
+            if (surplusTargetTicks < 0 || surplusPatienceTicks < 1) throw new ArgumentOutOfRangeException(nameof(surplusTargetTicks));
             _neutral = neutral;
             _lastKnown = neutral;
+            _mergeSkipped = mergeSkipped;
             MaxRepeatTicks = maxRepeatTicks;
             MaxBufferedTicks = maxBufferedTicks;
+            SurplusTargetTicks = surplusTargetTicks;
+            SurplusPatienceTicks = surplusPatienceTicks;
         }
 
         public int MaxRepeatTicks { get; }
 
         public int MaxBufferedTicks { get; }
+
+        /// <summary>Queue depth a sustained surplus is cut back to (0 = only the hard <see cref="MaxBufferedTicks"/> trim).</summary>
+        public int SurplusTargetTicks { get; }
+
+        /// <summary>Consecutive ticks above <see cref="SurplusTargetTicks"/> before the surplus is cut.</summary>
+        public int SurplusPatienceTicks { get; }
+
+        /// <summary>Sequences skipped by the sustained-surplus cut (a subset of <see cref="Skipped"/>).</summary>
+        public long SurplusCut { get; private set; }
+
+        /// <summary>Skipped inputs whose one-shot data was folded into a later input.</summary>
+        public long Merged { get; private set; }
+
+        /// <summary>Inputs waiting ahead of the next consumption, counting from the next sequence to the newest received.</summary>
+        public int QueueDepth => _nextSequence == 0 || _newestReceived < _nextSequence ? 0 : (int)Math.Min(int.MaxValue, _newestReceived - _nextSequence + 1);
+
+        /// <summary>Ticks that consumed no new input (repeated or neutral stand-ins): the client was late.</summary>
+        public long StarvedTicks => RepeatedTicks + NeutralTicks;
 
         public bool HasStarted => _nextSequence != 0;
 
@@ -376,9 +410,18 @@ namespace Confluence.Net.Sync
             if (_pending.TryGetValue(_nextSequence, out T input))
             {
                 _pending.Remove(_nextSequence);
+                if (_hasCarry)
+                {
+                    input = _mergeSkipped(_carry, input);
+                    _hasCarry = false;
+                    _carry = default;
+                }
+
                 _lastKnown = input;
                 _starvedRun = 0;
-                return new ConsumedInput<T>(_nextSequence++, input, InputSource.Received);
+                ConsumedInput<T> consumed = new ConsumedInput<T>(_nextSequence++, input, InputSource.Received);
+                CutSustainedSurplus();
+                return consumed;
             }
 
             if (_newestReceived > _nextSequence)
@@ -407,6 +450,9 @@ namespace Confluence.Net.Sync
             _newestReceived = 0;
             _lastKnown = _neutral;
             _starvedRun = 0;
+            _surplusRun = 0;
+            _hasCarry = false;
+            _carry = default;
         }
 
         private void TrimSurplus()
@@ -419,13 +465,42 @@ namespace Confluence.Net.Sync
                 return;
             }
 
-            uint keepFrom = _newestReceived - (uint)MaxBufferedTicks + 1;
+            SkipTo(_newestReceived - (uint)MaxBufferedTicks + 1);
+        }
+
+        /// <summary>Cuts a queue that stayed deeper than the target for the patience period back to the target.</summary>
+        private void CutSustainedSurplus()
+        {
+            if (SurplusTargetTicks <= 0) return;
+            if (QueueDepth <= SurplusTargetTicks)
+            {
+                _surplusRun = 0;
+                return;
+            }
+
+            if (++_surplusRun < SurplusPatienceTicks) return;
+            _surplusRun = 0;
+            uint before = _nextSequence;
+            SkipTo(_newestReceived - (uint)SurplusTargetTicks + 1);
+            SurplusCut += _nextSequence - before;
+        }
+
+        /// <summary>Skips every sequence below <paramref name="keepFrom"/>, carrying the skipped inputs' one-shot data.</summary>
+        private void SkipTo(uint keepFrom)
+        {
+            if (keepFrom <= _nextSequence) return;
             while (_pending.Count > 0)
             {
                 KeyValuePair<uint, T> oldest = Oldest();
                 if (oldest.Key >= keepFrom) break;
                 _pending.Remove(oldest.Key);
                 _lastKnown = oldest.Value;
+                if (_mergeSkipped != null)
+                {
+                    _carry = _hasCarry ? _mergeSkipped(_carry, oldest.Value) : oldest.Value;
+                    _hasCarry = true;
+                    Merged++;
+                }
             }
 
             Skipped += keepFrom - _nextSequence;

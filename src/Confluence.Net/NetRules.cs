@@ -15,7 +15,7 @@ namespace Confluence.Net
         /// Wire-format version of this protocol. Bump whenever any message layout changes; a mismatch is rejected
         /// at the handshake with the unsupported-version state (spec L427).
         /// </summary>
-        public const ushort ProtocolVersion = 1;
+        public const ushort ProtocolVersion = 3; // 1: Stage 1 foundation; 2: Stage 3 game messages (ids 64-98, ten lanes); 3: recall end tick in the private entry
 
         /// <summary>
         /// Version string of the rule code (GlobalRules, Schedules, Sim behaviors). It is hashed together with the
@@ -25,6 +25,15 @@ namespace Confluence.Net
         public const string RulesVersion = "confluence-rules-0.1";
 
         public const int TickRate = GlobalRules.Network.TicksPerSecond; // spec L421
+
+        /// <summary>
+        /// Largest authoritative tick rate the protocol carries (Welcome, match settings): the labeled accelerated test
+        /// pace may not exceed it, so every announced rate decodes (x16 = 960 ticks/s).
+        /// </summary>
+        public const int MaxTickRate = 1000;
+
+        /// <summary>Largest accelerated test factor whose rate fits <see cref="MaxTickRate"/>.</summary>
+        public const int MaxAcceleration = MaxTickRate / TickRate;
         public const int SnapshotRateMin = GlobalRules.Network.SnapshotRateMin; // spec L421
         public const int SnapshotRateMax = GlobalRules.Network.SnapshotRateMax; // spec L421
         public const int DefaultSnapshotRate = GlobalRules.Network.DefaultSnapshotRate; // DECISIONS D-005
@@ -52,6 +61,18 @@ namespace Confluence.Net
         /// <summary>Most inputs the server queues ahead of consumption (200 ms); older surplus is skipped.</summary>
         public const int InputMaxBufferedTicks = 12;
 
+        /// <summary>
+        /// Game input streams cut a queue that stays deeper than this many ticks (about 67 ms) back to it; the client's
+        /// lead control holds the queue near one tick, so only a client that stopped adapting meets the cut (tuning).
+        /// </summary>
+        public const int InputSurplusTargetTicks = 4;
+
+        /// <summary>Consecutive ticks (0.5 s) a surplus must last before it is cut.</summary>
+        public const int InputSurplusPatienceTicks = 30;
+
+        /// <summary>Queue depth the client's input lead control aims for (minimum over its window).</summary>
+        public const int InputQueueTargetTicks = 1;
+
         // ---- Handshake and sessions ------------------------------------------------------------
 
         public const int DisplayNameMinChars = 1;
@@ -65,6 +86,9 @@ namespace Confluence.Net
 
         /// <summary>A connection that sends this many malformed or illegal messages is closed.</summary>
         public const int MalformedKickThreshold = 64;
+
+        /// <summary>Rate-limited or faulting messages per connection before it is closed as a flood (tuning).</summary>
+        public const int AbuseKickThreshold = 2000;
 
         /// <summary>Messages queued on the client between the transport connect and the server welcome.</summary>
         public const int MaxPreWelcomeMessages = 256;
