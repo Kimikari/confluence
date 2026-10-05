@@ -730,9 +730,6 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
         /// <summary>Time over which the lateral motion is added (open number: a short shove that keeps the jump readable).</summary>
         public const float PushSec = 0.1f;
 
-        /// <summary>Probe height above the feet (waist of the 1.8 m standing capsule).</summary>
-        public const float ProbeHeight = 0.9f;
-
         public const string ExitCue = "wall-exit";
 
         public void Attach(IEffectHost host, int rank)
@@ -742,33 +739,8 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
         }
 
         /// <summary>The outward normal of the nearest vertical solid face within range of a body standing at the feet, if any.</summary>
-        public static bool TryFindWall(Confluence.Sim.World.CollisionWorld collision, Vec3 feet, out Vec3 away)
-        {
-            away = Vec3.Zero;
-            Vec3 origin = feet + new Vec3(0f, ProbeHeight, 0f);
-            float reach = CharacterMotor.Radius + WallRange;
-            float best = float.PositiveInfinity;
-            for (int i = 0; i < 16; i++)
-            {
-                double a = i * Math.PI / 8.0;
-                Vec3 dir = new Vec3((float)Math.Sin(a), 0f, (float)Math.Cos(a));
-                if (!collision.SegmentCast(origin, origin + dir * reach, Confluence.Sim.World.SolidMask.Movement, out Confluence.Sim.World.WorldHit hit))
-                {
-                    continue;
-                }
-
-                Vec3 n = new Vec3(hit.Normal.X, 0f, hit.Normal.Z);
-                if (Math.Abs(hit.Normal.Y) > 0.5f || n.LengthSquared() < 1e-6f || hit.Distance >= best)
-                {
-                    continue; // floors, ceilings and slopes are not walls
-                }
-
-                best = hit.Distance;
-                away = n.Normalized();
-            }
-
-            return best < float.PositiveInfinity;
-        }
+        public static bool TryFindWall(Confluence.Sim.World.CollisionWorld collision, Vec3 feet, out Vec3 away) =>
+            AugmentsAKit.NearVerticalSolid(collision, feet, WallRange, out away);
 
         private sealed class Hook : EffectHook
         {

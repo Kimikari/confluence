@@ -88,6 +88,42 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
         /// <summary>The form of a spell in the player's loadout, or null.</summary>
         public static SpellForm FormOf(DuelPlayer p, string spellId) => p.Caster != null ? p.Caster.FormFor(spellId) : null;
 
+        /// <summary>Probe height above the feet for wall and cover tests (waist of the 1.8 m standing capsule).</summary>
+        public const float WallProbeHeight = 0.9f;
+
+        /// <summary>
+        /// The outward normal of the nearest vertical solid face (walls, cover, pillars, props) within <paramref name="range"/> of
+        /// a body standing at the feet, probed in 16 horizontal directions at waist height; floors, ceilings and slopes
+        /// (normal more than 30 degrees from horizontal) do not count.
+        /// </summary>
+        public static bool NearVerticalSolid(Confluence.Sim.World.CollisionWorld collision, Vec3 feet, float range, out Vec3 away)
+        {
+            away = Vec3.Zero;
+            Vec3 origin = feet + new Vec3(0f, WallProbeHeight, 0f);
+            float reach = Confluence.Sim.Movement.CharacterMotor.Radius + range;
+            float best = float.PositiveInfinity;
+            for (int i = 0; i < 16; i++)
+            {
+                double a = i * Math.PI / 8.0;
+                Vec3 dir = new Vec3((float)Math.Sin(a), 0f, (float)Math.Cos(a));
+                if (!collision.SegmentCast(origin, origin + dir * reach, Confluence.Sim.World.SolidMask.Movement, out Confluence.Sim.World.WorldHit hit))
+                {
+                    continue;
+                }
+
+                Vec3 n = new Vec3(hit.Normal.X, 0f, hit.Normal.Z);
+                if (Math.Abs(hit.Normal.Y) > 0.5f || n.LengthSquared() < 1e-6f || hit.Distance >= best)
+                {
+                    continue;
+                }
+
+                best = hit.Distance;
+                away = n.Normalized();
+            }
+
+            return best < float.PositiveInfinity;
+        }
+
         /// <summary>The player's cast currently in preparation or later (invalid when idle).</summary>
         public static Confluence.Casting.CastEventId CurrentCast(DuelPlayer p) =>
             p.Caster != null ? p.Caster.Machine.CurrentCastId : Confluence.Casting.CastEventId.None;

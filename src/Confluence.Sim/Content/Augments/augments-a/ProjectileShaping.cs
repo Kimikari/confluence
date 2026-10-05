@@ -820,3 +820,74 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
         }
     }
 }
+
+namespace Confluence.Sim.Content.Augments.AugmentsA
+{
+    /// <summary>
+    /// AUG-032 Range Compression (Silver, projectile spell and melee item equipped). Condition "Direct projectile hits within
+    /// 5 m." Rank 1 "Damage increases 6%.", rank 2 "Damage increases 10%." Drawback "Damage beyond 15 m decreases 8%." The
+    /// owner's direct projectile hits at a caster-target range of at most 5 m deal 6% (10%) more; beyond 15 m 8% less.
+    /// </summary>
+    [ContentBehavior(Id)]
+    public sealed class RangeCompression : IAugmentBehavior
+    {
+        public const string Id = "AUG-032";
+        public const float CloseRange = 5f;    // "within 5 m"
+        public const float FarRange = 15f;     // "beyond 15 m"
+        public const float Rank1Bonus = 0.06f; // "Damage increases 6%."
+        public const float Rank2Bonus = 0.10f; // "Damage increases 10%."
+        public const float FarCut = 0.08f;     // "Damage beyond 15 m decreases 8%."
+
+        public void Attach(IEffectHost host, int rank)
+        {
+            Confluence.Sim.Content.ContentArgs.Require(host);
+            host.Attach(new RangeBandHook(Id, CloseRange, AugmentsAKit.ByRank(rank, Rank1Bonus, Rank2Bonus), FarRange, -FarCut));
+        }
+    }
+
+    /// <summary>
+    /// AUG-033 Range Extension (Gold, projectile spell and precision item equipped). Condition "Direct projectile hits beyond
+    /// 15 m." Rank 1 "Damage increases 6%.", rank 2 "Damage increases 10%." Drawback "Damage within 5 m decreases 8%." The
+    /// owner's direct projectile hits at a range beyond 15 m deal 6% (10%) more; within 5 m 8% less.
+    /// </summary>
+    [ContentBehavior(Id)]
+    public sealed class RangeExtension : IAugmentBehavior
+    {
+        public const string Id = "AUG-033";
+        public const float CloseRange = 5f;    // "within 5 m"
+        public const float FarRange = 15f;     // "beyond 15 m"
+        public const float Rank1Bonus = 0.06f; // "Damage increases 6%."
+        public const float Rank2Bonus = 0.10f; // "Damage increases 10%."
+        public const float CloseCut = 0.08f;   // "Damage within 5 m decreases 8%."
+
+        public void Attach(IEffectHost host, int rank)
+        {
+            Confluence.Sim.Content.ContentArgs.Require(host);
+            host.Attach(new RangeBandHook(Id, CloseRange, -CloseCut, FarRange, AugmentsAKit.ByRank(rank, Rank1Bonus, Rank2Bonus)));
+        }
+    }
+
+    /// <summary>Direct projectile hits: one fraction at range &lt;= close, another beyond far.</summary>
+    internal sealed class RangeBandHook : EffectHook
+    {
+        private readonly float _close;
+        private readonly float _closeFraction;
+        private readonly float _far;
+        private readonly float _farFraction;
+
+        public RangeBandHook(string id, float close, float closeFraction, float far, float farFraction) : base(id)
+        {
+            _close = close;
+            _closeFraction = closeFraction;
+            _far = far;
+            _farFraction = farFraction;
+        }
+
+        public override void AdjustOutgoing(DamageRequest hit, float range, ref float fraction, ref float flat)
+        {
+            if (!ProjectileForms.IsProjectileDirectHit(World, hit)) return;
+            if (range <= _close) fraction += _closeFraction;
+            else if (range > _far) fraction += _farFraction;
+        }
+    }
+}
