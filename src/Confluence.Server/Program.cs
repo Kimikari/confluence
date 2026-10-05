@@ -34,6 +34,7 @@ namespace Confluence.Server
             "  --spectator-delay <s>  spectator delay in seconds (never below 15 while the match runs)\n" +
             "  --catalogue <path>     catalogue JSON (default: docs/confluence/confluence-catalogue.json)\n" +
             "  --log <file>           also append the log to a file\n" +
+            "  --threaded-transport   LiteNetLib socket threads instead of manual polling (use on Linux/Mono hosts: issue #616)\n" +
             "  --max-seconds <n>      stop after n wall-clock seconds\n" +
             "  --stay                 keep running after the match ends (default: exit)\n";
 
@@ -88,6 +89,7 @@ namespace Confluence.Server
                     Laboratory = o.Laboratory,
                     TicksPerWallSecond = 60 * o.Accelerated,
                     SpectatorDelaySec = o.SpectatorDelaySec,
+                    Transport = TransportFor(o),
                     Log = log,
                 };
 
@@ -138,6 +140,14 @@ namespace Confluence.Server
             }
         }
 
+        private static Net.Transport.TransportSettings TransportFor(Options o)
+        {
+            Net.Transport.TransportSettings t = Net.Game.GameTransport.Defaults();
+            t.AutoReconnect = false; // server side
+            t.ManualMode = !o.ThreadedTransport;
+            return t;
+        }
+
         private sealed class Options
         {
             public int Port = 7777;
@@ -155,6 +165,7 @@ namespace Confluence.Server
             public string LogFile;
             public double MaxSeconds;
             public bool Stay;
+            public bool ThreadedTransport;
             public bool Help;
 
             public static Options Parse(string[] args)
@@ -187,6 +198,7 @@ namespace Confluence.Server
                         case "--log": o.LogFile = Value(args, ref i); break;
                         case "--max-seconds": o.MaxSeconds = double.Parse(Value(args, ref i), CultureInfo.InvariantCulture); break;
                         case "--stay": o.Stay = true; break;
+                        case "--threaded-transport": o.ThreadedTransport = true; break;
                         case "--help":
                         case "-h": o.Help = true; break;
                         default: throw new ArgumentException("unknown option " + a);

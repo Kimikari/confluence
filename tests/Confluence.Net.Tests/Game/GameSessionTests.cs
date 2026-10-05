@@ -168,6 +168,25 @@ namespace Confluence.Net.Tests.Game
             }
         }
 
+        [Fact]
+        public void A_Networked_Duel_Over_A_Lossy_Link_Replays_To_The_Same_Final_State()
+        {
+            // The manifest records the commands as the server consumed them (after loss substitution, trims, view and
+            // event rebasing), so a networked duel is a reproducible replay (spec L419, L427; research §2.9.6).
+            NetworkConditions link = NetworkConditions.Symmetric(40, 5, 0.03, seed: 9);
+            using (var rig = new GameRig(LabDuel(), link))
+            {
+                HeadlessPlayer a = rig.AddPlayer("Ash", "WIZ-002", seed: 1);
+                rig.AddPlayer("Brook", "WIZ-010", seed: 2);
+                Assert.True(rig.RunUntil(() => a.Client.View.Results.Count >= 1, 60 * 60 * 6));
+                Confluence.Hosting.Duels.DuelReport report = rig.Server.Host.Duels.Reports.First();
+                Confluence.Hosting.Duels.ReplayResult replay = Confluence.Hosting.Duels.DuelReplayer.Replay(report.Replay, GameRig.Generator,
+                    expectedRulesetFingerprint: LoopbackRig.Ruleset.ToHex());
+                Assert.True(replay.Matches, replay.Mismatch);
+                Assert.Equal(report.FinalStateHash, replay.FinalStateHash);
+            }
+        }
+
         private static long Field(string json, string key)
         {
             string token = "\"" + key + "\":";
