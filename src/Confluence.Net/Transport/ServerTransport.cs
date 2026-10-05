@@ -76,7 +76,7 @@ namespace Confluence.Net.Transport
             RateLimiter = new RateLimiter();
             Requests = new RequestServer(Messages, (s, channel, framed) => SendFramed(s, channel, framed, framed.Length), _clock, RateLimiter);
             TickClock = new ElapsedTickClock(_clock);
-            _admit = (session, type) => RateLimiter.TryAcquire(session.PlayerId, type.Id, type.RateLimit, _clock.NowMs);
+            _admit = (session, type) => RateLimiter.TryAcquire(session.PlayerId, type.Id, LimitOverride != null ? LimitOverride(type) : type.RateLimit, _clock.NowMs);
 
             Messages.On(ProtocolMessages.ClockPing, OnClockPing);
 
@@ -93,6 +93,12 @@ namespace Confluence.Net.Transport
         }
 
         public MessageRegistry<PlayerSession> Messages { get; }
+
+        /// <summary>
+        /// Optional per-type rate limit replacing a message type's declared one (a server running the labeled
+        /// accelerated test pace scales its input limit with the tick rate).
+        /// </summary>
+        public Func<MessageType, RateLimit> LimitOverride { get; set; }
 
         public RequestServer Requests { get; }
 
@@ -534,6 +540,12 @@ namespace Confluence.Net.Transport
             if (outcome.IsViolation && _settings.MalformedKickThreshold > 0 && session.Counters.Violations >= _settings.MalformedKickThreshold)
             {
                 Close(session, DisconnectNoticeReason.ProtocolViolation, "too many malformed messages", false);
+            }
+            else if ((outcome.Result == DispatchResult.RateLimited || outcome.Result == DispatchResult.HandlerFault) && _settings.AbuseKickThreshold > 0 &&
+                session.Counters.RateLimited + session.Counters.HandlerFaults >= _settings.AbuseKickThreshold)
+            {
+                // A sustained flood (research §2.6.7): rate-limited or faulting messages far beyond any honest burst.
+                Close(session, DisconnectNoticeReason.ProtocolViolation, "message flood", false);
             }
         }
 

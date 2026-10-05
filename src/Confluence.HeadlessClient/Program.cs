@@ -103,6 +103,7 @@ namespace Confluence.HeadlessClient
                 Log = log,
             });
 
+            using (WindowsTimer.HighResolution())
             using (player)
             {
                 player.Client.PhaseChanged += (c, p) => log(name + ": phase " + p.Phase + " round " + p.Round + (p.Attempt > 0 ? " attempt " + p.Attempt : ""));

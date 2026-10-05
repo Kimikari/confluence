@@ -19,6 +19,7 @@ using Confluence.Match;
 using Confluence.Net.Game.Snapshots;
 using Confluence.Net.Game.Wire;
 using Confluence.Net.Protocol;
+using Confluence.Net.RateLimiting;
 using Confluence.Net.Requests;
 using Confluence.Net.Serialization;
 using Confluence.Net.Sync;
@@ -45,8 +46,12 @@ namespace Confluence.Net.Game.Server
 
         public BotCompetence BotCompetence { get; set; } = BotCompetence.Adept;
 
-        /// <summary>Recorded match seed (spec L435). Never sent to clients.</summary>
-        public ulong Seed { get; set; } = 1;
+        /// <summary>
+        /// Recorded match seed (spec L419, L435), never sent to clients. Null (the default) draws it from a
+        /// cryptographic random source, so no client can guess the Offer, Draft, Bot, or Pairing streams derived from it
+        /// (research §2.6.2); a fixed seed is for Laboratory, Custom, tests, and reproductions only.
+        /// </summary>
+        public ulong? Seed { get; set; }
 
         /// <summary>
         /// Laboratory overrides (spec L69): bypass the D-010 economy floors, draw pools from the whole catalogue, and allow
@@ -129,6 +134,7 @@ namespace Confluence.Net.Game.Server
             if (settings.TicksPerWallSecond < 1) throw new ArgumentException("The pace must be positive.");
             _clock = clock ?? SystemNetClock.Instance;
             _arenaCache = arenaCache ?? new ArenaCache();
+            MatchSeed = settings.Seed ?? RandomSeed();
             Implemented = ImplementedContent.FromShippedAssemblies();
             BuildWizardList();
             SettingsFingerprint = ComputeSettingsFingerprint();
@@ -137,6 +143,11 @@ namespace Confluence.Net.Game.Server
             Transport = new ServerTransport(identity, settings.Transport ?? GameTransport.Defaults(), _clock, tokens);
             _tickClock = new ServerTickClock(this, _clock);
             Transport.TickClock = _tickClock;
+            if (settings.IsAccelerated)
+            {
+                RateLimit inputs = GameProtocol.InputLimitAt(settings.TicksPerWallSecond);
+                Transport.LimitOverride = type => type.Id == GameProtocol.DuelInput.Id ? inputs : type.RateLimit;
+            }
             Transport.WelcomeTickRate = settings.TicksPerWallSecond;
             Transport.SessionConnected += OnSessionConnected;
             Transport.SessionDisconnected += OnSessionDisconnected;
@@ -168,7 +179,8 @@ namespace Confluence.Net.Game.Server
             Log("Server ready: " + settings.Mode + ", " + settings.PlayerCount + " seats (" + settings.Bots + " bots), " +
                 (settings.Laboratory ? "LABORATORY overrides" : "standard rules") +
                 (settings.IsAccelerated ? ", ACCELERATED TEST PACE " + settings.TicksPerWallSecond + " ticks/s" : ", real time 60 ticks/s") +
-                ", ruleset " + ruleset.ShortHex + ".");
+                ", ruleset " + ruleset.ShortHex + ", match seed " + MatchSeed.ToString("X16", CultureInfo.InvariantCulture) +
+                (settings.Seed.HasValue ? " (fixed)" : " (random)") + ".");
         }
 
         public ServerTransport Transport { get; }
@@ -179,6 +191,9 @@ namespace Confluence.Net.Game.Server
         public LobbyStatus Status { get; private set; }
 
         public ImplementedContent Implemented { get; }
+
+        /// <summary>The match seed in use: the configured one, or a cryptographically random one (server-side only).</summary>
+        public ulong MatchSeed { get; }
 
         /// <summary>The settings fingerprint sent in every lobby state, before joining (spec L71).</summary>
         public string SettingsFingerprint { get; }
@@ -315,6 +330,14 @@ namespace Confluence.Net.Game.Server
             return SeedHash.Of(text.ToString()).ToString("X16", CultureInfo.InvariantCulture);
         }
 
+        /// <summary>A 64-bit seed from the operating system's cryptographic generator (never derived from time or ids).</summary>
+        public static ulong RandomSeed()
+        {
+            var bytes = new byte[8];
+            using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create()) rng.GetBytes(bytes);
+            return BitConverter.ToUInt64(bytes, 0);
+        }
+
         private ConclaveSettings ConclaveSettingsFor()
         {
             return _settings.PlayerCount == GlobalRules.Match.LobbySize && _settings.SpectatorDelaySec <= GlobalRules.Match.SpectatorDelayMinSec
@@ -395,7 +418,7 @@ namespace Confluence.Net.Game.Server
             var hostSettings = new MatchHostSettings
             {
                 Mode = _settings.Mode,
-                MatchSeed = _settings.Seed,
+                MatchSeed = MatchSeed,
                 Conclave = _settings.Mode == MatchMode.Conclave ? ConclaveSettingsFor() : ConclaveSettings.Unranked,
                 WizardIds = wizards,
                 PlayerIds = ids,

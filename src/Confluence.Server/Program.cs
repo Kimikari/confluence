@@ -27,7 +27,8 @@ namespace Confluence.Server
             "  --players <n>          seats: 2 for a Duel, 2-8 for a Conclave (default 2 / 8)\n" +
             "  --bots <n>             seats filled by server bots (default 0)\n" +
             "  --bot-competence <c>   novice|apprentice|adept|expert (default adept)\n" +
-            "  --seed <n>             recorded match seed (default 1)\n" +
+            "  --seed <n>             fixed match seed (only with --lab or --allow-fixed-seed; default: cryptographically random)\n" +
+            "  --allow-fixed-seed     permit --seed without Laboratory overrides (reproductions, custom hosts)\n" +
             "  --lab                  Laboratory overrides: bypass economy floors, whole-catalogue pools, grammar-route wizards\n" +
             "  --accelerated <x>      LABELED TEST MODE: run x times faster than real time (2-64)\n" +
             "  --spectator-delay <s>  spectator delay in seconds (never below 15 while the match runs)\n" +
@@ -57,6 +58,7 @@ namespace Confluence.Server
             }
 
             StreamWriter file = o.LogFile != null ? new StreamWriter(o.LogFile, true) { AutoFlush = true } : null;
+            WindowsTimer timer = WindowsTimer.HighResolution();
             var clock = Stopwatch.StartNew();
             object gate = new object();
             Action<string> log = line =>
@@ -120,7 +122,7 @@ namespace Confluence.Server
                     string reason = stop.IsSet ? "operator stop" : server.IsFinished ? "match finished" : "time limit";
                     server.Shutdown(reason);
                     log("Server stopped (" + reason + "; " + server.CurrentTick + " ticks, " + server.SnapshotsSent + " snapshots, " +
-                        runner.Stalls + " stalls).");
+                        runner.Stalls + " stalls; " + runner.LatenessSummary() + "; 1 ms timer " + (timer.Active ? "on" : "off") + ").");
                     return server.Status == Net.Game.Wire.LobbyStatus.Refused ? 2 : 0;
                 }
             }
@@ -131,6 +133,7 @@ namespace Confluence.Server
             }
             finally
             {
+                timer.Dispose();
                 file?.Dispose();
             }
         }
@@ -143,7 +146,8 @@ namespace Confluence.Server
             public int Players = -1;
             public int Bots;
             public BotCompetence Competence = BotCompetence.Adept;
-            public ulong Seed = 1;
+            public ulong? Seed;
+            public bool AllowFixedSeed;
             public bool Laboratory;
             public int Accelerated = 1;
             public float SpectatorDelaySec = GlobalRules.Match.SpectatorDelayMinSec;
@@ -176,6 +180,7 @@ namespace Confluence.Server
                             break;
                         case "--seed": o.Seed = ulong.Parse(Value(args, ref i), CultureInfo.InvariantCulture); break;
                         case "--lab": o.Laboratory = true; break;
+                        case "--allow-fixed-seed": o.AllowFixedSeed = true; break;
                         case "--accelerated": o.Accelerated = Int(args, ref i, 1, 64); break;
                         case "--spectator-delay": o.SpectatorDelaySec = float.Parse(Value(args, ref i), CultureInfo.InvariantCulture); break;
                         case "--catalogue": o.CataloguePath = Value(args, ref i); break;
@@ -191,6 +196,11 @@ namespace Confluence.Server
                 if (o.Players < 0) o.Players = o.Mode == MatchMode.Duel ? 2 : GlobalRules.Match.LobbySize;
                 if (o.Mode == MatchMode.Duel && o.Players != 2) throw new ArgumentException("a Duel has 2 seats");
                 if (o.Bots > o.Players) throw new ArgumentException("--bots exceeds --players");
+                if (o.Seed.HasValue && !o.Laboratory && !o.AllowFixedSeed)
+                {
+                    // A guessable seed exposes every hidden offer stream (research §2.6.2).
+                    throw new ArgumentException("--seed needs --lab or --allow-fixed-seed: standard matches use a cryptographically random seed");
+                }
                 return o;
             }
 

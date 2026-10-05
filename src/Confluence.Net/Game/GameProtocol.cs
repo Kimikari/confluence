@@ -1,3 +1,4 @@
+using System;
 using Confluence.Net.Game.Snapshots;
 using Confluence.Net.Game.Wire;
 using Confluence.Net.Protocol;
@@ -15,8 +16,20 @@ namespace Confluence.Net.Game
     /// </summary>
     public static class GameProtocol
     {
-        /// <summary>Inputs arrive once per tick (four times faster in the 4x accelerated test pace); a flood beyond is dropped.</summary>
-        public static readonly RateLimit InputLimit = new RateLimit(480, 2);
+        /// <summary>
+        /// Input packets arrive once per tick (60/s); the limit allows about twice that (1 per 8 ms) with a burst of 32 for
+        /// catch-up after a frame hitch (research §2.6.7). The server scales it for the labeled accelerated pace.
+        /// </summary>
+        public static readonly RateLimit InputLimit = new RateLimit(32, 8);
+
+        /// <summary>The input limit at a pace of <paramref name="ticksPerWallSecond"/> (unlimited beyond 4x: a labeled test mode).</summary>
+        public static RateLimit InputLimitAt(int ticksPerWallSecond)
+        {
+            int factor = Math.Max(1, ticksPerWallSecond / Confluence.Core.Time.Ticks.PerSecond);
+            if (factor == 1) return InputLimit;
+            if (factor > 4) return RateLimit.Unlimited;
+            return new RateLimit(InputLimit.Burst * factor, Math.Max(1, InputLimit.RefillIntervalMs / factor));
+        }
 
         public static readonly RequestType<JoinLobbyRequest, JoinLobbyResponse> JoinLobby =
             new RequestType<JoinLobbyRequest, JoinLobbyResponse>(64, 65, "lobby.join", NetChannel.Match, NetRules.Transactions);

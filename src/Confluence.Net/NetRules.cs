@@ -78,6 +78,9 @@ namespace Confluence.Net
         /// <summary>A connection that sends this many malformed or illegal messages is closed.</summary>
         public const int MalformedKickThreshold = 64;
 
+        /// <summary>Rate-limited or faulting messages per connection before it is closed as a flood (tuning).</summary>
+        public const int AbuseKickThreshold = 2000;
+
         /// <summary>Messages queued on the client between the transport connect and the server welcome.</summary>
         public const int MaxPreWelcomeMessages = 256;
 

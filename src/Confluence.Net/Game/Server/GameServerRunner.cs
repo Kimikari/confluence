@@ -33,6 +33,29 @@ namespace Confluence.Net.Game.Server
         /// <summary>Times the schedule was reset after falling more than 250 ms behind.</summary>
         public int Stalls { get; private set; }
 
+        private readonly double[] _lateness = new double[4096];
+        private int _latenessCount;
+        private int _latenessNext;
+
+        /// <summary>Ticks run so far by this runner.</summary>
+        public long TicksRun { get; private set; }
+
+        /// <summary>
+        /// How late ticks ran against their schedule over the last 4096 ticks (ms): the timer-resolution check of research
+        /// §2.8.6 (p99 within about 2 ms with a 1 ms system timer).
+        /// </summary>
+        public string LatenessSummary()
+        {
+            if (_latenessCount == 0) return "no ticks";
+            var sorted = new double[_latenessCount];
+            Array.Copy(_lateness, sorted, _latenessCount);
+            Array.Sort(sorted);
+            double P(double q) => sorted[Math.Min(_latenessCount - 1, (int)Math.Ceiling(_latenessCount * q) - 1)];
+            return "tick lateness p50 " + P(0.5).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + " ms, p99 " +
+                P(0.99).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + " ms, max " +
+                sorted[_latenessCount - 1].ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + " ms over " + _latenessCount + " ticks";
+        }
+
         /// <summary>One loop iteration: poll, run the ticks that are due, flush. Returns the ticks run.</summary>
         public int Step()
         {
@@ -48,6 +71,10 @@ namespace Confluence.Net.Game.Server
             int ran = 0;
             while (now >= _nextTickMs && ran < MaxCatchUpTicks)
             {
+                _lateness[_latenessNext] = now - _nextTickMs;
+                _latenessNext = (_latenessNext + 1) % _lateness.Length;
+                if (_latenessCount < _lateness.Length) _latenessCount++;
+                TicksRun++;
                 _server.Tick();
                 _nextTickMs += TickIntervalMs;
                 ran++;
