@@ -267,7 +267,7 @@ namespace Confluence.Net.Game.Wire
             CombatTicks = (int)r.ReadVarUInt();
             ResultsTicks = (int)r.ReadVarUInt();
             uint pace = r.ReadVarUInt();
-            if (pace < 1 || pace > 60 * 64) throw new NetReadException(NetReadError.InvalidValue, "server pace out of range");
+            if (pace < 1 || pace > NetRules.MaxTickRate) throw new NetReadException(NetReadError.InvalidValue, "server pace out of range");
             TicksPerWallSecond = (int)pace;
             Accelerated = r.ReadBool();
             int n = r.ReadCount(WireLimits.MaxPlayers, 4);

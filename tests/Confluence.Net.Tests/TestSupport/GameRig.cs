@@ -31,13 +31,13 @@ namespace Confluence.Net.Tests.TestSupport
         private readonly List<HeadlessPlayer> _players = new List<HeadlessPlayer>();
         private long _ticks;
 
-        public GameRig(GameServerSettings settings, NetworkConditions conditions = null)
+        public GameRig(GameServerSettings settings, NetworkConditions conditions = null, ArenaCache arenas = null)
         {
             Clock = new ManualNetClock(1000);
             Log = new List<string>();
             settings.Transport = settings.Transport ?? FastTransport();
             settings.Log = settings.Log ?? (line => { lock (Log) Log.Add(line); });
-            Server = new GameServer(Catalogue, Generator, LoopbackRig.Ruleset, settings, Clock, ServerArenas, new SeededTokenSource(11));
+            Server = new GameServer(Catalogue, Generator, LoopbackRig.Ruleset, settings, Clock, arenas ?? ServerArenas, new SeededTokenSource(11));
             Server.Start(0, IPAddress.Loopback);
             if (conditions != null) Link = new UdpLinkSimulator(Server.Transport.Port, conditions, Clock);
         }

@@ -136,6 +136,11 @@ namespace Confluence.Net.Game.Server
             if (settings.PlayerCount < 2 || settings.PlayerCount > GlobalRules.Match.LobbySize) throw new ArgumentException("2-8 seats.");
             if (settings.Bots < 0 || settings.Bots > settings.PlayerCount) throw new ArgumentException("Bots must fit the seats.");
             if (settings.TicksPerWallSecond < 1) throw new ArgumentException("The pace must be positive.");
+            if (settings.TicksPerWallSecond > NetRules.MaxTickRate)
+            {
+                // Welcome and match settings carry at most this rate; a faster pace would be undecodable for every client.
+                throw new ArgumentException("The pace may not exceed " + NetRules.MaxTickRate + " ticks per second (accelerated x" + NetRules.MaxAcceleration + ").");
+            }
             _clock = clock ?? SystemNetClock.Instance;
             _arenaCache = arenaCache ?? new ArenaCache();
             MatchSeed = settings.Seed ?? RandomSeed();
@@ -396,6 +401,18 @@ namespace Confluence.Net.Game.Server
                     new JoinLobbyResponse { Detail = request.WizardId + "'s grammar does not accept " + request.Route });
             }
 
+            if (Host != null)
+            {
+                // The match host exists (the first arena is warming up): wizard choices are frozen into its seats (spec
+                // L292 exclusive kits; L419 server-owned casts). Only an identical re-join (a resent request) is accepted.
+                if (_seatBySession.TryGetValue(session.PlayerId, out Seat joined) && joined.WizardId == request.WizardId && joined.Route == request.Route)
+                {
+                    return Reply<JoinLobbyResponse>.Ok(new JoinLobbyResponse { Seat = joined.Index, Detail = "joined" });
+                }
+
+                return Reply<JoinLobbyResponse>.Reject((ushort)JoinCode.MatchRunning, new JoinLobbyResponse { Detail = "the match is starting: wizard choices are locked" });
+            }
+
             if (!_seatBySession.TryGetValue(session.PlayerId, out Seat seat))
             {
                 seat = Array.Find(_seats, s => !s.IsBot && !s.Joined && s.Session == null);
@@ -615,9 +632,9 @@ namespace Confluence.Net.Game.Server
         private void OnSessionExpired(PlayerSession session)
         {
             if (!_seatBySession.TryGetValue(session.PlayerId, out Seat seat)) return;
-            if (Status == LobbyStatus.Waiting)
+            if (Status == LobbyStatus.Waiting && Host == null)
             {
-                // Before the match a seat whose session expired is free again.
+                // Before the match a seat whose session expired is free again (once the host exists its seats are fixed).
                 _seatBySession.Remove(session.PlayerId);
                 seat.Session = null;
                 seat.Joined = false;

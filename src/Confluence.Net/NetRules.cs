@@ -15,7 +15,7 @@ namespace Confluence.Net
         /// Wire-format version of this protocol. Bump whenever any message layout changes; a mismatch is rejected
         /// at the handshake with the unsupported-version state (spec L427).
         /// </summary>
-        public const ushort ProtocolVersion = 3; // 1: Stage 1 foundation; 2: Stage 3 game messages (ids 64-98, ten lanes); 3: recall end tick, withheld arena recipes
+        public const ushort ProtocolVersion = 3; // 1: Stage 1 foundation; 2: Stage 3 game messages (ids 64-98, ten lanes); 3: recall end tick in the private entry
 
         /// <summary>
         /// Version string of the rule code (GlobalRules, Schedules, Sim behaviors). It is hashed together with the
@@ -25,6 +25,15 @@ namespace Confluence.Net
         public const string RulesVersion = "confluence-rules-0.1";
 
         public const int TickRate = GlobalRules.Network.TicksPerSecond; // spec L421
+
+        /// <summary>
+        /// Largest authoritative tick rate the protocol carries (Welcome, match settings): the labeled accelerated test
+        /// pace may not exceed it, so every announced rate decodes (x16 = 960 ticks/s).
+        /// </summary>
+        public const int MaxTickRate = 1000;
+
+        /// <summary>Largest accelerated test factor whose rate fits <see cref="MaxTickRate"/>.</summary>
+        public const int MaxAcceleration = MaxTickRate / TickRate;
         public const int SnapshotRateMin = GlobalRules.Network.SnapshotRateMin; // spec L421
         public const int SnapshotRateMax = GlobalRules.Network.SnapshotRateMax; // spec L421
         public const int DefaultSnapshotRate = GlobalRules.Network.DefaultSnapshotRate; // DECISIONS D-005

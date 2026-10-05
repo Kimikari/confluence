@@ -30,11 +30,11 @@ namespace Confluence.Server
             "  --seed <n>             fixed match seed (only with --lab or --allow-fixed-seed; default: cryptographically random)\n" +
             "  --allow-fixed-seed     permit --seed without Laboratory overrides (reproductions, custom hosts)\n" +
             "  --lab                  Laboratory overrides: bypass economy floors, whole-catalogue pools, grammar-route wizards\n" +
-            "  --accelerated <x>      LABELED TEST MODE: run x times faster than real time (2-64)\n" +
+            "  --accelerated <x>      LABELED TEST MODE: run x times faster than real time (2-16: the protocol carries at most 1000 ticks/s)\n" +
             "  --spectator-delay <s>  spectator delay in seconds (never below 15 while the match runs)\n" +
             "  --catalogue <path>     catalogue JSON (default: docs/confluence/confluence-catalogue.json)\n" +
             "  --log <file>           also append the log to a file\n" +
-            "  --threaded-transport   LiteNetLib socket threads instead of manual polling (use on Linux/Mono hosts: issue #616)\n" +
+            "  --manual-transport     poll LiteNetLib sockets manually (default: library threads, the LiteNetLib #616 mitigation)\n" +
             "  --max-seconds <n>      stop after n wall-clock seconds\n" +
             "  --stay                 keep running after the match ends (default: exit)\n";
 
@@ -144,7 +144,7 @@ namespace Confluence.Server
         {
             Net.Transport.TransportSettings t = Net.Game.GameTransport.Defaults();
             t.AutoReconnect = false; // server side
-            t.ManualMode = !o.ThreadedTransport;
+            t.ManualMode = o.ManualTransport; // library threads by default: LiteNetLib 2.1.4 #616 (research §2.8.1)
             return t;
         }
 
@@ -165,7 +165,7 @@ namespace Confluence.Server
             public string LogFile;
             public double MaxSeconds;
             public bool Stay;
-            public bool ThreadedTransport;
+            public bool ManualTransport;
             public bool Help;
 
             public static Options Parse(string[] args)
@@ -192,13 +192,14 @@ namespace Confluence.Server
                         case "--seed": o.Seed = ulong.Parse(Value(args, ref i), CultureInfo.InvariantCulture); break;
                         case "--lab": o.Laboratory = true; break;
                         case "--allow-fixed-seed": o.AllowFixedSeed = true; break;
-                        case "--accelerated": o.Accelerated = Int(args, ref i, 1, 64); break;
+                        case "--accelerated": o.Accelerated = Int(args, ref i, 1, Net.NetRules.MaxAcceleration); break;
                         case "--spectator-delay": o.SpectatorDelaySec = float.Parse(Value(args, ref i), CultureInfo.InvariantCulture); break;
                         case "--catalogue": o.CataloguePath = Value(args, ref i); break;
                         case "--log": o.LogFile = Value(args, ref i); break;
                         case "--max-seconds": o.MaxSeconds = double.Parse(Value(args, ref i), CultureInfo.InvariantCulture); break;
                         case "--stay": o.Stay = true; break;
-                        case "--threaded-transport": o.ThreadedTransport = true; break;
+                        case "--threaded-transport": o.ManualTransport = false; break; // the default; kept for scripts
+                        case "--manual-transport": o.ManualTransport = true; break;
                         case "--help":
                         case "-h": o.Help = true; break;
                         default: throw new ArgumentException("unknown option " + a);

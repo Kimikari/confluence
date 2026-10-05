@@ -11,6 +11,12 @@ namespace Confluence.Net.Game
         /// </summary>
         public const int DisconnectTimeoutMs = 15000;
 
-        public static TransportSettings Defaults() => new TransportSettings { DisconnectTimeoutMs = DisconnectTimeoutMs, AutoReconnect = true };
+        /// <summary>
+        /// Production defaults: library threads (<c>ManualMode = false</c>) mitigate LiteNetLib 2.1.4 manual-mode receive bug
+        /// #616 (an empty or layer-rejected datagram ends a manual receive loop; on Linux/Mono permanently, research §2.8.1)
+        /// until a fixed release is pinned. Events are still raised only from Poll, so game state stays on the caller's
+        /// thread. Tests on a virtual clock use manual mode (TransportSettings default).
+        /// </summary>
+        public static TransportSettings Defaults() => new TransportSettings { DisconnectTimeoutMs = DisconnectTimeoutMs, AutoReconnect = true, ManualMode = false };
     }
 }

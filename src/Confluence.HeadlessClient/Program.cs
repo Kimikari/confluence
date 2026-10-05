@@ -98,7 +98,7 @@ namespace Confluence.HeadlessClient
                 Catalogue = catalogue,
                 Generator = new ArenaGenerator(catalogue),
                 Ruleset = RulesetFingerprint.ForCurrentRules(path),
-                Transport = new TransportSettings { AutoReconnect = true },
+                Transport = Confluence.Net.Game.GameTransport.Defaults(), // library threads (LiteNetLib #616), auto-reconnect
                 AutoSpectate = spectate,
                 Log = log,
             });
