@@ -231,6 +231,83 @@ namespace Confluence.Net.Tests.Game
         }
 
         [Fact]
+        public void A_Declared_Interpolation_Cannot_Buy_The_Maximal_Rewind_On_A_Fast_Link()
+        {
+            // The reviewer's probe: a modified client on a 0 ms link declares 8-9 ticks of interpolation and claims the
+            // oldest rewindable view on every command. The declaration is capped at the server-measured lateness (0) plus
+            // one snapshot interval (2) plus 2 ticks of slack, so the expectation stays near the honest one.
+            var source = new NetworkInputSource { OneWayTicks = 0, JitterTicks = 0, SnapshotIntervalTicks = 2 };
+            source.BeginDuel(1);
+            source.NewestShownTick = 1000;
+            Assert.Equal(4, LagCompensation.InterpolationCeiling(0, 0, 2));
+            int maxRewind = 0;
+            for (int i = 0; i < 5; i++)
+            {
+                int step = 501 + i;
+                source.Accept(1, One((uint)(i + 1), new PlayerInput { Tick = step, ViewTick = step - 9 }), step - 1, 8 + (i % 2));
+                PlayerInput consumed = source.NextInput(step, 0f, 0);
+                maxRewind = Math.Max(maxRewind, step - consumed.ViewTick);
+            }
+
+            Assert.Equal(5, source.Stats.ViewsReplaced);
+            Assert.Equal(0, source.Stats.ViewsAccepted);
+            Assert.Equal(5, source.Stats.InterpolationLimited);
+            Assert.True(maxRewind <= 1 + 4 + LagCompensation.ViewToleranceTicks, "rewind " + maxRewind);
+            Assert.True(maxRewind < LagCompensation.MaxRewindTicks);
+            // The claims sat 4 ticks before the expectation: the review histogram shows it.
+            Assert.Equal(5, source.Stats.ViewOffsetHistogram[InputTimingStats.ViewOffsetCenter - 4]);
+            Assert.Contains("0,0,0,0,5,0,0,0,0,0,0,0,0,0,0,0,0", source.Stats.ViewOffsetText());
+        }
+
+        [Fact]
+        public void The_Accepted_Interpolation_Follows_A_Declaration_Only_At_The_Clients_Own_Slew_And_Within_The_Honest_Range()
+        {
+            // One-way 2 ticks: the ceiling is 2 + 0 + 2 + 2 = 6.
+            var source = new NetworkInputSource { OneWayTicks = 2, JitterTicks = 0, SnapshotIntervalTicks = 2 };
+            source.BeginDuel(1);
+            source.NewestShownTick = 2000;
+            Assert.Equal(6, LagCompensation.InterpolationCeiling(2, 0, 2));
+            // An honest start at 3 ticks, then a sudden declaration of 6 (a cheat jumping to buy rewind).
+            source.Accept(1, One(1, new PlayerInput { Tick = 1001, ViewTick = 1000 - 2 - 3 }), 1000, 3);
+            Assert.Equal(995, source.NextInput(1001, 0f, 0).ViewTick);
+            source.Accept(1, One(2, new PlayerInput { Tick = 1002, ViewTick = 1001 - 2 - 6 }), 1001, 6);
+            // One tick of arrival time moves the accepted interpolation by 1/20 tick: still 3, so the claim (3 ticks older
+            // than expected, tolerance 2) is replaced by the expectation.
+            Assert.Equal(1001 - 2 - 3, source.NextInput(1002, 0f, 0).ViewTick);
+            Assert.Equal(1, source.Stats.ViewsReplaced);
+            // Forty ticks later the accepted interpolation has moved two ticks (the client's 5% slew, 3 ticks/s): 5.
+            source.Accept(1, One(3, new PlayerInput { Tick = 1042, ViewTick = 1041 - 2 - 5 }), 1041, 15);
+            Assert.Equal(1041 - 2 - 5, source.NextInput(1042, 0f, 0).ViewTick);
+            // Much later the declaration of 15 has been followed up to the ceiling of 6, never beyond.
+            source.Accept(1, One(4, new PlayerInput { Tick = 1201, ViewTick = 1200 - 2 - 6 }), 1200, 15);
+            Assert.Equal(1200 - 2 - 6, source.NextInput(1201, 0f, 0).ViewTick);
+            source.Accept(1, One(5, new PlayerInput { Tick = 1202, ViewTick = 1201 - 2 - 9 }), 1201, 15);
+            Assert.Equal(1201 - 2 - 6, source.NextInput(1202, 0f, 0).ViewTick);
+            Assert.Equal(2, source.Stats.ViewsReplaced);
+            // Declarations outside the honest 3-15 tick range are clamped into it.
+            Assert.Equal(15, LagCompensation.MaxInterpolationTicks);
+            Assert.Equal(3, LagCompensation.MinInterpolationTicks);
+            Assert.Equal(15, LagCompensation.InterpolationCeiling(40, 9, 3));
+        }
+
+        [Fact]
+        public void Measured_Jitter_Widens_The_View_Tolerance_By_At_Most_Three_Ticks()
+        {
+            var source = new NetworkInputSource { OneWayTicks = 2, JitterTicks = 50, SnapshotIntervalTicks = 2 };
+            source.BeginDuel(1);
+            source.NewestShownTick = 1000;
+            // Expected: 500 - 2 - 3 = 495; tolerance 2 + min(50, 3) = 5, so 489 (6 off) is replaced and 490 (5 off) kept.
+            source.Accept(1, One(1, new PlayerInput { Tick = 501, ViewTick = 490 }), 500, 3);
+            Assert.Equal(492, source.NextInput(501, 0f, 0).ViewTick); // 490 is accepted, then clamped to the 9-tick rewind
+            Assert.Equal(0, source.Stats.ViewsReplaced);
+            source.ResetViewHistory();
+            source.Accept(1, One(2, new PlayerInput { Tick = 502, ViewTick = 490 }), 501, 3);
+            Assert.Equal(496, source.NextInput(502, 0f, 0).ViewTick);
+            Assert.Equal(1, source.Stats.ViewsReplaced);
+            Assert.Equal(3, LagCompensation.MaxJitterToleranceTicks);
+        }
+
+        [Fact]
         public void A_Rewind_Never_Crosses_A_Teleport()
         {
             var history = new HitVolumeHistory(2, 9);

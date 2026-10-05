@@ -25,6 +25,42 @@ namespace Confluence.Net.Game.Server
         /// <summary>Allowed distance between a claimed view tick and the server's expectation, before jitter (ticks).</summary>
         public const int ViewToleranceTicks = 2;
 
+        /// <summary>Most measured jitter that may widen the view tolerance (ticks): a forged ack timing cannot open it further.</summary>
+        public const int MaxJitterToleranceTicks = 3;
+
+        /// <summary>
+        /// The honest client's interpolation range (InterpolationClock: 50-250 ms = 3-15 ticks); a declaration outside it
+        /// is clamped into it before the expected-view check.
+        /// </summary>
+        public const int MinInterpolationTicks = 3;
+
+        public const int MaxInterpolationTicks = 15;
+
+        /// <summary>
+        /// Headroom of the server's interpolation ceiling over its own lateness estimate (ticks): the client's delay is the
+        /// p95 lateness plus one snapshot interval and slews slowly after a spike, so the ceiling is one-way delay + capped
+        /// jitter + one snapshot interval + this slack (research §2.2.1, §2.2.3).
+        /// </summary>
+        public const int InterpolationSlackTicks = 2;
+
+        /// <summary>
+        /// How fast the accepted interpolation may follow the declared one: one tick per 20 ticks of arrival time (3 ticks
+        /// per second, the client's own 5% slew), so per-packet declarations cannot cherry-pick a rewind.
+        /// </summary>
+        public const int InterpolationSlewTicks = 20;
+
+        /// <summary>
+        /// The interpolation the server accepts for the expected-view check: the declaration within the honest client's
+        /// range, at most the server-measured lateness (one-way + jitter capped at <see cref="MaxJitterToleranceTicks"/>) plus
+        /// one snapshot interval plus <see cref="InterpolationSlackTicks"/>.
+        /// </summary>
+        public static int InterpolationCeiling(int oneWayTicks, int jitterTicks, int snapshotIntervalTicks)
+        {
+            int jitter = Math.Max(0, Math.Min(MaxJitterToleranceTicks, jitterTicks));
+            int ceiling = Math.Max(0, oneWayTicks) + jitter + Math.Max(1, snapshotIntervalTicks) + InterpolationSlackTicks;
+            return Math.Max(MinInterpolationTicks, Math.Min(MaxInterpolationTicks, ceiling));
+        }
+
         /// <summary>
         /// The view tick the Sim may use for a command executed at <paramref name="stepTick"/>, or 0 for none.
         /// <paramref name="newestShownTick"/> is the newest snapshot tick sent to this client.
@@ -123,6 +159,26 @@ namespace Confluence.Net.Game.Server
         public long OneWayTickSum;
         public long InterpolationTickSum;
 
+        /// <summary>Claims whose declared interpolation was above the server's ceiling or moved faster than the slew.</summary>
+        public long InterpolationLimited;
+
+        /// <summary>
+        /// Claimed minus expected view tick, -8..+8 (the ends collect everything beyond): players who sit at the edge of
+        /// the tolerance can be reviewed (research §2.2.3).
+        /// </summary>
+        public readonly long[] ViewOffsetHistogram = new long[ViewOffsetBuckets];
+
+        public const int ViewOffsetBuckets = 17;
+        public const int ViewOffsetCenter = 8;
+
+        /// <summary>The histogram as "count,count,..." from -8 to +8.</summary>
+        public string ViewOffsetText()
+        {
+            var parts = new string[ViewOffsetBuckets];
+            for (int i = 0; i < ViewOffsetBuckets; i++) parts[i] = ViewOffsetHistogram[i].ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return string.Join(",", parts);
+        }
+
         public double MeanRewindTicks => RewindSamples > 0 ? RewindTickSum / (double)RewindSamples : 0;
         public double MeanQueueDepth => Commands > 0 ? QueueDepthSum / (double)Commands : 0;
         public double MeanOneWayTicks => Commands > 0 ? OneWayTickSum / (double)Commands : 0;
@@ -138,9 +194,12 @@ namespace Confluence.Net.Game.Server
     /// player sends neutral input facing the current view (spec L55); nothing pauses.
     /// <para>
     /// View ticks (spec L423, docs/research/netcode.md §2.2.3): a claim is accepted only within
-    /// <see cref="LagCompensation.ViewToleranceTicks"/> plus the measured jitter of the server's expectation (arrival
-    /// tick minus one-way delay minus the client's declared interpolation delay) and only if it does not step back by
-    /// more than one tick; otherwise the expectation replaces it. The hard bounds of
+    /// <see cref="LagCompensation.ViewToleranceTicks"/> plus the measured jitter (at most
+    /// <see cref="LagCompensation.MaxJitterToleranceTicks"/>) of the server's expectation (arrival tick minus one-way delay
+    /// minus the accepted interpolation delay: the declaration clamped to the honest 3-15 tick range, slewed per session at
+    /// the client's own rate, and capped at the server-measured lateness plus one snapshot interval,
+    /// <see cref="LagCompensation.InterpolationCeiling"/>) and only if it does not step back by more than one tick;
+    /// otherwise the expectation replaces it. The hard bounds of
     /// <see cref="LagCompensation.ClampViewTick"/> apply last.
     /// </para>
     /// </summary>
@@ -155,12 +214,17 @@ namespace Confluence.Net.Game.Server
         private readonly uint[] _arrivalSeq = new uint[ArrivalRing];
         private readonly int[] _arrivalTick = new int[ArrivalRing];
         private readonly byte[] _arrivalInterp = new byte[ArrivalRing];
+        private readonly byte[] _arrivalDeclared = new byte[ArrivalRing];
         private readonly int[] _offsetSamples = new int[OffsetWindow];
         private readonly int[] _offsetScratch = new int[OffsetWindow];
         private int _offsetCount;
         private int _offsetNext;
         private int _lastView;
         private int _lastEventTick = int.MinValue;
+
+        // Accepted interpolation in 1/InterpolationSlewTicks of a tick, following the declarations at the slew rate.
+        private int _interpFixed = -1;
+        private int _interpArrival;
 
         public int DuelId { get; private set; } = -1;
 
@@ -172,8 +236,11 @@ namespace Confluence.Net.Game.Server
         /// <summary>Current one-way delay estimate in ticks (set by the server from snapshot-ack round trips).</summary>
         public int OneWayTicks { get; set; }
 
-        /// <summary>Current jitter estimate in ticks (widens the view tolerance).</summary>
+        /// <summary>Current jitter estimate in ticks (widens the view tolerance, by at most <see cref="LagCompensation.MaxJitterToleranceTicks"/>).</summary>
         public int JitterTicks { get; set; }
+
+        /// <summary>Ticks between two snapshots to this player (2 at 30 Hz, 3 at 20 Hz; set by the server).</summary>
+        public int SnapshotIntervalTicks { get; set; } = 2;
 
         public InputReceiveBuffer<PlayerInput> Buffer => _buffer;
 
@@ -208,6 +275,7 @@ namespace Confluence.Net.Game.Server
                 return;
             }
 
+            int interpolation = arrivalTick >= 0 ? SmoothInterpolation(interpolationTicks, arrivalTick) : 0;
             for (int i = 0; i < commands.Count; i++)
             {
                 InputCommand<PlayerInput> command = commands[i];
@@ -219,9 +287,34 @@ namespace Confluence.Net.Game.Server
                     int slot = (int)(command.Sequence % ArrivalRing);
                     _arrivalSeq[slot] = command.Sequence;
                     _arrivalTick[slot] = arrivalTick;
-                    _arrivalInterp[slot] = (byte)Math.Max(0, Math.Min(255, interpolationTicks));
+                    _arrivalInterp[slot] = (byte)interpolation;
+                    _arrivalDeclared[slot] = (byte)Math.Max(0, Math.Min(255, interpolationTicks));
                 }
             }
+        }
+
+        /// <summary>
+        /// The declared interpolation within the honest range (<see cref="LagCompensation.MinInterpolationTicks"/>-
+        /// <see cref="LagCompensation.MaxInterpolationTicks"/>), followed at most one tick per
+        /// <see cref="LagCompensation.InterpolationSlewTicks"/> of arrival time after the duel's first packet.
+        /// </summary>
+        private int SmoothInterpolation(int declared, int arrivalTick)
+        {
+            int slew = LagCompensation.InterpolationSlewTicks;
+            int target = Math.Max(LagCompensation.MinInterpolationTicks, Math.Min(LagCompensation.MaxInterpolationTicks, declared)) * slew;
+            if (_interpFixed < 0)
+            {
+                _interpFixed = target;
+            }
+            else
+            {
+                int step = Math.Max(0, arrivalTick - _interpArrival);
+                if (target > _interpFixed) _interpFixed = Math.Min(target, _interpFixed + step);
+                else if (target < _interpFixed) _interpFixed = Math.Max(target, _interpFixed - step);
+            }
+
+            _interpArrival = Math.Max(_interpArrival, arrivalTick);
+            return (_interpFixed + slew / 2) / slew;
         }
 
         public void BeginDuel(DuelSeat seat) => BeginDuel(seat.DuelId);
@@ -242,6 +335,8 @@ namespace Confluence.Net.Game.Server
             _offsetCount = 0;
             _offsetNext = 0;
             _lastEventTick = int.MinValue;
+            _interpFixed = -1;
+            _interpArrival = 0;
             Array.Clear(_arrivalSeq, 0, ArrivalRing);
             ResetViewHistory();
         }
@@ -333,11 +428,16 @@ namespace Confluence.Net.Game.Server
             int slot = (int)(sequence % ArrivalRing);
             if (_arrivalSeq[slot] == sequence)
             {
-                int interpolation = _arrivalInterp[slot];
+                int ceiling = LagCompensation.InterpolationCeiling(OneWayTicks, JitterTicks, SnapshotIntervalTicks);
+                int interpolation = Math.Min(_arrivalInterp[slot], ceiling);
+                if (interpolation != _arrivalDeclared[slot]) Stats.InterpolationLimited++;
                 Stats.InterpolationTickSum += interpolation;
                 int expected = LagCompensation.ExpectedViewTick(_arrivalTick[slot], OneWayTicks, interpolation);
-                int tolerance = LagCompensation.ViewToleranceTicks + Math.Max(0, JitterTicks);
-                if (Math.Abs(view - expected) > tolerance)
+                int tolerance = LagCompensation.ViewToleranceTicks + Math.Max(0, Math.Min(LagCompensation.MaxJitterToleranceTicks, JitterTicks));
+                int offset = view - expected;
+                int bucket = Math.Max(-InputTimingStats.ViewOffsetCenter, Math.Min(InputTimingStats.ViewOffsetCenter, offset)) + InputTimingStats.ViewOffsetCenter;
+                Stats.ViewOffsetHistogram[bucket]++;
+                if (Math.Abs(offset) > tolerance)
                 {
                     view = expected;
                     Stats.ViewsReplaced++;

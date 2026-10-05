@@ -117,7 +117,7 @@ namespace Confluence.Net.Game.Server
                 j.Add("viewClaims", t.ViewClaims).Add("viewsAccepted", t.ViewsAccepted).Add("viewsReplaced", t.ViewsReplaced).Add("viewsClamped", t.ViewsClamped);
                 j.Add("viewsBackward", t.ViewsBackward).Add("standIns", t.StandIns).Add("eventsClamped", t.EventsClamped);
                 j.Add("meanRewindTicks", t.MeanRewindTicks).Add("maxRewindTicks", t.MaxRewindTicks).Add("meanOneWayTicks", t.MeanOneWayTicks);
-                j.Add("meanInterpolationTicks", t.MeanInterpolationTicks);
+                j.Add("meanInterpolationTicks", t.MeanInterpolationTicks).Add("interpolationLimited", t.InterpolationLimited).Add("viewOffsets", t.ViewOffsetText());
             }
 
             if (counters != null)

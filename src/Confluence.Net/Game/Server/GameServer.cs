@@ -888,6 +888,7 @@ namespace Confluence.Net.Game.Server
             stream.Monitor.Update(now);
             stream.Rate.Update(now, stream.Monitor.ToLinkStats(Transport.GetLinkStats(stream.Seat.Session)));
             NetworkInputSource input = stream.Seat.Input;
+            if (input != null) input.SnapshotIntervalTicks = Math.Max(1, Ticks.PerSecond / Math.Max(1, stream.Rate.CurrentRate));
             if (input != null && stream.Monitor.RttSamples > 0)
             {
                 double ticksPerMs = _settings.TicksPerWallSecond / 1000.0;
