@@ -207,6 +207,58 @@ namespace Confluence.Hosting.Tests.HalenTide
             w.Step(PlayerInput.Idle(0f), PlayerInput.Idle(180f));
         }
 
+        /// <summary>A seat for driving a <see cref="BotInputSource"/> directly against a test world (the runner's seat is internal).</summary>
+        private static DuelSeat Seat(DuelWorld w, int index)
+        {
+            var preview = new ArenaPreview("TEST-ARENA", 7UL, 40, "BIO-001", "", new string[0], new string[0]);
+            var setup = new DuelSetup(1, 7UL, MatchMode.Duel, 1, 0, 0, PassKind.Original, preview, 0, 1, 0, 90 * Ticks.PerSecond);
+            System.Reflection.ConstructorInfo ctor = typeof(DuelSeat).GetConstructors(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).Single();
+            return (DuelSeat)ctor.Invoke(new object[] { setup, index, w, null, null, null });
+        }
+
+        [Fact]
+        [Verifies("SPL-080")]
+        public void The_Bot_Holds_Its_Planned_Ground_Aim_Through_The_Windup_To_The_Release()
+        {
+            // Full BotInputSource -> DuelWorld cast: the planner picks Seal the Spring for visible heat near its feet; its
+            // 0.6 s windup runs after the Primary release, and the spell reads the live aim at release. The bot keeps
+            // looking at the planned hazard (not the opponent's chest) until then, so the splash meets the ground there.
+            foreach (ulong seed in new ulong[] { 11, 12, 13 })
+            {
+                DuelWorld w = World(SixB);
+                Vec2 hot = new Vec2(1.25f, -3.25f);
+                Deposit(w, Material.Heat, hot);
+                var reactions = ((ReactionMaterials)w.Materials).World;
+                int before = reactions.UnitsAt(hot.ToXZ()).Heat;
+                Assert.Equal(2, before);
+
+                var bot = new BotInputSource(seed, BotProfile.For(BotCompetence.Expert));
+                DuelSeat seat = Seat(w, 0);
+                bot.BeginDuel(seat);
+                CastDuelEvent commit = null;
+                Confluence.Sim.Content.Wizards.HalenTide.TideEvent splash = null;
+                for (int i = 0; i < 4 * Ticks.PerSecond && splash == null; i++)
+                {
+                    w.Step(bot.NextInput(seat), PlayerInput.Idle(180f));
+                    foreach (DuelEvent e in w.TickEvents)
+                    {
+                        if (e is CastDuelEvent c && c.Player == 0 && c.Cast.Kind == CastEventKind.Committed && commit == null) commit = c;
+                        if (e is Confluence.Sim.Content.Wizards.HalenTide.TideEvent t && t.Player == 0) splash = t;
+                    }
+                }
+
+                Assert.NotNull(commit);
+                Assert.Equal("SPL-080", commit.Cast.SpellId);
+                Assert.NotNull(splash);
+                Assert.Equal(Confluence.Sim.Content.Wizards.HalenTide.TideEventKind.SpringNeutralized, splash.Kind); // a surface impact
+                Assert.True(splash.Tick >= commit.Tick + Ticks.FromSeconds(0.6) - 1, "released after the windup");
+                Assert.True(Vec3.DistanceXZ(splash.Position, hot.ToXZ()) < 1.5f, "the splash landed at the planned hazard, seed " + seed);
+                Assert.Equal(2f, splash.Amount);
+                w.Step(PlayerInput.Idle(0f), PlayerInput.Idle(180f));
+                Assert.Equal(0, reactions.UnitsAt(hot.ToXZ()).Heat);
+            }
+        }
+
         [Fact]
         [Verifies("WIZ-010")]
         public void Hosted_Bot_Duels_Cast_Halen_s_Kit_Through_The_Planner()

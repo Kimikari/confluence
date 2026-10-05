@@ -79,6 +79,7 @@ namespace Confluence.Hosting.Bots
         private InputButtons _previous;
         private IBotKitPlanner _planner; // the wizard's kit planner (BotKitPlanner.cs), or null for the slot rotation
         private BotCastPlan _plan;
+        private BotCastPlan _aimPlan; // the plan whose aim is held until its spell releases (or the cast ends unreleased)
         private int _recastAt = int.MinValue;
 
         public BotInputSource(ulong matchSeed, BotProfile profile)
@@ -119,6 +120,7 @@ namespace Confluence.Hosting.Bots
             _previous = InputButtons.None;
             _planner = BotKitPlanners.For(me.Setup.WizardId);
             _plan = null;
+            _aimPlan = null;
             _recastAt = int.MinValue;
             Stats = new BotDuelStats();
         }
@@ -295,9 +297,16 @@ namespace Confluence.Hosting.Bots
             }
 
             // ---- Where to look ----
-            if (seen.Seen)
+            // A planned ground or point aim is held through the committed windup to the actual release (spec L92: the
+            // spell releases after its cast time and reads the aim then), not only while the input script presses.
+            BotCastPlan held = HeldAim(me);
+            if (held != null && held.Aim == BotAimKind.Point)
             {
-                if (_cast != null && _plan != null && _plan.Aim != BotAimKind.Chest) AimAtPoint(me, _plan.Aim == BotAimKind.Point ? _plan.Point : seen.Position);
+                AimAtPoint(me, held.Point);
+            }
+            else if (seen.Seen)
+            {
+                if (held != null && held.Aim == BotAimKind.OpponentFeet) AimAtPoint(me, seen.Position);
                 else AimAt(me, seen, distance);
             }
             else if (move.LengthSquared() > 0f)
@@ -428,9 +437,11 @@ namespace Confluence.Hosting.Bots
 
                 if (!_plan.Signature) _slot = _plan.Slot;
                 _cast = _plan.Signature ? new SignatureScript() : _planner.ScriptFor(_plan, Profile, _rng);
+                _aimPlan = _plan.Aim != BotAimKind.Chest ? _plan : null;
             }
             else
             {
+                _aimPlan = null;
                 _slot = me.Setup.EquippedSpellIds.Count > 0 ? (_slot + 1) % Math.Min(PlayerInput.SlotCount, me.Setup.EquippedSpellIds.Count) : 0;
                 _cast = BotCastScript.For(me.Setup.WizardId, Profile, _rng);
             }
@@ -438,6 +449,20 @@ namespace Confluence.Hosting.Bots
             _castStart = tick;
             Stats.Casts++;
             return _cast.ButtonsAt(0);
+        }
+
+        /// <summary>
+        /// The plan whose aim the bot holds now: while its input script runs, and afterwards while the cast it started is
+        /// still in preparation or its committed windup; released, cancelled or never committed casts drop it.
+        /// </summary>
+        private BotCastPlan HeldAim(DuelPlayer me)
+        {
+            if (_aimPlan == null) return null;
+            if (_cast != null) return _aimPlan;
+            Confluence.Casting.CastPhase phase = me.Caster != null ? me.Caster.Machine.Phase : Confluence.Casting.CastPhase.Idle;
+            if (phase == Confluence.Casting.CastPhase.Preparation || phase == Confluence.Casting.CastPhase.Windup) return _aimPlan;
+            _aimPlan = null;
+            return null;
         }
 
         private void EndCast(int tick)
