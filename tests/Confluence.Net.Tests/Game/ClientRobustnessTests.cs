@@ -76,7 +76,7 @@ namespace Confluence.Net.Tests.Game
             PlayerInput hold = PlayerInput.Idle(0f);
             hold.Buttons = InputButtons.Melee;
             w5.Step(hold, PlayerInput.Idle(180f));
-            Assert.Single(w5.TickEvents.OfType<MeleeEvent>().Where(m => m.Change == MeleeChange.Started));
+            Assert.Single(w5.TickEvents.OfType<MeleeEvent>(), m => m.Change == MeleeChange.Started);
             PlayerInput again = hold;
             again.Tapped = InputButtons.Melee;
             w5.Step(again, PlayerInput.Idle(180f));

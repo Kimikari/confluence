@@ -456,6 +456,10 @@ Not done, with reasons:
   accelerated pace bound (x16), wizard choices frozen during the warm-up, and the 8-seat leak test. Open: the HMAC /
   arena-seed blocker, hidden-player footsteps, and the earlier "Not done" items (ack bitfield, repeated critical events,
   spectator deltas, implicit baseline, ordinals, replay files with checkpoints, golden hashes in Mono, hit-rate e2e).
+  `dotnet test tests/Confluence.Net.Tests` passes 187 tests; the whole solution 1915, 0 failures, 0 warnings. Real-time
+  smoke with the new library-thread default (`--port 7793 ... --max-seconds 150`, two headless clients): two rounds
+  played, 0 violations, 30 Hz, app RTT 28-30 ms on loopback (manual mode, same run: 31 ms), mean body 134-140 B, tick
+  lateness p99 13 ms; the shutdown wrote the live duel's records and both session summaries.
 - Next: the HMAC-derived hidden streams and an independent arena root (Core/Match/Hosting; blocker before any public
   server); footstep cues for hidden players; the view pilot rarely finds its opponent on arenas larger than 24 m;
   catalogue ordinals; received-snapshot ack bitfield; spectator delta stream; replay files with 60-tick checkpoints;

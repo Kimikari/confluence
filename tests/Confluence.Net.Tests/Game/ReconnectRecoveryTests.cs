@@ -111,7 +111,7 @@ namespace Confluence.Net.Tests.Game
                 rig.Paused.Remove(a);
                 Assert.True(rig.RunUntil(() => a.Client.IsConnected && a.Client.View.End != null && a.Client.View.Results.Count == results &&
                     a.Client.View.Reports.Count == reports && a.Client.View.Standings != null, 60 * 30), "the final state was not resent");
-                Assert.True(rig.Log.Any(l => l.Contains("reconnected after the match ended")));
+                Assert.Contains(rig.Log, l => l.Contains("reconnected after the match ended"));
                 Assert.Equal(end.ChampionSeat, a.Client.View.End.ChampionSeat);
                 Assert.Equal(end.Placements.Count, a.Client.View.End.Placements.Count);
                 foreach (string m in rig.Server.Metrics.Where(m => m.Contains("session-summary"))) _output.WriteLine(m);
