@@ -405,7 +405,7 @@ namespace Confluence.Hosting.Bots
             }
 
             bool wanted = _planner != null
-                ? seen.Seen && !rushing && tick >= _nextCastTick && !me.Melee.Busy // the kit planner judges range and mana
+                ? seen.Seen && tick >= _nextCastTick && !me.Melee.Busy // the kit planner judges range, mana and rushes
                 : seen.Seen && !rushing && tick >= _nextCastTick && distance >= 2.5f && distance <= Profile.PreferredRange + 5f &&
                   me.Resources.Mana >= 20f && !me.Melee.Busy;
             if (!wanted) return InputButtons.None;
@@ -419,7 +419,7 @@ namespace Confluence.Hosting.Bots
             _telegraphUntil = int.MinValue;
             if (_planner != null)
             {
-                _plan = _planner.Choose(KitView(world, me, tick, seen, distance), _rng);
+                _plan = _planner.Choose(KitView(world, me, tick, seen, distance, rushing), _rng);
                 if (_plan == null)
                 {
                     _nextCastTick = tick + Profile.ThinkTicks; // nothing worth casting yet
@@ -471,7 +471,7 @@ namespace Confluence.Hosting.Bots
         }
 
         /// <summary>The legal information a kit planner chooses from (see <see cref="BotKitView"/>).</summary>
-        private BotKitView KitView(DuelWorld world, DuelPlayer me, int tick, Observation seen, float distance)
+        private BotKitView KitView(DuelWorld world, DuelPlayer me, int tick, Observation seen, float distance, bool rushing)
         {
             DuelPlayer them = world.Player(1 - me.Index);
             return new BotKitView
@@ -487,6 +487,7 @@ namespace Confluence.Hosting.Bots
                 Distance = distance,
                 OpponentCasting = seen.Casting, // perceived with the same reaction latency as the position
                 OpponentWizardId = them.Setup.WizardId,
+                Rushing = rushing,
             };
         }
 

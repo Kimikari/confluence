@@ -51,6 +51,7 @@ namespace Confluence.Hosting.Bots
         public const float HazardScanRadius = 6f;
         public const float SteamComboRadius = 3f;
 
+
         public string WizardId => Id;
 
         /// <summary>The chance a cast tries the mastery timing, by competence ("mastery attempts sometimes").</summary>
@@ -76,6 +77,12 @@ namespace Confluence.Hosting.Bots
             {
                 plan = Plan(me, BubbleBuckler, BotAimKind.Chest, default, "shield the visible windup");
                 if (me.Caster.FormFor(BubbleBuckler).HasTag("recast")) plan.RecastAfterTicks = 45; // AUG-437: throw it back
+            }
+            else if (v.Rushing)
+            {
+                // Pressing in for melee: only the close-range kit (the eddy, the hammer) fits the plan.
+                if (d <= EddyReach && SignatureReady(me)) plan = new BotCastPlan { Signature = true, SpellId = Id, Aim = BotAimKind.Chest, Reason = "undertow on the rush" };
+                else if (d <= HammerReach && Ready(me, WaterHammer)) plan = Plan(me, WaterHammer, BotAimKind.Chest, default, "hammer on the rush");
             }
             else if (Ready(me, SealTheSpring) && NearestMaterial(v.World, me.Position, HazardScanRadius, true, true, out Vec3 hazard) &&
                      Visible(v.World, me, hazard))

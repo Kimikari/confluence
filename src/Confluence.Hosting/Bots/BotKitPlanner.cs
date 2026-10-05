@@ -70,6 +70,9 @@ namespace Confluence.Hosting.Bots
         /// <summary>The perceived opponent was visibly winding up or releasing a cast.</summary>
         public bool OpponentCasting;
 
+        /// <summary>The bot is pressing in for melee (planners should keep to close-range options).</summary>
+        public bool Rushing;
+
         /// <summary>The opponent's wizard (public at selection, spec L292).</summary>
         public string OpponentWizardId;
     }
