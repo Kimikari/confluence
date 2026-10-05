@@ -77,6 +77,9 @@ namespace Confluence.Hosting.Bots
         private int _slot;
         private uint _sequence;
         private InputButtons _previous;
+        private IBotKitPlanner _planner; // the wizard's kit planner (BotKitPlanner.cs), or null for the slot rotation
+        private BotCastPlan _plan;
+        private int _recastAt = int.MinValue;
 
         public BotInputSource(ulong matchSeed, BotProfile profile)
         {
@@ -114,6 +117,9 @@ namespace Confluence.Hosting.Bots
             _nextCastTick = 0;
             _slot = 0;
             _previous = InputButtons.None;
+            _planner = BotKitPlanners.For(me.Setup.WizardId);
+            _plan = null;
+            _recastAt = int.MinValue;
             Stats = new BotDuelStats();
         }
 
@@ -180,6 +186,7 @@ namespace Confluence.Hosting.Bots
                 Position = sees ? them.Position : default,
                 Velocity = sees ? them.Motor.Velocity : default,
                 Height = sees ? them.Motor.Height : 0f,
+                Casting = sees && them.Caster != null && them.Caster.Machine.Phase != Confluence.Casting.CastPhase.Idle, // a visible windup (spec L96)
             };
             if (sees) Stats.TicksWithSight++;
         }
@@ -290,7 +297,8 @@ namespace Confluence.Hosting.Bots
             // ---- Where to look ----
             if (seen.Seen)
             {
-                AimAt(me, seen, distance);
+                if (_cast != null && _plan != null && _plan.Aim != BotAimKind.Chest) AimAtPoint(me, _plan.Aim == BotAimKind.Point ? _plan.Point : seen.Position);
+                else AimAt(me, seen, distance);
             }
             else if (move.LengthSquared() > 0f)
             {
@@ -372,6 +380,12 @@ namespace Confluence.Hosting.Bots
 
         private InputButtons CastButtons(DuelWorld world, DuelPlayer me, int tick, Observation seen, float distance, bool rushing, ref Vec2 move)
         {
+            if (tick == _recastAt)
+            {
+                _recastAt = int.MinValue; // a planned recast (one press of the spell-recast binding)
+                return InputButtons.Recast;
+            }
+
             if (_cast != null)
             {
                 int k = tick - _castStart;
@@ -390,8 +404,10 @@ namespace Confluence.Hosting.Bots
                 return InputButtons.None;
             }
 
-            bool wanted = seen.Seen && !rushing && tick >= _nextCastTick && distance >= 2.5f && distance <= Profile.PreferredRange + 5f &&
-                me.Resources.Mana >= 20f && !me.Melee.Busy;
+            bool wanted = _planner != null
+                ? seen.Seen && !rushing && tick >= _nextCastTick && !me.Melee.Busy // the kit planner judges range and mana
+                : seen.Seen && !rushing && tick >= _nextCastTick && distance >= 2.5f && distance <= Profile.PreferredRange + 5f &&
+                  me.Resources.Mana >= 20f && !me.Melee.Busy;
             if (!wanted) return InputButtons.None;
             if (_telegraphUntil == int.MinValue && Profile.TelegraphTicks > 0)
             {
@@ -401,8 +417,24 @@ namespace Confluence.Hosting.Bots
             }
 
             _telegraphUntil = int.MinValue;
-            _slot = me.Setup.EquippedSpellIds.Count > 0 ? (_slot + 1) % Math.Min(PlayerInput.SlotCount, me.Setup.EquippedSpellIds.Count) : 0;
-            _cast = BotCastScript.For(me.Setup.WizardId, Profile, _rng);
+            if (_planner != null)
+            {
+                _plan = _planner.Choose(KitView(world, me, tick, seen, distance), _rng);
+                if (_plan == null)
+                {
+                    _nextCastTick = tick + Profile.ThinkTicks; // nothing worth casting yet
+                    return InputButtons.None;
+                }
+
+                if (!_plan.Signature) _slot = _plan.Slot;
+                _cast = _plan.Signature ? new SignatureScript() : _planner.ScriptFor(_plan, Profile, _rng);
+            }
+            else
+            {
+                _slot = me.Setup.EquippedSpellIds.Count > 0 ? (_slot + 1) % Math.Min(PlayerInput.SlotCount, me.Setup.EquippedSpellIds.Count) : 0;
+                _cast = BotCastScript.For(me.Setup.WizardId, Profile, _rng);
+            }
+
             _castStart = tick;
             Stats.Casts++;
             return _cast.ButtonsAt(0);
@@ -410,6 +442,8 @@ namespace Confluence.Hosting.Bots
 
         private void EndCast(int tick)
         {
+            if (_plan != null && _plan.RecastAfterTicks >= 0) _recastAt = tick + Math.Max(1, _plan.RecastAfterTicks);
+            _plan = null;
             _cast = null;
             _nextCastTick = tick + _rng.NextInt(Ticks.PerSecond, Ticks.FromSeconds(2.5));
         }
@@ -427,6 +461,33 @@ namespace Confluence.Hosting.Bots
 
             Vec3 aim = target - me.Eye;
             TurnToward(CMath.YawOf(aim) + _aimErrorYaw, CMath.PitchOf(aim) + _aimErrorPitch);
+        }
+
+        /// <summary>Looks at a world point (a kit planner's ground or hazard target), with the bot's usual aim error.</summary>
+        private void AimAtPoint(DuelPlayer me, Vec3 point)
+        {
+            Vec3 aim = point - me.Eye;
+            TurnToward(CMath.YawOf(aim) + _aimErrorYaw, CMath.PitchOf(aim) + _aimErrorPitch);
+        }
+
+        /// <summary>The legal information a kit planner chooses from (see <see cref="BotKitView"/>).</summary>
+        private BotKitView KitView(DuelWorld world, DuelPlayer me, int tick, Observation seen, float distance)
+        {
+            DuelPlayer them = world.Player(1 - me.Index);
+            return new BotKitView
+            {
+                World = world,
+                Self = me.Index,
+                Me = me,
+                Tick = tick,
+                Profile = Profile,
+                Sees = seen.Seen,
+                OpponentPosition = seen.Position,
+                OpponentVelocity = seen.Velocity,
+                Distance = distance,
+                OpponentCasting = seen.Casting, // perceived with the same reaction latency as the position
+                OpponentWizardId = them.Setup.WizardId,
+            };
         }
 
         private bool AimedWithin(DuelPlayer me, Observation seen, float toleranceDeg)
@@ -506,6 +567,7 @@ namespace Confluence.Hosting.Bots
             public Vec3 Position;
             public Vec3 Velocity;
             public float Height;
+            public bool Casting;
         }
 
         private readonly struct MeleeProfileView
