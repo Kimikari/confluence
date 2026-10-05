@@ -3,9 +3,10 @@ export const meta = {
   description: 'M1 content (Bram and Halen kits, shared augments, equipment, props and biomes) plus the network game protocol; each branch adversarially verified and fixed, then merged and integrated',
   phases: [
     { title: 'Implement', detail: 'seven agents in isolated worktrees' },
-    { title: 'Verify', detail: 'adversarial check of each branch against catalogue text' },
-    { title: 'Fix', detail: 'apply verified findings in place' },
-    { title: 'Merge', detail: 'merge, integration (standard match over UDP), docs, ledger' },
+    { title: 'Verify', detail: 'adversarial Claude verifier + Codex second-vendor review of each branch' },
+    { title: 'Fix', detail: 'apply confirmed findings from both reviewers in place' },
+    { title: 'Merge', detail: 'merge, integration (standard match over UDP), full tests and ledger, Unity build' },
+    { title: 'Records', detail: 'DECISIONS, PROGRESS, push, worktree and branch cleanup' },
   ],
 }
 
@@ -13,14 +14,23 @@ const REPO = 'C:\\Users\\Kimi\\Desktop\\Confluence'
 const UNITY = 'C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.4f1\\Editor\\Unity.exe'
 // Resume controls:
 //  args.inPlace  { label: worktreePath }           implement continues inside an existing worktree
-//  args.impl     { label: { branch, worktree, commit } }  implement already finished: skip to verify
-//  args.fixed    { label: { branch, worktree, commit } }  verify+fix already finished: skip to merge
-//  args.only     [labels]                          restrict which items run (others must be in args.fixed for merge)
+//  args.impl     { label: { branch, worktree, commit, contentImplemented, decisions, gaps, crossEdits, madeWith } }
+//                                                  implement already finished (e.g. out/handoff/<label>.json from
+//                                                  tools/codex-packet.ps1): skip to verify. Never omit contentImplemented,
+//                                                  or the verifier has nothing to check.
+//  args.fixed    { label: <an entry of a previous run's `finished` list, unchanged> }  verify+fix done: skip to merge
+//  args.only     [labels]                          restrict which items run (others must be in args.fixed for merge);
+//                                                  only: [] with every label in fixed = merge only
+//  args.noMerge  true                              stop after fix even when all items are done; returns `finished`
+//  args.codexReview false                          skip the second-vendor Codex review (e.g. Codex quota is out)
 const A = args || {}
 const IN_PLACE = A.inPlace || {}
 const IMPL = A.impl || {}
 const FIXED = A.fixed || {}
 const ONLY = A.only || null
+const NO_MERGE = !!A.noMerge
+const CODEX_REVIEW = A.codexReview !== false
+const TRAILER = 'final commit message ends with the two lines "Made-with: uchicago-claude" and "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"'
 
 const COMMON = `
 You are working on "Confluence", a Windows PC first-person wizard dueling game. Git repo: ${REPO}.
@@ -34,7 +44,7 @@ Constraints:
 - Transformations that change structural tags (e.g. projectile -> trap/field, stationary -> mobile) register Core StructuralDeltas the way the framework does (see docs/notes/sim-spells.md); exclusive groups are enforced.
 - RESILIENCE: usage limits can interrupt you at any time. Commit WIP early and often on your branch ('WIP:' prefix), at least after each record or small group passes its tests. Keep docs/notes/<your-area>.md current with 'Status / next steps' and the list of finished IDs.
 - Do not edit docs/DECISIONS.md or docs/PROGRESS.md; put interpretations in your report and notes.
-- Finish: dotnet build Confluence.sln 0 errors; your tests and the projects you touched pass; final commit (message ends with: Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>). Return the structured report, including your worktree path (git rev-parse --show-toplevel).
+- Finish: dotnet build Confluence.sln 0 errors; your tests and the projects you touched pass; ${TRAILER}. Return the structured report, including your worktree path (git rev-parse --show-toplevel).
 `
 const REPORT = {
   type: 'object',
@@ -113,58 +123,95 @@ const FINDINGS = {
   required: ['findings', 'checkedIds'],
 }
 
+// Second-vendor review: Codex (ChatGPT Plus quota) reviews each branch while the Claude verifier runs.
+// tools/codex-review.ps1 runs `codex exec` read-only with tools/prompts/codex-review.md and the strict
+// tools/schemas/findings.json; this low-effort runner only waits for it and relays the result.
+const CODEX_RESULT = {
+  type: 'object',
+  properties: {
+    ok: { type: 'boolean' }, error: { type: 'string' },
+    findings: FINDINGS.properties.findings, checkedIds: FINDINGS.properties.checkedIds,
+  },
+  required: ['ok', 'error', 'findings', 'checkedIds'],
+}
+const codexReview = async (impl) => {
+  if (!CODEX_REVIEW) return { ok: false, error: 'skipped (args.codexReview=false)', findings: [], checkedIds: [] }
+  if (impl.madeWith === 'codex') return { ok: false, error: 'skipped (Codex wrote this branch)', findings: [], checkedIds: [] }
+  const dir = `${REPO}\\out\\reviews`
+  const r = await agent(`You run one review command and relay its output. Do not review, edit or commit anything yourself.
+1. Run this exactly once (it takes 10-45 minutes; it enforces its own timeout):
+   powershell -ExecutionPolicy Bypass -File "${REPO}\\tools\\codex-review.ps1" -Worktree "${impl.worktree}" -Label "${impl.label}"
+   If your shell tool would time out before it finishes, start it in the background and wait until the file ${dir}\\${impl.label}.status exists (check every few minutes). Never start a second copy.
+2. Read ${dir}\\${impl.label}.status. If it starts with "ok:", read ${dir}\\${impl.label}.json and return ok=true, error="", and its findings and checkedIds exactly as written.
+   Otherwise return ok=false, error = the status text plus the last 20 lines of ${dir}\\${impl.label}.log.err, findings=[] and checkedIds=[].`,
+    { label: `codex-review:${impl.label}`, phase: 'Verify', schema: CODEX_RESULT, model: 'sonnet', effort: 'low' })
+  return r || { ok: false, error: 'codex review runner failed', findings: [], checkedIds: [] }
+}
+
 const results = await pipeline(
   ITEMS.filter(([label]) => (!ONLY || ONLY.includes(label)) && !FIXED[label]),
   // 1. implement
   async ([label, prompt]) => {
     if (IMPL[label]) return { label, ...IMPL[label], reused: true }
     const r = await agent(inPlaceNote(label) + prompt,
-      IN_PLACE[label] ? { label: `impl:${label}`, phase: 'Implement', schema: REPORT }
-                      : { label: `impl:${label}`, phase: 'Implement', isolation: 'worktree', schema: REPORT })
+      IN_PLACE[label] ? { label: `impl:${label}`, phase: 'Implement', schema: REPORT, effort: 'high' }
+                      : { label: `impl:${label}`, phase: 'Implement', isolation: 'worktree', schema: REPORT, effort: 'high' })
     if (!r) throw new Error(`implement failed: ${label}`)
     return { label, ...r }
   },
-  // 2. verify (read-only, adversarial)
+  // 2. verify (read-only, adversarial): Claude verifier and Codex review in parallel
   async (impl) => {
-    const v = await agent(`${COMMON}
+    const [v, codex] = await parallel([() => agent(`${COMMON}
 YOU ARE AN ADVERSARIAL VERIFIER. Do not modify files. Work read-only in the worktree at ${impl.worktree} (cd there for every command).
 Branch ${impl.branch} (area ${impl.label}) claims these records are implemented: ${JSON.stringify(impl.contentImplemented || [])}.
 For EVERY claimed ID (if more than 40, check all high-risk ones — transformations, actives, information/deception, multi-step triggers — and a random-looking spread of the rest, at least 40): read the record (node tools/cat.mjs get ID) and the implementing code and its tests. Look for: wrong or missing numbers (rank 1 vs rank 2, drawbacks, durations, radii, costs), behavior that silently differs from the text, global caps bypassed (cost floor, refunds, proc budget, secondary-damage rules, mastery clamps, shield/heal/movement/CDR caps, hard-control immunity), structural deltas wrong or missing, exclusive groups not enforced, tests that only construct objects or assert tautologies instead of exercising gameplay, missing counterplay scenario where required (L447), nondeterminism, and anything a [ContentBehavior] claim overstates. For the net-protocol area instead check: hidden-information leaks (other pairs' duels, private shop/draft data, opponent private grammar UI), server trusting client claims (damage, hits, combat events, resources), missing validation/rate limits, prediction/reconciliation correctness, and whether the claimed end-to-end tests really run two client instances over UDP. Run the relevant tests (dotnet test with --filter where useful) to confirm they pass and to probe suspected bugs (you may write throwaway tests in a temp folder outside the repo).
 Report only real, evidenced defects (spec line / record text / code location / failing probe).`,
-      { label: `verify:${impl.label}`, phase: 'Verify', schema: FINDINGS })
-    return { impl, verify: v || { findings: [], checkedIds: [], error: 'verifier failed' } }
+      { label: `verify:${impl.label}`, phase: 'Verify', schema: FINDINGS, effort: 'high' }),
+      () => codexReview(impl)])
+    return { impl, verify: v || { findings: [], checkedIds: [], error: 'verifier failed' }, codex }
   },
-  // 3. fix in place
-  async ({ impl, verify }) => {
-    if (!verify.findings || verify.findings.length === 0) return { label: impl.label, branch: impl.branch, worktree: impl.worktree, commit: impl.commit, impl, verify, fix: 'no findings' }
+  // 3. fix in place (findings from both reviewers)
+  async ({ impl, verify, codex }) => {
+    const codexFindings = (codex && codex.ok && codex.findings) || []
+    const allFindings = [].concat(
+      (verify.findings || []).map(f => ({ source: 'claude-verifier', ...f })),
+      codexFindings.map(f => ({ source: 'codex-review', ...f })))
+    if (allFindings.length === 0) return { label: impl.label, branch: impl.branch, worktree: impl.worktree, commit: impl.commit, impl, verify, codex, fix: 'no findings' }
     const f = await agent(`${COMMON}
 WORK IN PLACE in the worktree at ${impl.worktree} (cd there for every command; never touch the main checkout). Branch ${impl.branch}, area ${impl.label}.
-An adversarial verifier reported these findings. For each: confirm it (verifiers can be wrong), then fix it with tests, or — if the behavior cannot be completed now — remove that record's [ContentBehavior] claim and record it in gaps. Keep everything building and passing. Commit (WIP commits during long work; final message ends with: Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>).
-FINDINGS: ${JSON.stringify(verify.findings, null, 1)}
+Two independent reviewers reported these findings: an adversarial Claude verifier (ran tests) and a Codex second-vendor review (read-only; it could not run tests, so its findings rest on reading code and record text). For each: confirm it (reviewers can be wrong, and the two may overlap), then fix it with tests, or — if the behavior cannot be completed now — remove that record's [ContentBehavior] claim and record it in gaps. Keep everything building and passing. Commit (WIP commits during long work; ${TRAILER}).
+FINDINGS: ${JSON.stringify(allFindings, null, 1)}
 Return the structured report (final state of the branch: contentImplemented must list only records that still carry [ContentBehavior]).`,
-      { label: `fix:${impl.label}`, phase: 'Fix', schema: REPORT })
+      { label: `fix:${impl.label}`, phase: 'Fix', schema: REPORT, effort: 'high' })
     if (!f) throw new Error(`fix failed: ${impl.label}`)
-    return { label: impl.label, branch: f.branch || impl.branch, worktree: impl.worktree, commit: f.commit, impl, verify, fix: f }
+    return { label: impl.label, branch: f.branch || impl.branch, worktree: impl.worktree, commit: f.commit, impl, verify, codex, fix: f }
   },
 )
 
 const finished = results.filter(Boolean)
-const all = Object.entries(FIXED).map(([label, v]) => ({ label, ...v })).concat(finished)
+const all = Object.entries(FIXED).map(([label, v]) => ({ ...v, label })).concat(finished)
 const missing = ITEMS.map(i => i[0]).filter(l => !all.find(x => x.label === l))
-if (missing.length) {
-  log(`NOT FINISHED: ${missing.join(', ')} — merge skipped; resume with args.inPlace/impl/fixed`)
-  return { finished: all.map(x => ({ label: x.label, branch: x.branch, worktree: x.worktree, commit: x.commit })), missing }
-}
 
-phase('Merge')
+// Full per-item summary. Built before the early return so an unmerged run keeps everything the merge needs;
+// pass each `finished` entry unchanged as args.fixed[label] in a later run.
+const codexStatus = (c) => !c ? undefined : c.ok ? c.findings.length : `not reviewed: ${c.error}`
 const summary = all.map(x => ({
   label: x.label, branch: x.branch, worktree: x.worktree, commit: x.commit,
+  madeWith: x.madeWith || (x.impl && x.impl.madeWith) || 'uchicago-claude',
   contentImplemented: (x.fix && x.fix.contentImplemented) || (x.impl && x.impl.contentImplemented) || x.contentImplemented || [],
   decisions: [].concat((x.impl && x.impl.decisions) || [], (x.fix && x.fix.decisions) || [], x.decisions || []),
   gaps: (x.fix && x.fix.gaps) || (x.impl && x.impl.gaps) || x.gaps || [],
-  crossEdits: [].concat((x.impl && x.impl.crossEdits) || [], (x.fix && x.fix.crossEdits) || []),
-  verifierFindings: x.verify ? x.verify.findings.length : 'n/a',
+  crossEdits: [].concat((x.impl && x.impl.crossEdits) || [], (x.fix && x.fix.crossEdits) || [], x.crossEdits || []),
+  verifierFindings: x.verify ? (x.verify.findings || []).length : (x.verifierFindings !== undefined ? x.verifierFindings : 'n/a'),
+  codexFindings: codexStatus(x.codex) !== undefined ? codexStatus(x.codex) : (x.codexFindings !== undefined ? x.codexFindings : 'n/a'),
 }))
+if (missing.length || NO_MERGE) {
+  log(missing.length ? `NOT FINISHED: ${missing.join(', ')} — merge skipped; resume with args.inPlace/impl/fixed`
+                     : 'All items finished; merge skipped (args.noMerge). Pass `finished` entries as args.fixed to merge.')
+  return { finished: summary, missing }
+}
+
+phase('Merge')
 const merge = await agent(`${COMMON}
 YOU WORK DIRECTLY IN THE MAIN CHECKOUT at ${REPO} on branch master (not a worktree).
 TASK merge-and-integrate Stage 2 + 3.
@@ -174,9 +221,20 @@ TASK merge-and-integrate Stage 2 + 3.
  - A standard (non-Laboratory) Duel match WIZ-002 vs WIZ-010 bots through MatchHost completes all rounds with real shops, drafts on the scheduled rounds, transformations and shared augments drafted and active in duels, dormancy applied at finalization, reactions (steam from Fireball into Water Pool) occurring in at least one duel.
  - Server + two headless clients over UDP complete at least one full round loop (shop -> draft -> duel -> reward -> next round) with standard rules where pools allow (state precisely what overrides, if any, remain).
  - The ledger counts match the [ContentBehavior] claims.
-3. dotnet build Confluence.sln 0 errors; dotnet test Confluence.sln all pass (run Arena slow batches once at the end). Sync and rebuild the Unity client (powershell -ExecutionPolicy Bypass -File tools/build-client.ps1 -Tests -Smoke) and check screenshots; fix client breakage from API changes.
-4. Docs: append all decisions to docs/DECISIONS.md (continue after the highest D-number), update docs/PROGRESS.md (Stage 2/3 status, exact test counts, ledger summary, known issues incl. remaining gaps, temporary assets, next concrete task = Stage 4: Unity client networked M1 — connect the UI and Laboratory to the Net client session, predicted first-person play, spell/field/steam presentation, then validation with server + two real Unity client instances), docs/ARCHITECTURE.md where changed, regenerate the ledger (powershell -ExecutionPolicy Bypass -File tools/ledger.ps1).
-5. Commit (WIP during long work; final message ends with: Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>), then remove the merged worktrees (git worktree remove --force <path>) and delete their branches.
+3. dotnet build Confluence.sln 0 errors; iterate with dotnet test Confluence.sln --filter "Category!=Slow". For the final full run (slow Arena batches included) use powershell -ExecutionPolicy Bypass -File tools/ledger.ps1 — it runs the whole suite, fails if any test fails, and regenerates the ledger docs. Sync and rebuild the Unity client (powershell -ExecutionPolicy Bypass -File tools/build-client.ps1 -Tests -Smoke, Editor closed) and check screenshots; fix client breakage from API changes. Discard line-ending-only re-serialization of client/ProjectSettings and URP assets.
+4. Update docs/ARCHITECTURE.md where the merged design changed it. Do NOT edit docs/DECISIONS.md or docs/PROGRESS.md: a records agent does that next, from your report.
+5. Commit (WIP during long work; ${TRAILER}). Do not remove worktrees or branches.
 BRANCHES AND REPORTS: ${JSON.stringify(summary, null, 1)}
-Return: merge outcome, conflicts resolved, integration results, exact test counts per project, ledger summary, remaining issues.`, { label: 'merge', phase: 'Merge' })
-return { branches: summary, merge }
+Return: merge outcome, conflicts resolved, integration results (with exact overrides still needed, if any), exact test counts per project, ledger summary, Unity EditMode/smoke results, remaining issues and gaps.`, { label: 'merge', phase: 'Merge', effort: 'xhigh' })
+
+const records = await agent(`${COMMON}
+YOU WORK DIRECTLY IN THE MAIN CHECKOUT at ${REPO} on branch master (not a worktree). The merge-and-integrate step has merged Stage 2 + 3; its report and the branch reports are below. You are the hub's records step: this is the one place where docs/DECISIONS.md and docs/PROGRESS.md are written.
+1. docs/DECISIONS.md: append every decision from the branch reports below, plus every entry under "Interpretations" in each merged area's docs/notes/<area>.md that is not already a decision. Continue after the highest D-number; merge duplicates; keep the existing style.
+2. docs/PROGRESS.md: Stage 2/3 status, exact test counts and ledger summary (from the merge report), known issues including remaining gaps, temporary assets, which branches still have "Codex review pending" (codexFindings not a number), a session-log entry for this merge, and next concrete task = Stage 4: Unity client networked M1 — connect the UI and Laboratory to the Net client session, predicted first-person play, spell/field/steam presentation and placeholder telegraph audio (spec L96), then validation with server + two real Unity client instances.
+3. If the merge report says the ledger was not regenerated after the last code change, run powershell -ExecutionPolicy Bypass -File tools/ledger.ps1.
+4. Commit (${TRAILER}). If git remote get-url origin succeeds: git push origin master.
+5. Remove the merged worktrees (git worktree remove --force <path>) and delete their branches locally; if origin exists, also delete them there (git push origin --delete <branch>; ignore "remote ref does not exist").
+MERGE REPORT: ${typeof merge === 'string' ? merge : JSON.stringify(merge)}
+BRANCHES AND REPORTS: ${JSON.stringify(summary, null, 1)}
+Return: the decisions added (ID range), the PROGRESS summary, push result, and cleanup result.`, { label: 'records', phase: 'Records', effort: 'medium' })
+return { branches: summary, merge, records }

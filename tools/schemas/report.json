@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "branch": { "type": "string" },
+    "worktree": { "type": "string" },
+    "commit": { "type": "string", "description": "empty: Codex does not commit; the operator script fills it" },
+    "api": { "type": "string" },
+    "tests": { "type": "string" },
+    "decisions": { "type": "array", "items": { "type": "string" } },
+    "contentImplemented": { "type": "array", "items": { "type": "string" }, "description": "IDs now carrying [ContentBehavior]" },
+    "crossEdits": { "type": "array", "items": { "type": "string" } },
+    "gaps": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["branch", "worktree", "commit", "api", "tests", "decisions", "contentImplemented", "crossEdits", "gaps"]
+}

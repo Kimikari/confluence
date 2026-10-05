@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "description": "catalogue ID or area" },
+          "severity": { "type": "string", "enum": ["high", "medium", "low"] },
+          "problem": { "type": "string" },
+          "evidence": { "type": "string" },
+          "fix": { "type": "string" }
+        },
+        "required": ["id", "severity", "problem", "evidence", "fix"]
+      }
+    },
+    "checkedIds": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["findings", "checkedIds"]
+}
