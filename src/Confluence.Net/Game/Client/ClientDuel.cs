@@ -309,6 +309,7 @@ namespace Confluence.Net.Game.Client
             if (Latest != null && frame.Tick <= Latest.Tick) return; // an older reliable keyframe overtaken by newer ones
 
             Latest = frame;
+            if (frame.Phase == DuelPhase.Ended) Ended = true; // the authoritative final state (sent reliably), even if its events are late
             Predictor?.ApplySolids(frame.Solids);
             if (own != null)
             {

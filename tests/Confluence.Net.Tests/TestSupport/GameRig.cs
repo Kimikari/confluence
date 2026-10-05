@@ -48,6 +48,9 @@ namespace Confluence.Net.Tests.TestSupport
         public List<string> Log { get; }
         public IReadOnlyList<HeadlessPlayer> Players => _players;
 
+        /// <summary>Players whose process is frozen: not pumped at all (their connection times out, then resumes).</summary>
+        public HashSet<HeadlessPlayer> Paused { get; } = new HashSet<HeadlessPlayer>();
+
         public IPEndPoint Endpoint => new IPEndPoint(IPAddress.Loopback, Link?.Port ?? Server.Transport.Port);
 
         /// <summary>Ticks stepped so far.</summary>
@@ -128,7 +131,8 @@ namespace Confluence.Net.Tests.TestSupport
             Server.Tick();
             Server.Flush();
             Link?.Poll();
-            foreach (HeadlessPlayer p in _players) p.Update();
+            foreach (HeadlessPlayer p in _players)
+                if (!Paused.Contains(p)) p.Update();
             Link?.Poll();
         }
 

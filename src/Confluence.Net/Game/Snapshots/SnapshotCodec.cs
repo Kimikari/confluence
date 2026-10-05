@@ -174,6 +174,22 @@ namespace Confluence.Net.Game.Snapshots
         /// Decodes a body. <paramref name="baseline"/> must be the frame of <c>header.BaselineTick</c> when the header has
         /// one. Throws <see cref="NetReadException"/> on malformed bytes or a missing or mismatched baseline.
         /// </summary>
+        /// <summary>The duel id a body starts with, or -1 when it cannot be read (the client routes early snapshots by it).</summary>
+        public static int PeekDuelId(byte[] body, int length)
+        {
+            if (body == null) return -1;
+            try
+            {
+                var r = new NetReader(body, 0, length >= 0 ? Math.Min(length, body.Length) : body.Length);
+                uint duel = r.ReadVarUInt();
+                return duel > int.MaxValue ? -1 : (int)duel;
+            }
+            catch (NetReadException)
+            {
+                return -1;
+            }
+        }
+
         public static DuelFrame DecodeBody(NetReader r, SnapshotHeader header, DuelFrame baseline, out PrivateEntry own)
         {
             if (header.HasBaseline)

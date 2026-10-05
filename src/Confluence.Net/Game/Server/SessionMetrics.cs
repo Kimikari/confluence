@@ -128,5 +128,25 @@ namespace Confluence.Net.Game.Server
 
             return j.ToString();
         }
+
+        /// <summary>
+        /// The per-session summary at match end or shutdown: duels recorded, results and reports delivered, connection
+        /// state, and the session's transport security counters.
+        /// </summary>
+        public static string FormatSummary(int seat, string reason, int matchTick, int duels, int results, int reports, bool connected,
+            TransportCounters counters, LinkStats transport)
+        {
+            var j = new JsonLine();
+            j.Add("type", "session-summary").Add("seat", seat).Add("reason", reason).Add("matchTick", matchTick);
+            j.Add("duels", duels).Add("results", results).Add("reports", reports).Add("connected", connected);
+            j.Add("transportRttMs", transport.RttMs).Add("reliableQueued", transport.ReliableQueued);
+            if (counters != null)
+            {
+                j.Add("violations", counters.Violations).Add("malformed", counters.Malformed).Add("rateLimited", counters.RateLimited);
+                j.Add("handlerFaults", counters.HandlerFaults).Add("bytesSent", counters.BytesSent).Add("bytesReceived", counters.BytesReceived);
+            }
+
+            return j.ToString();
+        }
     }
 }

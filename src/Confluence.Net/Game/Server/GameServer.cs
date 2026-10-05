@@ -118,6 +118,9 @@ namespace Confluence.Net.Game.Server
         private readonly ServerTickClock _tickClock;
         private readonly List<string> _metrics = new List<string>();
         private readonly Dictionary<string, byte[]> _layoutBytes = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        private readonly List<OutcomeRecord> _outcomes = new List<OutcomeRecord>();
+        private MatchEndMessage _matchEnd;
+        private bool _summariesWritten;
         private int _ticksRun;
         private string _notice = string.Empty;
         private System.Threading.Tasks.Task _warmup;
@@ -282,6 +285,7 @@ namespace Confluence.Net.Game.Server
         {
             if (!Transport.IsRunning) return;
             Log("Shutting down: " + reason);
+            WriteSessionSummaries("shutdown");
             BroadcastNotice("Server shutting down: " + reason);
             Transport.Flush();
             Transport.Shutdown(reason);
@@ -578,6 +582,14 @@ namespace Confluence.Net.Game.Server
             bool sent = Transport.Send(session, GameProtocol.LobbyState, lobby);
             if (!_seatBySession.TryGetValue(session.PlayerId, out Seat seat)) return;
             if (sent) Sent?.Invoke(seat.Index, GameProtocol.LobbyState, lobby);
+            if (Host != null && Status == LobbyStatus.Finished && resumed)
+            {
+                // A player resuming after the match ended (within the 90 s window, L55) still gets its final result (L49).
+                Log("Seat " + seat.Index + " reconnected after the match ended: final results resent.");
+                CatchUpFinished(seat);
+                return;
+            }
+
             if (Host == null || Status != LobbyStatus.Running) return;
             bool accepted = Host.SetConnected(seat.Index, true);
             if (seat.Input != null) seat.Input.Connected = accepted;
@@ -614,6 +626,26 @@ namespace Confluence.Net.Game.Server
             }
         }
 
+        /// <summary>
+        /// The final state for a seat resuming after the match finished: settings, final standings, every result (all are
+        /// public once the match ended), its own duel reports, and the match end with placements (spec L49, L55).
+        /// </summary>
+        private void CatchUpFinished(Seat seat)
+        {
+            SendTo(seat, GameProtocol.MatchSettings, SettingsFor(seat));
+            ReleaseDeferred();
+            SendStandingsTo(seat, StandingsNow());
+            ResendHistory(seat);
+            if (_matchEnd != null) SendTo(seat, GameProtocol.MatchEnd, _matchEnd);
+        }
+
+        /// <summary>Every result released to the seat and its own reports (the client keeps one entry per duel id).</summary>
+        private void ResendHistory(Seat seat)
+        {
+            foreach (DuelResultMessage r in seat.ReleasedResults) SendTo(seat, GameProtocol.DuelResult, r);
+            foreach (WireDuelReport r in seat.Reports) SendTo(seat, GameProtocol.DuelReport, r);
+        }
+
         /// <summary>Resends everything a resumed client needs to rebuild its view (the snapshot baselines restart in full).</summary>
         private void CatchUp(Seat seat)
         {
@@ -628,7 +660,20 @@ namespace Confluence.Net.Game.Server
                 StartTick = flow.PhaseStartTick,
                 EndTick = flow.PhaseEndTick,
             });
-            SendTo(seat, GameProtocol.Standings, StandingsNow());
+
+            // Standings and results follow the release rules (SendStandings, SendResult): a live duelist gets the
+            // standings last released to it, and current ones after its duel or the delay.
+            if (!InLiveDuel(seat))
+            {
+                SendStandingsTo(seat, StandingsNow());
+            }
+            else
+            {
+                if (seat.ReleasedStandings != null) SendTo(seat, GameProtocol.Standings, seat.ReleasedStandings);
+                if (seat.StandingsReleaseTick < 0) seat.StandingsReleaseTick = Host.CurrentTick + SpectatorDelayTicks;
+            }
+
+            ResendHistory(seat);
             ArenaPreview arena = flow.CurrentArena;
             if (arena != null)
             {
@@ -958,9 +1003,11 @@ namespace Confluence.Net.Game.Server
             SendTo(stream.Seat, GameProtocol.DuelCosmetic, msg);
         }
 
-        /// <summary>One metrics record per human duelist at duel end (research §2.9.5).</summary>
+        /// <summary>One metrics record per human duelist at duel end, or when a live duel is torn down (research §2.9.5).</summary>
         private void WriteMetrics(LiveDuel live)
         {
+            if (live.MetricsWritten) return;
+            live.MetricsWritten = true;
             for (int side = 0; side < 2; side++)
             {
                 Stream stream = live.Streams[side];
@@ -969,6 +1016,29 @@ namespace Confluence.Net.Game.Server
                 LinkStats transport = session != null && session.IsConnected ? Transport.GetLinkStats(session) : default;
                 string line = SessionMetrics.Format(stream.Seat.Index, live.Duel.DuelId, live.Duel.Setup.Round, stream.Monitor, stream.Rate, stream.Snap,
                     stream.Seat.Input, session?.Counters, transport);
+                _metrics.Add(line);
+                stream.Seat.DuelMetrics++;
+                Log("metrics " + line);
+            }
+        }
+
+        /// <summary>
+        /// One session summary per human seat at match end or shutdown (research §2.9.5 "at duel and at match end"), after
+        /// the records of any duel still live (a shutdown or a voided round never reaches the duel end).
+        /// </summary>
+        private void WriteSessionSummaries(string reason)
+        {
+            if (_summariesWritten || Host == null) return;
+            _summariesWritten = true;
+            foreach (LiveDuel live in _duelOrder)
+                if (!live.Ended) WriteMetrics(live);
+            foreach (Seat seat in _seats)
+            {
+                if (seat.IsBot) continue;
+                PlayerSession session = seat.Session;
+                bool connected = session != null && session.IsConnected;
+                string line = SessionMetrics.FormatSummary(seat.Index, reason, Host.CurrentTick, seat.DuelMetrics, seat.ReleasedResults.Count, seat.Reports.Count,
+                    connected, session?.Counters, connected ? Transport.GetLinkStats(session) : default);
                 _metrics.Add(line);
                 Log("metrics " + line);
             }
@@ -1100,9 +1170,16 @@ namespace Confluence.Net.Game.Server
                     SendStandings();
                     break;
                 case MatchFinishedEvent finished:
+                    _matchEnd = EndWire(finished.Result);
                     ReleaseDeferred();
-                    BroadcastSeats(GameProtocol.Standings, StandingsNow());
-                    BroadcastSeats(GameProtocol.MatchEnd, EndWire(finished.Result));
+                    foreach (Seat seat in _seats)
+                    {
+                        if (seat.IsBot) continue;
+                        SendStandingsTo(seat, StandingsNow());
+                        SendTo(seat, GameProtocol.MatchEnd, _matchEnd);
+                    }
+
+                    WriteSessionSummaries("match-end");
                     break;
                 case RoundVoidedEvent voided:
                     BroadcastNotice("Round voided: " + voided.Reason);
@@ -1111,53 +1188,78 @@ namespace Confluence.Net.Game.Server
         }
 
         /// <summary>
-        /// A duel result goes at once to its two duelists and to everyone outside a live duel; a player still fighting
-        /// receives other pairs' results only when its own duel ends or the spectator delay has passed (research §2.6.4,
-        /// spec L391: live players get no other pair's information early).
+        /// A duel result goes at once to its two duelists. Every other seat, fighting or not (a fast winner spectates other
+        /// pairs "through delayed information", spec L49), receives it once it is as old as the spectator delay (at least
+        /// 15 s, L391), or as soon as no duel of the pass is live anymore (the round's results period: the standings then
+        /// show every outcome anyway), or when the match has finished (research §2.6.4). The same rule holds on the
+        /// normal, deferred, and reconnect paths (<see cref="ReleaseDeferred"/>, <see cref="CatchUp"/>).
         /// </summary>
         private void SendResult(DuelResultMessage result)
         {
-            int release = Host.CurrentTick + SpectatorDelayTicks;
-            foreach (Seat seat in _seats)
-            {
-                if (seat.IsBot) continue;
-                bool own = seat.Index == result.Side0Seat || seat.Index == result.Side1Seat;
-                if (own || !InLiveDuel(seat)) SendTo(seat, GameProtocol.DuelResult, result);
-                else seat.DeferredResults.Add(new KeyValuePair<int, DuelResultMessage>(release, result));
-            }
+            _outcomes.Add(new OutcomeRecord { ResolveTick = Host.CurrentTick, Message = result });
+            ReleaseDeferred();
         }
 
-        /// <summary>Standings follow the same rule as results: a live duelist sees them after its duel or the delay.</summary>
+        /// <summary>Whether a seat may see an outcome now (the rule above).</summary>
+        private bool MayKnow(Seat seat, OutcomeRecord outcome, bool anyLive)
+        {
+            DuelResultMessage r = outcome.Message;
+            if (seat.Index == r.Side0Seat || seat.Index == r.Side1Seat) return true;
+            return !anyLive || Host.IsFinished || Host.CurrentTick - outcome.ResolveTick >= SpectatorDelayTicks;
+        }
+
+        private bool AnyLiveDuel()
+        {
+            foreach (LiveDuel d in _duelOrder)
+                if (!d.Ended) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Standings change only when a whole pass resolves (no duel is live then, MatchFlow.ResolvePass), so they carry no
+        /// fresh outcome of a live pair; a live duelist still receives them only after its duel or the delay, like the
+        /// other pairs' results (spec L391 restricts player-to-live-player information).
+        /// </summary>
         private void SendStandings()
         {
             StandingsMessage now = StandingsNow();
             foreach (Seat seat in _seats)
             {
                 if (seat.IsBot) continue;
-                if (!InLiveDuel(seat)) SendTo(seat, GameProtocol.Standings, now);
+                if (!InLiveDuel(seat)) SendStandingsTo(seat, now);
                 else if (seat.StandingsReleaseTick < 0) seat.StandingsReleaseTick = Host.CurrentTick + SpectatorDelayTicks;
             }
         }
 
-        /// <summary>Releases deferred results and standings whose holder left its live duel or whose delay passed.</summary>
+        /// <summary>Records the standings released to a seat (what a reconnect resends) and sends them.</summary>
+        private void SendStandingsTo(Seat seat, StandingsMessage standings)
+        {
+            seat.ReleasedStandings = standings;
+            SendTo(seat, GameProtocol.Standings, standings);
+        }
+
+        /// <summary>Releases results whose rule now allows them and deferred standings whose holder left its duel or waited out the delay.</summary>
         private void ReleaseDeferred()
         {
+            if (Host == null) return;
             int now = Host.CurrentTick;
+            bool anyLive = AnyLiveDuel();
             foreach (Seat seat in _seats)
             {
-                if (seat.IsBot || (seat.DeferredResults.Count == 0 && seat.StandingsReleaseTick < 0)) continue;
-                bool free = !InLiveDuel(seat) || Host.IsFinished;
-                for (int i = 0; i < seat.DeferredResults.Count; i++)
+                if (seat.IsBot) continue;
+                for (int i = 0; i < _outcomes.Count && seat.ReleasedOutcomes.Count < _outcomes.Count; i++)
                 {
-                    if (!free && seat.DeferredResults[i].Key > now) continue;
-                    SendTo(seat, GameProtocol.DuelResult, seat.DeferredResults[i].Value);
-                    seat.DeferredResults.RemoveAt(i--);
+                    OutcomeRecord o = _outcomes[i];
+                    if (seat.ReleasedOutcomes.Contains(i) || !MayKnow(seat, o, anyLive)) continue;
+                    seat.ReleasedOutcomes.Add(i);
+                    seat.ReleasedResults.Add(o.Message);
+                    SendTo(seat, GameProtocol.DuelResult, o.Message);
                 }
 
-                if (seat.StandingsReleaseTick >= 0 && (free || seat.StandingsReleaseTick <= now))
+                if (seat.StandingsReleaseTick >= 0 && (!InLiveDuel(seat) || Host.IsFinished || seat.StandingsReleaseTick <= now))
                 {
                     seat.StandingsReleaseTick = -1;
-                    SendTo(seat, GameProtocol.Standings, StandingsNow());
+                    SendStandingsTo(seat, StandingsNow());
                 }
             }
         }
@@ -1226,6 +1328,7 @@ namespace Confluence.Net.Game.Server
                     }
                 }
 
+                seat.Reports.Add(msg);
                 SendTo(seat, GameProtocol.DuelReport, msg);
             }
         }
@@ -1372,11 +1475,23 @@ namespace Confluence.Net.Game.Server
             public bool Spectating;
             public int SpectateDuel = -1;
 
-            /// <summary>Other pairs' results held while this player fights (release match tick, message).</summary>
-            public readonly List<KeyValuePair<int, DuelResultMessage>> DeferredResults = new List<KeyValuePair<int, DuelResultMessage>>();
+            /// <summary>Indices of the outcomes released to this seat (sent, or attempted while it was disconnected).</summary>
+            public readonly HashSet<int> ReleasedOutcomes = new HashSet<int>();
+
+            /// <summary>The released results in release order (a reconnect resends them).</summary>
+            public readonly List<DuelResultMessage> ReleasedResults = new List<DuelResultMessage>();
+
+            /// <summary>This seat's own duel reports (a reconnect resends them).</summary>
+            public readonly List<WireDuelReport> Reports = new List<WireDuelReport>();
+
+            /// <summary>The last standings released to this seat, or null.</summary>
+            public StandingsMessage ReleasedStandings;
 
             /// <summary>Match tick at which held standings are sent, or -1.</summary>
             public int StandingsReleaseTick = -1;
+
+            /// <summary>Duel metrics records written for this seat (the session summary counts them).</summary>
+            public int DuelMetrics;
 
             /// <summary>Arena ids announced to this seat (only these layouts may be downloaded).</summary>
             public readonly HashSet<string> AnnouncedArenas = new HashSet<string>(StringComparer.Ordinal);
@@ -1526,6 +1641,13 @@ namespace Confluence.Net.Game.Server
             }
         }
 
+        /// <summary>One resolved duel's result and when it resolved (the age rule of <see cref="SendResult"/>).</summary>
+        private sealed class OutcomeRecord
+        {
+            public int ResolveTick;
+            public DuelResultMessage Message;
+        }
+
         private sealed class SpectatorItem
         {
             public int DuelId;
@@ -1554,6 +1676,7 @@ namespace Confluence.Net.Game.Server
             public CellCapture Cells { get; } = new CellCapture();
             public int StartMatchTick;
             public bool Ended;
+            public bool MetricsWritten;
 
             public DuelStartMessage StartFor(int side)
             {

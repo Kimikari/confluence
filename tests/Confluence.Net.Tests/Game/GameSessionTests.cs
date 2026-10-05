@@ -128,6 +128,7 @@ namespace Confluence.Net.Tests.Game
                 // Honest clients' view claims are accepted (research §2.2.3) and rewinds never exceed 150 ms (L423).
                 foreach (string m in rig.Server.Metrics)
                 {
+                    if (!m.Contains("\"type\":\"session-metrics\"")) continue; // session summaries carry no duel fields
                     long claims = Field(m, "viewClaims");
                     long replaced = Field(m, "viewsReplaced");
                     Assert.True(Field(m, "maxRewindTicks") <= GameServerTestsLimits.MaxRewindTicks);

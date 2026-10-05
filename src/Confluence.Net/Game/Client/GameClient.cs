@@ -101,8 +101,13 @@ namespace Confluence.Net.Game.Client
             Transport.Messages.On(GameProtocol.Arena, (c, m) => OnArena(m));
             Transport.Messages.On(GameProtocol.FinalLoadouts, (c, m) => View.FinalLoadouts = m);
             Transport.Messages.On(GameProtocol.Standings, (c, m) => View.Standings = m);
-            Transport.Messages.On(GameProtocol.DuelResult, (c, m) => View.Results.Add(m));
-            Transport.Messages.On(GameProtocol.MatchEnd, (c, m) => { View.End = m; MatchEnded?.Invoke(this); });
+            Transport.Messages.On(GameProtocol.DuelResult, (c, m) => OnResult(m));
+            Transport.Messages.On(GameProtocol.MatchEnd, (c, m) =>
+            {
+                bool first = View.End == null;
+                View.End = m; // a reconnect resends it (GameServer.CatchUpFinished)
+                if (first) MatchEnded?.Invoke(this);
+            });
             Transport.Messages.On(GameProtocol.Notice, (c, m) => { View.Notices.Add(m.Text); Log("notice: " + m.Text); });
             Transport.Messages.On(GameProtocol.ShopState, (c, m) => { View.Shop = m; ShopChanged?.Invoke(this); });
             Transport.Messages.On(GameProtocol.DraftState, (c, m) => { View.Draft = m; DraftChanged?.Invoke(this); });
@@ -330,21 +335,39 @@ namespace Confluence.Net.Game.Client
             Log("duel " + message.DuelId + " started: side " + message.YourSide + " vs seat " + message.Sides[1 - message.YourSide].Seat +
                 " (" + message.Sides[1 - message.YourSide].WizardId + ")");
             DuelStarted?.Invoke(this, Duel);
+            ReleaseHeld(message.DuelId);
         }
 
         private void OnSnapshot(SnapshotMessage message)
         {
             ClientDuel duel = Duel;
+            int duelId = SnapshotCodec.PeekDuelId(message.Body, message.BodyLength);
+            if (duelId >= 0 && (duel == null || duelId > duel.DuelId))
+            {
+                // A reliable snapshot (the final state, an over-budget keyframe) can overtake its DuelStart on another lane.
+                Hold(duelId, message);
+                return;
+            }
+
             if (duel == null) return;
+
             double server = ServerTick;
+            bool wasEnded = duel.Ended;
             duel.OnSnapshot(message.Header, message.Body, message.InputQueue, message.InputStarved,
                 server >= 0 ? server - duel.Start.StartMatchTick : double.NaN);
+            if (!wasEnded && duel.Ended) DuelEnded?.Invoke(this, duel);
         }
 
         private void OnEvents(DuelEventsMessage message)
         {
             ClientDuel duel = Duel;
-            if (duel == null || duel.DuelId != message.DuelId) return;
+            if (duel == null || duel.DuelId != message.DuelId)
+            {
+                // DuelStart rides the Match lane, events the Events lane: buffer events of a duel not started yet.
+                if (duel == null || message.DuelId > duel.DuelId) Hold(message.DuelId, message);
+                return;
+            }
+
             bool wasEnded = duel.Ended;
             duel.OnEvents(message);
             if (!wasEnded && duel.Ended) DuelEnded?.Invoke(this, duel);
@@ -352,13 +375,76 @@ namespace Confluence.Net.Game.Client
 
         private void OnReport(DuelReportMessage message)
         {
-            View.Reports.Add(message);
+            int existing = View.Reports.FindIndex(r => r.DuelId == message.DuelId);
+            if (existing >= 0) View.Reports[existing] = message; // a reconnect resends the history
+            else View.Reports.Add(message);
             if (Duel != null && Duel.DuelId == message.DuelId)
             {
-                bool wasEnded = Duel.Ended;
-                Duel.Report = message;
-                Duel.Ended = true;
-                if (!wasEnded) DuelEnded?.Invoke(this, Duel);
+                ApplyReport(Duel, message);
+            }
+            else if (Duel == null || message.DuelId > Duel.DuelId)
+            {
+                Hold(message.DuelId, message);
+            }
+        }
+
+        private void ApplyReport(ClientDuel duel, DuelReportMessage message)
+        {
+            bool wasEnded = duel.Ended;
+            duel.Report = message;
+            duel.Ended = true;
+            if (!wasEnded) DuelEnded?.Invoke(this, duel);
+        }
+
+        private void OnResult(DuelResultMessage message)
+        {
+            int existing = View.Results.FindIndex(r => r.DuelId == message.DuelId);
+            if (existing >= 0) View.Results[existing] = message; // a reconnect resends the history
+            else View.Results.Add(message);
+        }
+
+        // ---- Messages that overtake their DuelStart -------------------------------------------------------------------
+
+        /// <summary>Most messages held for duels not started yet (oldest dropped first).</summary>
+        public const int MaxHeldMessages = 512;
+
+        private readonly List<KeyValuePair<int, object>> _held = new List<KeyValuePair<int, object>>();
+
+        /// <summary>Messages held because they arrived before their duel's start (diagnostics).</summary>
+        public int HeldMessages { get; private set; }
+
+        private void Hold(int duelId, object message)
+        {
+            HeldMessages++;
+            _held.Add(new KeyValuePair<int, object>(duelId, message));
+            if (_held.Count > MaxHeldMessages) _held.RemoveAt(0);
+        }
+
+        /// <summary>Applies everything that arrived for <paramref name="duelId"/> before its start, in arrival order.</summary>
+        private void ReleaseHeld(int duelId)
+        {
+            if (_held.Count == 0) return;
+            var mine = new List<object>();
+            for (int i = 0; i < _held.Count; i++)
+            {
+                if (_held[i].Key == duelId) mine.Add(_held[i].Value);
+                if (_held[i].Key <= duelId) _held.RemoveAt(i--);
+            }
+
+            foreach (object m in mine)
+            {
+                switch (m)
+                {
+                    case SnapshotMessage s:
+                        OnSnapshot(s);
+                        break;
+                    case DuelEventsMessage e:
+                        OnEvents(e);
+                        break;
+                    case DuelReportMessage r:
+                        if (Duel != null && Duel.DuelId == r.DuelId) ApplyReport(Duel, r);
+                        break;
+                }
             }
         }
 
