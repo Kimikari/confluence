@@ -61,6 +61,19 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
             return false;
         }
 
+        /// <summary>
+        /// The crest reward on a spell whose record damage is an area burst (kit interpretation, listed for the hub in
+        /// docs/notes/kit-wiz-002.md): WIZ-002's "direct damage gains 12%" raises the cast's primary payload damage. Where
+        /// the primary payload has a direct amount (Fireball, Cinder Sweep, Flame Lash, Flashforge) the framework raises
+        /// only that direct amount (an alternative splash, like Fireball's 28, is unchanged). Where the record's damage is
+        /// only an area burst (SPL-014 "32 explosion" and its AUG-315/316 bursts, SPL-013's endpoint burst and its AUG-314
+        /// brake burst that replaces it), that burst is the primary payload and carries the cast's one mastery result:
+        /// spec L480 excludes only secondary/reaction damage from grammar direct-damage bonuses, and L478 gives every cast
+        /// one specified benefit, which a damaging spell would otherwise never receive (it gets no mana reward either).
+        /// New secondary damage (AUG-306's cinder burst, AUG-317's knot swing) and terrain contact never take it.
+        /// </summary>
+        public static float PrimaryBurstMastery(CastRecord cast) => cast.DirectDamageMultiplier;
+
         /// <summary>Horizontal unit direction of a vector, or the fallback.</summary>
         public static Vec3 Flat(Vec3 v, Vec3 fallback)
         {

@@ -284,12 +284,12 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
             {
                 // The brake burst replaces the endpoint burst as the cast's primary damage, so it carries the cast's one
                 // mastery result (spec L94, L480: an augment that changes delivery inherits it).
-                KitSupport.Burst(ctx, Cast, _spec.BrakeBurst, center, _spec.BrakeRadius, CastHitKinds.Splash, Cast.DirectDamageMultiplier, center);
+                KitSupport.Burst(ctx, Cast, _spec.BrakeBurst, center, _spec.BrakeRadius, CastHitKinds.Splash, KitSupport.PrimaryBurstMastery(Cast), center);
             }
             else
             {
                 // The record's damage is the endpoint burst: the primary payload with the cast's one mastery result (L480).
-                KitSupport.Burst(ctx, Cast, Cast.Form.Payload, center, _spec.BurstRadius, CastHitKinds.Splash, Cast.DirectDamageMultiplier, center);
+                KitSupport.Burst(ctx, Cast, Cast.Form.Payload, center, _spec.BurstRadius, CastHitKinds.Splash, KitSupport.PrimaryBurstMastery(Cast), center);
             }
 
             LayTrail(ctx, end);

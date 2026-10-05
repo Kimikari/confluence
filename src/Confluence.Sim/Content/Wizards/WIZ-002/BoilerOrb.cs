@@ -402,7 +402,7 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
         {
             PayloadSpec payload = Cast.Form.Payload;
             float full = payload.Splash;
-            float scale = full > 0f ? ExplosionDamage / full * Cast.DirectDamageMultiplier : 0f;
+            float scale = full > 0f ? ExplosionDamage / full * KitSupport.PrimaryBurstMastery(Cast) : 0f; // the primary payload
             ctx.Emit(SpellEventKind.DeployableDetonated, Cast, Position, default, Id, _spec.ExplosionRadius);
             KitSupport.Burst(ctx, Cast, payload, Position, _spec.ExplosionRadius, CastHitKinds.Splash, scale, Position);
             if (_heat > 0)
