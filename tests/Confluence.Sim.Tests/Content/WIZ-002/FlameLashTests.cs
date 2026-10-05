@@ -5,6 +5,7 @@ using Confluence.Core.Content;
 using Confluence.Core.Geometry;
 using Confluence.Core.Rules;
 using Confluence.Core.Time;
+using Confluence.Reactions.Operations;
 using Confluence.Reactions.Volumes;
 using Confluence.Sim.Combat;
 using Confluence.Sim.Content.Wizards.Wiz002;
@@ -209,6 +210,29 @@ namespace Confluence.Sim.Tests.Content.Wiz002
             Assert.InRange(max.Y - min.Y, 1.5f, 3.6f);                  // the crossed stretch of the 2 m pool
             Assert.Equal(1, BramKit.Reactions(w).UnitsAt(new Vec3(0f, 0f, -3f)).Water); // "consumes it": Water 2 - 1
             Assert.Equal(2, BramKit.Reactions(w).UnitsAt(new Vec3(0.75f, 0f, -3f)).Water); // off the track: untouched
+        }
+
+        [Fact]
+        [Verifies("AUG-318")]
+        public void Lash_Steam_Counterplay_Wind_Clears_The_Strip()
+        {
+            DuelWorld w = Duel(BramKit.FlatWith(BramKit.Water(new Vec2(0f, -3f), 1f, 1f, 2)), BramKit.Aug("AUG-318"));
+            TestWorlds.Place(w, 1, new Vec3(6f, 0f, 6f), 180f);
+            Lashing(w);
+            BramKit.Run(w, 1);
+            Assert.Single(BramKit.Reactions(w).Volumes, v => v.Kind == VolumeKind.Steam);
+            var across = new Vec3(-3f, 1.2f, -3f);
+            var beyond = new Vec3(3f, 1.2f, -3f);
+            Assert.True(BramKit.Materials(w).ObscuringPathLength(across, beyond) > 0f);
+
+            // "Move outside strip": a parallel sight line 1.5 m beside the 1 m strip crosses no steam.
+            Assert.Equal(0f, BramKit.Materials(w).ObscuringPathLength(new Vec3(1.5f, 1.2f, -5f), new Vec3(1.5f, 1.2f, -1f)), 3);
+
+            // "wind-clear": a strength-2 gust disperses the touched front 2 m slice (spec L151, D-023), the whole strip.
+            BramKit.Materials(w).Wind(new WindGust { Direction = new Vec2(1f, 0f), Strength = 2, DurationTicks = 10 });
+            BramKit.Run(w, 12);
+            Assert.Equal(0f, BramKit.Materials(w).ObscuringPathLength(across, beyond), 3);
+            Assert.DoesNotContain(BramKit.Reactions(w).Volumes, v => v.Kind == VolumeKind.Steam && !v.Columns.IsEmpty);
         }
 
         [Fact]
