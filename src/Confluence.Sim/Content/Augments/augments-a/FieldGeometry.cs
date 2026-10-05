@@ -49,7 +49,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
         public static bool TryPredict(DuelWorld world, SpellForm form, int caster, out Footprint footprint, out Vec3 center) =>
             TryPredict(world, form, caster, out footprint, out center, out _);
 
-        /// <summary>As above, with the predicted placement point (<paramref name="ground"/>: a circle's center, a lane's start).</summary>
+        /// <summary>As above, with the predicted placement point (<paramref name="ground"/>: a lane's start, otherwise the field's center).</summary>
         public static bool TryPredict(DuelWorld world, SpellForm form, int caster, out Footprint footprint, out Vec3 center, out Vec3 ground)
         {
             footprint = default;
@@ -60,6 +60,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
             SpellContext ctx = runtime.Context;
             ground = form.Delivery.PredictTarget(ctx, form, caster);
             field.FootprintAt(ground, ctx.AimDirection(caster), out footprint, out center); // the delivery's own footprint rule
+            if (field.Shape != FieldShape.Lane) ground = center; // the placement point: a lane's start, otherwise the field's center
             return true;
         }
 

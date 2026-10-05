@@ -54,7 +54,7 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
     /// between their edges, each its own gameplay field (spec L510: a new field consumes the normal allocation), each with
     /// the form's footprint deposit.
     /// </summary>
-    public sealed class TwinPoolDelivery : DeliverySpec
+    public sealed class TwinPoolDelivery : DeliverySpec, IFieldDelivery
     {
         private float _radius;
         private float _gap;
@@ -72,6 +72,27 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
 
         /// <summary>The field one pool is (built at resolution).</summary>
         public FieldDelivery Pool => _pool;
+
+        // The shared field shape (Spells/Deliveries/FieldShapes.cs): two non-damaging circles across the aim; the Fieldcraft
+        // records see the first (left) pool, the field their settlement finds first.
+        FieldShape IFieldDelivery.Shape => FieldShape.Circle;
+
+        float IFieldDelivery.Width { get => Radius * 2f; set => Radius = value * 0.5f; }
+
+        float IFieldDelivery.Length => Radius * 2f;
+
+        PlacementMode IFieldDelivery.Placement => PlacementMode.AtAimPoint;
+
+        bool IFieldDelivery.IsDamaging => false;
+
+        PayloadSpec IFieldDelivery.EnterPayload => null;
+
+        void IFieldDelivery.FootprintAt(Vec3 ground, Vec3 aim, out Confluence.Reactions.Grid.Footprint footprint, out Vec3 center)
+        {
+            Vec3 flat = new Vec3(aim.X, 0f, aim.Z).NormalizedOr(Vec3.Forward);
+            center = ground - CMath.RightFromYaw(CMath.YawOf(flat)) * (Radius + Gap * 0.5f); // the left pool (Centers)
+            footprint = Confluence.Reactions.Grid.Footprint.Circle(center.XZ(), Radius);
+        }
 
         internal override void ApplyGlobalCaps()
         {
@@ -104,6 +125,7 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
         {
             Vec3 aimed = PredictTarget(ctx, cast.Form, cast.Caster);
             Vec3 aim = AimDirection(ctx, cast);
+            ctx.World.Effects.BindFieldPlacement(cast, ref aimed, ref aim); // a placement priced at commitment (Effects/EffectHooks.cs)
             Centers(ctx, aimed, aim, out Vec3 left, out Vec3 right);
             Vec3 flat = new Vec3(aim.X, 0f, aim.Z);
             _pool.Spawn(ctx, cast, left, flat);

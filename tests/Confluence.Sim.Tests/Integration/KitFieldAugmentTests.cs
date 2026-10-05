@@ -111,6 +111,29 @@ namespace Confluence.Sim.Tests.Integration
         }
 
         [Theory]
+        [InlineData(1, 0.2f)]
+        [InlineData(2, 0.35f)]
+        [Verifies("AUG-049")]
+        [Verifies("AUG-440")]
+        public void Wide_Foundation_Widens_Both_Pool_Divide_Pools(int rank, float metres)
+        {
+            DuelPlayerSetup a = DuelPlayerSetup.FromCatalogue(AKit.Catalogue, "A", AKit.Halen,
+                new[] { "SPL-076", "SPL-073", "SPL-074", "SPL-075", "SPL-077", "SPL-078" }, null,
+                new[] { new ActiveAugment("AUG-440", 1), new ActiveAugment(WideFoundation.Id, rank) });
+            DuelWorld w = AKit.Duel(a);
+            AKit.FaceOff(w, 14f);
+            var d = new HalenDuel(w);
+            d.AimAt(w.Player(0).Position + new Vec3(0f, 0f, 6f));
+            Assert.Equal(1.5f + metres, ((TwinPoolDelivery)d.P0.Caster.FormFor("SPL-076").Delivery).Radius, 3); // "two 1.5 m-radius pools"
+            d.Cast(0);
+            d.Run(60);
+            List<FieldEntity> pools = d.Runtime.Entities.OfType<FieldEntity>().Where(f => f.SpellId == "SPL-076").ToList();
+            Assert.Equal(2, pools.Count);
+            Assert.All(pools, p => Assert.Equal(1.5f + metres, p.Footprint.Radius, 3));
+            Assert.Equal(14f + WideFoundation.ExtraMana, Paid(w, "SPL-076"), 3);
+        }
+
+        [Theory]
         [InlineData(1, 0.5f)]
         [InlineData(2, 1f)]
         [Verifies("AUG-051")]
