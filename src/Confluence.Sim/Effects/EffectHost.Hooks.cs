@@ -135,6 +135,21 @@ namespace Confluence.Sim.Effects
             }
         }
 
+        internal bool BindFieldPlacementHooks(Spells.CastRecord cast, out Core.Geometry.Vec3 ground, out Core.Geometry.Vec3 direction)
+        {
+            for (int i = 0; i < _hooks.Count; i++)
+            {
+                if (_hooks[i].BindFieldPlacement(cast, out ground, out direction))
+                {
+                    return true;
+                }
+            }
+
+            ground = default;
+            direction = default;
+            return false;
+        }
+
         internal float AdjustSolidDamageHooks(int solidId, float amount, string sourceId, CastEventId castId)
         {
             for (int i = 0; i < _hooks.Count; i++)

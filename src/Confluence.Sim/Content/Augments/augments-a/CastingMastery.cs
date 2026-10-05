@@ -51,7 +51,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
         public void Observe(DuelEvent e, int player)
         {
-            if (e is ResourceEvent r && r.Player == player && r.Change == ResourceChange.ManaSpent)
+            if (e is ResourceEvent r && r.Player == player && r.Change == ResourceChange.ManaSpent && AugmentsAKit.IsSpellSource(r.SourceId)) // a commitment payment, not a drawback charge
             {
                 _lastPayment = r.Id;
             }

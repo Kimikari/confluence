@@ -123,6 +123,19 @@ namespace Confluence.Sim.Effects
         {
         }
 
+        /// <summary>
+        /// Where a field cast of the owner is created when this hook priced or timed it from its placement at commitment
+        /// ("place a field beyond 8 m", "create a field under no overhead cover"): returning true binds the field to the
+        /// committed ground point and direction instead of the aim at release, so re-aiming during the windup cannot keep
+        /// a placement-based benefit or dodge its drawback. The first hook that binds wins.
+        /// </summary>
+        public virtual bool BindFieldPlacement(Spells.CastRecord cast, out Core.Geometry.Vec3 ground, out Core.Geometry.Vec3 direction)
+        {
+            ground = default;
+            direction = default;
+            return false;
+        }
+
         /// <summary>Durability damage the owner's spell deals to a destructible solid (props are cover solids).</summary>
         public virtual float AdjustSolidDamage(int solidId, float amount, string sourceId, CastEventId castId) => amount;
 
@@ -148,6 +161,13 @@ namespace Confluence.Sim.Effects
             World.RecordEvent(new EffectEvent { Change = EffectChange.Activated, SourceId = SourceId, EffectKey = Key, TriggerEventId = originEventId, Amount = amount }, Player);
             return true;
         }
+
+        /// <summary>
+        /// Settles a drawback that became due after commitment ("fields within 3 m cost 2 extra mana" when the field was
+        /// created there): spends up to <paramref name="amount"/> mana — never more than the owner has (spec L78: a pool
+        /// never goes negative) — with a mana-spent event under this record's id. Returns the mana spent.
+        /// </summary>
+        protected float ChargeMana(float amount) => Host.System.ChargeMana(Player, amount, SourceId);
 
         /// <summary>A presentation cue owned by this record (no rule effect).</summary>
         protected void EmitCue(string cue, float amount = 0f)

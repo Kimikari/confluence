@@ -44,6 +44,38 @@ namespace Confluence.Sim.Effects
             return _hosts[cast.Caster].AdjustProjectileSpeedHooks(cast, speed);
         }
 
+        /// <summary>
+        /// A field cast's placement bound at commitment by the caster's hooks (EffectHook.BindFieldPlacement): replaces the
+        /// release-time ground point and direction when a hook binds it.
+        /// </summary>
+        public void BindFieldPlacement(Spells.CastRecord cast, ref Core.Geometry.Vec3 ground, ref Core.Geometry.Vec3 direction)
+        {
+            if (cast == null || cast.Caster < 0 || cast.Caster >= DuelWorld.PlayerCount)
+            {
+                return;
+            }
+
+            if (_hosts[cast.Caster].BindFieldPlacementHooks(cast, out Core.Geometry.Vec3 g, out Core.Geometry.Vec3 d))
+            {
+                ground = g;
+                direction = d;
+            }
+        }
+
+        /// <summary>A drawback's after-commitment mana charge: at most the mana the player has (spec L78).</summary>
+        internal float ChargeMana(int player, float amount, string sourceId)
+        {
+            Players.DuelPlayer p = World.Player(player);
+            float spent = System.Math.Min(System.Math.Max(0f, amount), p.Resources.Mana);
+            if (!(spent > 0f) || !p.Resources.TrySpendMana(spent, World.Tick, false))
+            {
+                return 0f;
+            }
+
+            World.RecordEvent(new ResourceEvent { Change = ResourceChange.ManaSpent, Amount = spent, SourceId = sourceId }, player);
+            return spent;
+        }
+
         /// <summary>Windup and recovery changes the player's hooks request for a cast being committed.</summary>
         public CastTimingAdjust CastTiming(int player, in CastQuote quote)
         {

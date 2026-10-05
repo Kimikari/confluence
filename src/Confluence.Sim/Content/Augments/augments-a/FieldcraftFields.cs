@@ -16,8 +16,9 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
     // Shared augments of the "Fieldcraft and terrain" family whose draft requirement is a field spell (spec L128 fields:
     // three per player, 8 s lifetime; L124 cost floor; L92 windup). A "field" here is a field delivery (circle, lane or
     // rectangle); its "radius" is a circle's radius or a lane's or rectangle's half-width, and its "initial direct
-    // damage" is the damage of first contact (the enter payload). Placement conditions are judged when the cast is
-    // paid (commitment), from the placement the delivery would choose along the caster's current aim.
+    // damage" is the damage of first contact (the enter payload). Placement prices settle against the field actually
+    // created (FieldSettlement.cs): drawbacks are charged at commitment from the predicted placement and corrected at
+    // creation; decreases are returned once the created field qualifies.
 
     internal static class FieldStages
     {
@@ -56,16 +57,6 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
         {
             SpellForm form = AugmentsAKit.FormOf(hook.Self, quote.SpellId);
             return FieldOf(form) != null ? form : null;
-        }
-
-        /// <summary>Horizontal distance from the caster's feet to the field's predicted placement, or NaN.</summary>
-        public static float PlacementDistance(EffectHook hook, SpellForm form)
-        {
-            FieldDelivery f = FieldOf(form);
-            SpellRuntime runtime = AugmentsAKit.Runtime(hook.World);
-            if (f == null || runtime == null) return float.NaN;
-            Vec3 placed = f.PredictTarget(runtime.Context, form, hook.Player);
-            return Vec3.DistanceXZ(hook.Self.Position, placed);
         }
     }
 
@@ -188,8 +179,9 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
     /// <summary>
     /// AUG-053 Remote Survey (Silver, field spell equipped). Condition "Place a field beyond 8 m." Rank 1 "Cost decreases 2
-    /// mana.", rank 2 "Cost decreases 4 mana." Drawback "Fields within 3 m cost 2 extra mana." A field cast whose placement
-    /// is more than 8 m from the caster's feet costs 2 (4) less inside the 70% floor; one placed within 3 m costs 2 more.
+    /// mana.", rank 2 "Cost decreases 4 mana." Drawback "Fields within 3 m cost 2 extra mana." A field created more than
+    /// 8 m from the caster's feet costs 2 (4) less, returned when it appears (the cast's refund ledger); one created
+    /// within 3 m costs 2 more (charged at commitment from the predicted placement and settled at creation).
     /// </summary>
     [ContentBehavior(Id)]
     public sealed class RemoteSurvey : IAugmentBehavior
@@ -210,9 +202,9 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
     /// <summary>
     /// AUG-054 Home Circle (Silver, field spell equipped). Condition "Place a field within 2 m of self." Rank 1 "Cost
-    /// decreases 2 mana.", rank 2 "Cost decreases 4 mana." Drawback "Fields beyond 10 m cost 2 extra mana." A field cast
-    /// placed within 2 m of the caster's feet (fields centered on the caster included) costs 2 (4) less inside the 70%
-    /// floor; one placed more than 10 m away costs 2 more.
+    /// decreases 2 mana.", rank 2 "Cost decreases 4 mana." Drawback "Fields beyond 10 m cost 2 extra mana." A field
+    /// created within 2 m of the caster's feet (fields centered on the caster included) costs 2 (4) less, returned when it
+    /// appears; one created more than 10 m away costs 2 more (settled as for AUG-053).
     /// </summary>
     [ContentBehavior(Id)]
     public sealed class HomeCircle : IAugmentBehavior
@@ -232,7 +224,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
     }
 
     /// <summary>A field cast's price by placement distance: a reduction inside one band, an increase inside another.</summary>
-    internal sealed class DistancePriceHook : EffectHook
+    internal sealed class DistancePriceHook : FieldSettlementHook
     {
         private readonly float _bonusMin;
         private readonly float _bonusMax;
@@ -252,14 +244,11 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
             _penalty = penalty;
         }
 
-        public override void AdjustCastPrice(in CastQuote quote, ref float reduction, ref float increase)
+        protected override void Price(SpellForm form, in FieldPlacement placement, float listedCost, out float decrease, out float increase)
         {
-            SpellForm form = FieldStages.PricedField(this, quote);
-            if (form == null) return;
-            float d = FieldStages.PlacementDistance(this, form);
-            if (float.IsNaN(d)) return;
-            if (d > _bonusMin && d <= _bonusMax) reduction += _bonus;
-            if (d > _penaltyMin && d <= _penaltyMax) increase += _penalty;
+            float d = Vec2.Distance(placement.Feet.XZ(), placement.Anchor);
+            decrease = d > _bonusMin && d <= _bonusMax ? _bonus : 0f;
+            increase = d > _penaltyMin && d <= _penaltyMax ? _penalty : 0f;
         }
     }
 
@@ -329,8 +318,10 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
     /// <summary>
     /// AUG-060 Safe Corridor (Gold, field spell equipped). Condition "Your field is created without overlapping another
     /// field." Rank 1 "Cost decreases 5% mana.", rank 2 "Cost decreases 8% mana." Drawback "Overlapping fields cost 2
-    /// additional mana." A field cast whose predicted footprint shares no ground with any live field (either player's,
-    /// clouds included) costs 5% (8%) of its base cost less inside the 70% floor; one that overlaps costs 2 more.
+    /// additional mana." A field created sharing no ground with any other live field (either player's, clouds included)
+    /// costs 5% (8%) of its listed cost less, returned when it appears; one that overlaps costs 2 more (charged at
+    /// commitment from the predicted footprint, settled at creation: a field appearing or dissolving during the windup
+    /// counts as of the creation).
     /// </summary>
     [ContentBehavior(Id)]
     public sealed class SafeCorridor : IAugmentBehavior
@@ -346,18 +337,18 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
             host.Attach(new Hook(AugmentsAKit.ByRank(rank, Rank1Cut, Rank2Cut)));
         }
 
-        public static bool OverlapsAny(DuelWorld world, in Footprint footprint)
+        public static bool OverlapsAny(DuelWorld world, in Footprint footprint, OwnedEntity except = null)
         {
             List<KeyValuePair<OwnedEntity, Footprint>> fields = FieldGeometry.LiveFields(world);
             for (int i = 0; i < fields.Count; i++)
             {
-                if (FieldGeometry.Overlaps(footprint, fields[i].Value)) return true;
+                if (!ReferenceEquals(fields[i].Key, except) && FieldGeometry.Overlaps(footprint, fields[i].Value)) return true;
             }
 
             return false;
         }
 
-        private sealed class Hook : EffectHook
+        private sealed class Hook : FieldSettlementHook
         {
             private readonly float _cut;
 
@@ -366,12 +357,11 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 _cut = cut;
             }
 
-            public override void AdjustCastPrice(in CastQuote quote, ref float reduction, ref float increase)
+            protected override void Price(SpellForm form, in FieldPlacement placement, float listedCost, out float decrease, out float increase)
             {
-                SpellForm form = FieldStages.PricedField(this, quote);
-                if (form == null || !FieldGeometry.TryPredict(World, form, Player, out Footprint footprint, out _)) return;
-                if (OverlapsAny(World, footprint)) increase += OverlapMana;
-                else reduction += quote.BaseCost * _cut;
+                bool overlaps = OverlapsAny(World, placement.Footprint, placement.Self);
+                decrease = overlaps ? 0f : listedCost * _cut;
+                increase = overlaps ? OverlapMana : 0f;
             }
         }
     }
@@ -379,8 +369,10 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
     /// <summary>
     /// AUG-065 Open Sky (Prismatic, field spell equipped). Condition "Create a field under no overhead cover." Rank 1
     /// "Preparation decreases 6%.", rank 2 "Preparation decreases 10%." Drawback "Creation under a ceiling costs 2 extra
-    /// mana." A field cast whose predicted center has no solid above it (within <see cref="FieldGeometry.OverheadProbe"/>)
-    /// has its windup shortened by 6% (10%); one placed under a ceiling costs 2 more mana.
+    /// mana." A field cast whose placement at commitment has no solid above its center (within
+    /// <see cref="FieldGeometry.OverheadProbe"/>) has its windup shortened by 6% (10%); one created under a ceiling costs 2
+    /// more mana (charged at commitment, settled at creation). The windup is decided at commitment, so an aimed field is
+    /// created at the committed placement (re-aiming during the windup cannot keep the shorter windup).
     /// </summary>
     [ContentBehavior(Id)]
     public sealed class OpenSky : IAugmentBehavior
@@ -400,8 +392,9 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
     /// <summary>
     /// AUG-066 Sheltered Work (Prismatic, field spell equipped). Condition "Create a field under overhead cover." Rank 1
     /// "Cost decreases 6% mana.", rank 2 "Cost decreases 10% mana." Drawback "Field creation outdoors has 0.05 s longer
-    /// preparation." A field cast whose predicted center is under a solid costs 6% (10%) of its base cost less inside the
-    /// 70% floor; one placed in the open has a windup 0.05 s (3 ticks) longer.
+    /// preparation." A field created under a solid costs 6% (10%) of its listed cost less, returned when it appears; one
+    /// whose placement at commitment is in the open has a windup 0.05 s (3 ticks) longer, and an aimed field is created at
+    /// that committed placement (re-aiming under cover during the windup cannot dodge the longer windup).
     /// </summary>
     [ContentBehavior(Id)]
     public sealed class ShelteredWork : IAugmentBehavior
@@ -422,7 +415,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
     /// A field cast's price and windup by overhead cover at its predicted center: in the open a windup reduction
     /// (fraction) and extra windup ticks; under cover a cost reduction (fraction of base) and a flat increase.
     /// </summary>
-    internal sealed class CoverHook : EffectHook
+    internal sealed class CoverHook : FieldSettlementHook
     {
         private readonly float _openWindupCut;
         private readonly float _coveredCostCut;
@@ -437,25 +430,20 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
             _openWindupTicks = openWindupTicks;
         }
 
-        private bool TryCovered(in CastQuote quote, out bool covered)
+        protected override void Price(SpellForm form, in FieldPlacement placement, float listedCost, out float decrease, out float increase)
         {
-            covered = false;
-            SpellForm form = FieldStages.PricedField(this, quote);
-            if (form == null || !FieldGeometry.TryPredict(World, form, Player, out _, out Vec3 center)) return false;
-            covered = FieldGeometry.UnderCover(World.Collision, center);
-            return true;
+            bool covered = FieldGeometry.UnderCover(World.Collision, placement.Center);
+            decrease = covered ? listedCost * _coveredCostCut : 0f;
+            increase = covered ? _coveredMana : 0f;
         }
 
-        public override void AdjustCastPrice(in CastQuote quote, ref float reduction, ref float increase)
-        {
-            if (!TryCovered(quote, out bool covered) || !covered) return;
-            reduction += quote.BaseCost * _coveredCostCut;
-            increase += _coveredMana;
-        }
+        // The windup cannot be settled after release: it is decided from the placement at commitment, which binds it.
+        protected override bool BindsPlacement(SpellForm form) => true;
 
         public override void AdjustCastTiming(in CastQuote quote, ref CastTimingAdjust timing)
         {
-            if (!TryCovered(quote, out bool covered) || covered) return;
+            SpellForm form = FieldStages.PricedField(this, quote);
+            if (form == null || !TryPredict(form, out FieldPlacement predicted) || FieldGeometry.UnderCover(World.Collision, predicted.Center)) return;
             timing.WindupReduction += _openWindupCut;
             timing.WindupDeltaTicks += _openWindupTicks;
         }

@@ -85,6 +85,18 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
         private static float Paid(DuelWorld w, string spellId) =>
             AKit.Events<ResourceEvent>(w).Where(e => e.Player == 0 && e.Change == ResourceChange.ManaSpent && e.SourceId == spellId).Select(e => e.Amount).Last();
 
+        /// <summary>
+        /// What the last cast of the spell finally cost: its payment, less the decrease returned when its field appeared
+        /// (the refund ledger), plus any drawback charged after commitment under the record's id.
+        /// </summary>
+        private static float Net(DuelWorld w, string spellId, string recordId)
+        {
+            CastDuelEvent commit = AKit.Casts(w, CastEventKind.Committed).Last(c => c.SpellId == spellId);
+            float refunded = AKit.Casts(w, CastEventKind.Refunded).Where(c => c.CastId == commit.CastId).Sum(c => c.Cast.Mana);
+            float charged = AKit.Events<ResourceEvent>(w).Where(e => e.Player == 0 && e.Change == ResourceChange.ManaSpent && e.SourceId == recordId).Sum(e => e.Amount);
+            return Paid(w, spellId) - refunded + charged;
+        }
+
         private static int Windup(DuelWorld w, string spellId)
         {
             CastDuelEvent commit = AKit.Casts(w, CastEventKind.Committed).Last(c => c.SpellId == spellId);
@@ -225,7 +237,38 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
             DuelWorld w = Duel(RemoteSurvey.Id, rank);
             Cast(w, 1); // level aim: the field lands at the 16 m range
             Assert.InRange(Fields(w).Single().Center.Z, 15.5f, 16.1f);
-            Assert.Equal(20f - discount, Paid(w, Curtain), 3);
+            Assert.Equal(20f, Paid(w, Curtain), 3);                       // paid in full at commitment (spec L90)
+            Assert.Equal(20f - discount, Net(w, Curtain, RemoteSurvey.Id), 3); // returned when the field appears beyond 8 m
+        }
+
+        /// <summary>Commits the Curtain with one aim, then turns to another during its 0.5 s windup.</summary>
+        private static void CastThenReaim(DuelWorld w, PlayerInput commitAim, PlayerInput releaseAim)
+        {
+            PlayerInput first = AKit.SelectSlot(commitAim, 1);
+            AKit.Step(w, 1, first);
+            AKit.HoldAndRelease(w, AKit.NormalHold, first);
+            Assert.Equal(CastPhase.Windup, w.Player(0).Caster.Machine.Phase);
+            AKit.Step(w, 70, AKit.SelectSlot(releaseAim, 1));
+        }
+
+        [Fact]
+        [Verifies("AUG-053")]
+        public void Remote_Survey_Settles_Against_The_Field_Created_When_The_Aim_Changes_During_The_Windup()
+        {
+            // Aimed far at commitment, turned to 2.5 m before release: no decrease, and the near drawback is charged.
+            DuelWorld near = Duel(RemoteSurvey.Id, 2);
+            CastThenReaim(near, AKit.A, AimAhead(near, 2.5f));
+            Assert.True(Fields(near).Single().Center.Z < 3f);
+            Assert.Equal(20f, Paid(near, Curtain), 3);
+            Assert.Equal(22f, Net(near, Curtain, RemoteSurvey.Id), 3);
+
+            // Aimed near at commitment (charged 22), turned far before release: the 2 come back with the 4 decrease, inside
+            // the cast's 25% refund cap (spec L124): 6 requested, 5.5 returned.
+            DuelWorld far = Duel(RemoteSurvey.Id, 2);
+            CastThenReaim(far, AimAhead(far, 2.5f), AKit.A);
+            Assert.True(Fields(far).Single().Center.Z > 8f);
+            Assert.Equal(22f, Paid(far, Curtain), 3);
+            Assert.Equal(22f - 22f * GlobalRules.Casting.RefundCapFraction, Net(far, Curtain, RemoteSurvey.Id), 3);
         }
 
         [Fact]
@@ -255,11 +298,11 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
             AKit.AssertQuotes(HomeCircle.Id, "Place a field within 2 m of self.", "Cost decreases 2 mana.", "Cost decreases 4 mana.", "Fields beyond 10 m cost 2 extra mana.");
             DuelWorld w = Duel(HomeCircle.Id, rank);
             Cast(w, 2); // Rush: centered on the caster
-            Assert.Equal(28f - discount, Paid(w, Rush), 3);
+            Assert.Equal(28f - discount, Net(w, Rush, HomeCircle.Id), 3);
 
             DuelWorld aimed = Duel(HomeCircle.Id, rank);
             Cast(aimed, 1, AimAhead(aimed, 1.8f));
-            Assert.Equal(20f - discount, Paid(aimed, Curtain), 3);
+            Assert.Equal(20f - discount, Net(aimed, Curtain, HomeCircle.Id), 3);
         }
 
         [Fact]
@@ -273,6 +316,13 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
             DuelWorld mid = Duel(HomeCircle.Id, 1);
             Cast(mid, 1, AimAhead(mid, 6f));
             Assert.Equal(20f, Paid(mid, Curtain), 3);
+            Assert.Equal(20f, Net(mid, Curtain, HomeCircle.Id), 3);
+
+            // Aimed at 1.8 m at commitment, turned to the 16 m range before release: the far drawback, no decrease.
+            DuelWorld turned = Duel(HomeCircle.Id, 2);
+            CastThenReaim(turned, AimAhead(turned, 1.8f), AKit.A);
+            Assert.True(Fields(turned).Single().Center.Z > 10f);
+            Assert.Equal(22f, Net(turned, Curtain, HomeCircle.Id), 3);
         }
 
         // ----- AUG-055 Edge Casting ------------------------------------------------------------------------
@@ -331,9 +381,32 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
             AKit.AssertQuotes(SafeCorridor.Id, "created without overlapping another field", "Cost decreases 5% mana.", "Cost decreases 8% mana.", "Overlapping fields cost 2 additional mana.");
             DuelWorld w = Duel(SafeCorridor.Id, rank);
             Cast(w, 1);
-            Assert.Equal(20f * (1f - cut), Paid(w, Curtain), 3);
+            Assert.Equal(20f * (1f - cut), Net(w, Curtain, SafeCorridor.Id), 3);
             Cast(w, 2); // the Rush field on the caster, 16 m from the curtain
-            Assert.Equal(28f * (1f - cut), Paid(w, Rush), 3);
+            Assert.Equal(28f * (1f - cut), Net(w, Rush, SafeCorridor.Id), 3);
+        }
+
+        [Fact]
+        [Verifies("AUG-060")]
+        public void Safe_Corridor_A_Field_Appearing_Under_The_Placement_During_The_Windup_Counts()
+        {
+            DuelWorld w = Duel(SafeCorridor.Id, 2);
+            PlayerInput input = AKit.SelectSlot(AKit.A, 1);
+            AKit.Step(w, 1, input);
+            AKit.HoldAndRelease(w, AKit.NormalHold, input); // clear at commitment: no drawback charged
+            Assert.Equal(CastPhase.Windup, w.Player(0).Caster.Machine.Phase);
+            w.CreateOwnedEntity(new OwnedEntitySpec { Kind = OwnedEntityKind.Field, Owner = 1, DefinitionId = "SPL-TEST-ENEMY", LifetimeTicks = AKit.Ticks(6f), Position = new Vec3(0f, 0f, 16f), Radius = 1f });
+            AKit.Step(w, 70, input);
+            Assert.Equal(20f, Paid(w, Curtain), 3);
+            Assert.Equal(22f, Net(w, Curtain, SafeCorridor.Id), 3); // created overlapping: no decrease, 2 more
+
+            // The reverse: the enemy field under the placement dissolves during the windup.
+            DuelWorld gone = Duel(SafeCorridor.Id, 2);
+            OwnedEntity enemy = gone.CreateOwnedEntity(new OwnedEntitySpec { Kind = OwnedEntityKind.Field, Owner = 1, DefinitionId = "SPL-TEST-ENEMY", LifetimeTicks = AKit.Ticks(0.6f), Position = new Vec3(0f, 0f, 16f), Radius = 1f });
+            Cast(gone, 1);
+            Assert.False(enemy.Active);
+            Assert.Equal(22f, Paid(gone, Curtain), 3);
+            Assert.Equal(20f * 0.92f, Net(gone, Curtain, SafeCorridor.Id), 3); // the 2 come back with the 8% decrease
         }
 
         [Fact]
@@ -401,8 +474,49 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
             TestWorlds.Place(w, 0, Vec3.Zero, 0f);
             AKit.Step(w, 1);
             Cast(w, 1);
-            Assert.Equal(20f * (1f - cut), Paid(w, Curtain), 3);
+            Assert.Equal(20f * (1f - cut), Net(w, Curtain, ShelteredWork.Id), 3);
             Assert.Equal(AKit.Ticks(0.5f), Windup(w, Curtain));
+        }
+
+        /// <summary>The flat layout with a canopy over a spot 6 m ahead of player 0 (whose feet stay in the open).</summary>
+        private static ArenaLayout CanopyAhead()
+        {
+            ArenaLayout layout = TestWorlds.Flat();
+            layout.Solids.Add(TestWorlds.Box(60, new Vec3(0f, 3f, 6f), new Vec3(4f, 0.3f, 4f), SolidKind.Platform));
+            return layout;
+        }
+
+        [Fact]
+        [Verifies("AUG-066")]
+        [Verifies("AUG-065")]
+        public void Field_Placement_Is_Bound_At_Commitment_When_Cover_Sets_The_Windup()
+        {
+            // Sheltered Work: aimed under the canopy at commitment (normal windup), turned to the open 16 m range before
+            // release: the field is still created under the canopy, so the longer outdoor windup cannot be dodged.
+            DuelWorld sheltered = Duel(ShelteredWork.Id, 2, layout: CanopyAhead());
+            TestWorlds.Place(sheltered, 0, new Vec3(0f, 0f, -6f), 0f);
+            AKit.Step(sheltered, 1);
+            CastThenReaim(sheltered, AimAhead(sheltered, 12f), AKit.A);
+            FieldEntity field = Fields(sheltered).Single();
+            Assert.InRange(field.Center.Z, 5.5f, 6.5f);
+            Assert.Equal(AKit.Ticks(0.5f), Windup(sheltered, Curtain));
+            Assert.Equal(18f, Net(sheltered, Curtain, ShelteredWork.Id), 3);
+
+            // Open Sky: aimed at the open range at commitment (shorter windup), turned under the canopy: created in the open.
+            DuelWorld open = Duel(OpenSky.Id, 2, layout: CanopyAhead());
+            TestWorlds.Place(open, 0, new Vec3(0f, 0f, -6f), 0f);
+            AKit.Step(open, 1);
+            CastThenReaim(open, AKit.A, AimAhead(open, 12f));
+            Assert.True(Fields(open).Single().Center.Z > 9f);
+            Assert.Equal(AKit.Ticks(0.5f) - 3, Windup(open, Curtain));
+            Assert.Equal(20f, Net(open, Curtain, OpenSky.Id), 3);
+
+            // Without the records, the same turn moves the field with the aim.
+            DuelWorld control = Duel((string)null, 0, layout: CanopyAhead());
+            TestWorlds.Place(control, 0, new Vec3(0f, 0f, -6f), 0f);
+            AKit.Step(control, 1);
+            CastThenReaim(control, AimAhead(control, 12f), AKit.A);
+            Assert.True(Fields(control).Single().Center.Z > 9f);
         }
 
         [Fact]
