@@ -15,6 +15,12 @@ AUG-305...AUG-320.
   (`tests/Confluence.Hosting.Tests/Wiz002/Wiz002StructuralProfileTests.cs`), exclusive groups refused by Economy and
   by the Sim resolver.
 - Done: bot casting profile `src/Confluence.Hosting/Bots/Profiles/WIZ-002BramCinderPlanner.cs`.
+- Done (review round 2, Claude verifier + Codex): hit classification (secondary generation 1 for AUG-306's cinder
+  burst and AUG-317's knot swing, Environment damage for hot strips and red-hot props), AUG-312 first-tick push,
+  swept Flame Lash arc, Flashforge's burst fixed at its committed marker, counterplay scenarios for AUG-314/315/320,
+  the recast gate (an early recast spends nothing, below), the AUG-309 caster-view veil, the AUG-310 soak rule and the
+  crest reward scope. Regression tests: `BoilerOrbTests.An_Early_Recast_...`, `FireballTransformTests.Cinder_Seed_An_Early_Recast_...`,
+  `HeatHazeTests.Steam_Mantle_Drawback_...`/`..._Screens_...`/`Haze_Reservoir_...`, `CrestRewardScopeTests`.
 - Next (outside this task): Hosting's `ImplementedContent.PoolIds` now lists the sixteen WIZ-002 transformations next
   to the shared proof records; the D-010 floors test filters transformations out. Whether wizard transformations
   belong in the implemented pool list at all is a hub decision.
@@ -82,6 +88,35 @@ reaction latency). `BotSpellPlanners.For(wizardId)` discovers planners by reflec
   loose steam at the wind speed cap (3 m/s, L151).
 - AUG-318 Lash Steam "wind-clear": a strength-2 gust disperses the touched front 2 m slice (D-023), i.e. the whole
   1-1.5 m strip.
+- Recast timing (L94 "does nothing when none exists"): a recast pressed while the cast's recast target does not exist
+  yet (the Boiler Orb in flight or falling, the AUG-306 fireball before it plants its cinder, the AUG-310 reservoir
+  before it is charged) is refused as `NoPendingRecast` and spends neither the recast use nor a surcharge. Generic
+  primitive: `IAwaitsRecastTarget` + `RecastReadiness` (Sim) and the optional `IRecastGate` host extension (Casting);
+  casts without an awaiting entity keep the old behavior. AUG-310 therefore uses the default one recast again.
+- AUG-309 Steam Mantle "steam also hides caster's view": while Bram's eye is inside his own mantle puff he cannot
+  acquire a target whose chest is outside it (`MantlePuffEntity`, via the new `IAcquisitionVeil`; stricter than L167
+  only). Without it the rank 1 puff (1.5 m radius) would never hide anyone on a line from its centre (1.5 m < 2 m).
+  Outside viewers keep the plain L167 rule (rank 2's 2 m radius hides Bram both ways; at rank 1 the puff screens him
+  once he steps behind it). A target inside the same puff stays visible ("close range").
+- AUG-310 Haze Reservoir "First 20 absorbed damage": the damage the caster takes (shield + health) from hostile hits
+  the shimmer's projectile reduction acts on (`ConditionalPrevented > 0`). Unmitigated damage (melee, bursts, terrain,
+  statuses, boundary) and self damage never count. Counting only the prevented 12% would need about 167 projectile
+  damage inside the 3 s buff (four Fireballs), leaving the record inert; one catalogue Fireball (42.24 after the
+  shimmer) or two 15-damage projectiles fill it.
+- WIZ-002 crest reward scope ("direct damage gains 12%", D-056): the primary payload's damage. Where the primary
+  payload has a direct amount (Fireball, Cinder Sweep, Flame Lash, Flashforge) the framework raises only that amount
+  (Fireball's alternative 28 splash is unchanged). Where the record's only damage is an area burst (Boiler Orb's
+  "32 explosion" and the AUG-315/316 bursts, Phoenix Rush's endpoint burst and the AUG-314 brake burst that replaces
+  it), the burst is the primary payload and takes the bonus (`KitSupport.PrimaryBurstMastery`): L480 excludes only
+  secondary/reaction damage, and L478 gives every cast one benefit, which these damaging spells would otherwise never
+  get (no mana reward either). New secondary damage (AUG-306 cinder burst, AUG-317 knot swing) and terrain contact
+  never take it.
+- Flame Lash's "curved whip ... along a 0.5 m-wide arc": a swept strike (L102) of the lash's width from the focus
+  across the light-blade arc around the committed aim; the tip traces the curve and the ground under the tip's curve
+  takes the heat. Targets inside the swept sector are struck (the whip sweeps through them).
+- Damage classification: AUG-306's cinder burst and AUG-317's knot swing are new secondary damage (generation 1, no
+  hit/proc rewards, L508, L126); Phoenix Rush trails and Flashforge's red-hot prop deal Environment damage (L672),
+  keeping the cast's source and original event for attribution.
 
 ## Cross-edits (shared files outside the owned paths)
 - `src/Confluence.Sim/Spells/Runtime/CastRecord.cs` (+`Choice`), `SpellScript.cs` (+`OnCommitted`),
@@ -91,3 +126,8 @@ reaction latency). `BotSpellPlanners.For(wizardId)` discovers planners by reflec
 - Tests: `tests/Confluence.Sim.Tests/Content/ContentRegistryTests.cs`, `tests/Confluence.Sim.Tests/Spells/ProjectileTests.cs`
   (expectations for an implemented WIZ-002 kit), `tests/Confluence.Hosting.Tests/EconomyAdapterTests.cs` (pool ids
   minus wizard transformations), new `tests/Confluence.Hosting.Tests/Wiz002/`.
+- Review round 2 (all additive): new `src/Confluence.Casting/Machine/IRecastGate.cs` and one line in
+  `CastMachine.TryRecast`; new `src/Confluence.Sim/Spells/Runtime/RecastReadiness.cs`, `SpellRuntime.HasRecastTarget`
+  and `PlayerCaster : IRecastGate`; new `src/Confluence.Sim/Duel/IAcquisitionVeil.cs`, one check in
+  `DuelWorld.CanAcquire` and `SpellRuntime : IAcquisitionVeil`; `DamagePipeline` (+`DamageResolution.ConditionalPrevented`),
+  `SpellContext` (`PayloadHit.Secondary/Environmental/Reaction/NotProjectile`), `CastRecord` (+`ChosenPoint`).

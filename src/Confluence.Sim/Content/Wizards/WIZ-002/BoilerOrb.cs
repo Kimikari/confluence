@@ -33,7 +33,9 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
     /// cell's water (spec L144) — and the orb's explosion drops to 16 ("premature steaming").</item>
     /// <item>The spell recast (spec L94, one recast in the orb's lifetime, no listed final warning, L512) detonates it:
     /// thermal area damage within 2 m (the caster is not hit; not guarded), the record's primary damage with the cast's
-    /// mastery result (spec L480); a dry orb releases its Heat 3 into the explosion cell. Unrecast, it fades after 3 s.</item>
+    /// mastery result (spec L480; see <c>KitSupport.PrimaryBurstMastery</c>); a dry orb releases its Heat 3 into the
+    /// explosion cell. Unrecast, it fades after 3 s. A press while the orb still flies or falls finds no recast target
+    /// and spends nothing (<see cref="IAwaitsRecastTarget"/>), so the waiting orb can still be detonated.</item>
     /// <item>The orb is a deployable, not a field or trap (record tags), so it uses no field allocation.</item>
     /// </list>
     /// </summary>
