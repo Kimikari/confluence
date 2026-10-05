@@ -288,7 +288,9 @@ namespace Confluence.Sim.Duel
                 input.SelectedSlot = p.SelectedSlot;
             }
 
-            p.Pressed = input.Buttons & ~p.PreviousButtons;
+            // A tap (pressed and released inside the command's tick) is a press edge too, as casting already reads it
+            // (CastFrameBuilder): jump, dodge, guard, swap and melee taps are never lost (spec L419 server-validated inputs).
+            p.Pressed = (input.Buttons & ~p.PreviousButtons) | (input.Tapped & ~input.Buttons & ~p.PreviousButtons);
             p.PreviousButtons = input.Buttons;
             p.Input = input;
             p.SelectedSlot = input.SelectedSlot; // spec L106: no swap windup for spell selection

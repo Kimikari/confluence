@@ -404,6 +404,9 @@ namespace Confluence.Net.Game.Snapshots
 
         public int BoundaryOutsideTicks;
 
+        /// <summary>Duel tick the visible 0.5 s recall ends (spec L175; the motor holds until then), or -1.</summary>
+        public int RecallEndTick = -1;
+
         public void Write(NetWriter w)
         {
             WriteMotor(w, Motor);
@@ -436,6 +439,7 @@ namespace Confluence.Net.Game.Snapshots
             w.WriteVarInt(ControlImmuneUntil);
             w.WriteVarInt(Judgement);
             w.WriteVarUInt((uint)Math.Max(0, BoundaryOutsideTicks));
+            w.WriteVarInt(RecallEndTick);
         }
 
         public static PrivateEntry Read(NetReader r)
@@ -472,6 +476,7 @@ namespace Confluence.Net.Game.Snapshots
             p.ControlImmuneUntil = r.ReadVarInt();
             p.Judgement = r.ReadVarIntInRange(-2, 1);
             p.BoundaryOutsideTicks = (int)Math.Min(int.MaxValue, r.ReadVarUInt());
+            p.RecallEndTick = r.ReadVarIntInRange(-1, int.MaxValue);
             return p;
         }
 
@@ -500,7 +505,8 @@ namespace Confluence.Net.Game.Snapshots
             }
 
             if (!SameTuning(Tuning, p.Tuning)) mask |= PrTuning;
-            if (ControlImmuneUntil != p.ControlImmuneUntil || Judgement != p.Judgement || BoundaryOutsideTicks != p.BoundaryOutsideTicks) mask |= PrMisc;
+            if (ControlImmuneUntil != p.ControlImmuneUntil || Judgement != p.Judgement || BoundaryOutsideTicks != p.BoundaryOutsideTicks ||
+                RecallEndTick != p.RecallEndTick) mask |= PrMisc;
             w.WriteByte(mask);
             if ((mask & PrMotor) != 0) WriteMotor(w, Motor);
             if ((mask & PrVitals) != 0) WriteVitals(w);
@@ -615,6 +621,7 @@ namespace Confluence.Net.Game.Snapshots
             w.WriteVarInt(ControlImmuneUntil);
             w.WriteVarInt(Judgement);
             w.WriteVarUInt((uint)Math.Max(0, BoundaryOutsideTicks));
+            w.WriteVarInt(RecallEndTick);
         }
 
         private void ReadMisc(NetReader r)
@@ -622,6 +629,7 @@ namespace Confluence.Net.Game.Snapshots
             ControlImmuneUntil = r.ReadVarInt();
             Judgement = r.ReadVarIntInRange(-2, 1);
             BoundaryOutsideTicks = (int)Math.Min(int.MaxValue, r.ReadVarUInt());
+            RecallEndTick = r.ReadVarIntInRange(-1, int.MaxValue);
         }
 
         private static bool SameInts(int[] a, int[] b)

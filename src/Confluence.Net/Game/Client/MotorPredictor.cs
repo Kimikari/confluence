@@ -99,8 +99,11 @@ namespace Confluence.Net.Game.Client
         public MotorState Step(MotorState state, in PlayerInput input, InputButtons previousButtons, int tick, PrivateEntry context, PredictedCast cast,
             ref float stamina)
         {
+            // The visible 0.5 s recall holds the motor in place until its end tick (spec L175, D-109; DuelWorld step 2).
+            if (context != null && context.RecallEndTick >= 0 && tick < context.RecallEndTick) return state;
+
             PlayerInput i = Wire.PlayerInputCodec.SanitizeLikeServer(input, input.SelectedSlot);
-            InputButtons pressed = i.Buttons & ~previousButtons;
+            InputButtons pressed = PressedEdges(i, previousButtons);
             var cmd = new MotorCommand
             {
                 Move = new Vec2(i.MoveX, i.MoveY),
@@ -133,6 +136,15 @@ namespace Confluence.Net.Game.Client
             CharacterMotor.Step(ref state, cmd, Collision, Ticks.Dt, out MotorReport report);
             if (report.StaminaSpent > 0f) stamina -= Math.Min(report.StaminaSpent, stamina);
             return state;
+        }
+
+        /// <summary>
+        /// Press edges the server's step 1 derives (DuelWorld.ApplyInput): newly held buttons, plus taps of buttons neither
+        /// held now nor before (pressed and released inside the tick, or a press recovered from a trimmed command).
+        /// </summary>
+        public static InputButtons PressedEdges(in PlayerInput input, InputButtons previousButtons)
+        {
+            return (input.Buttons & ~previousButtons) | (input.Tapped & ~input.Buttons & ~previousButtons);
         }
 
         private static MotorLocks LocksWith(PrivateEntry context, PredictedCast cast)

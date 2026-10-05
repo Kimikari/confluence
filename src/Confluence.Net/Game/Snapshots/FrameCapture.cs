@@ -192,6 +192,7 @@ namespace Confluence.Net.Game.Snapshots
                 ControlImmuneUntil = Math.Max(-1, p.Statuses.ControlImmuneUntil),
                 Judgement = world.JudgementIndicatorVisible ? world.JudgementIndicator(side) : -2,
                 BoundaryOutsideTicks = p.Boundary.OutsideTicks,
+                RecallEndTick = p.RecallEndTick,
             };
 
             PlayerCaster caster = p.Caster;
