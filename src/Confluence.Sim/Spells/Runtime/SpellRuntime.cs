@@ -22,7 +22,7 @@ namespace Confluence.Sim.Spells
     /// drive beams and channeled cones, recasts act on the cast's entities. Step 4 advances every live delivery entity
     /// in creation order. A lifetime recast window closes when the cast's last entity ends (spec L94).
     /// </summary>
-    public sealed class SpellRuntime : ISpellRuntime
+    public sealed class SpellRuntime : ISpellRuntime, IAcquisitionVeil
     {
         private readonly ISpellLoadoutSource _loadouts;
         private readonly PlayerCaster[] _casters = new PlayerCaster[DuelWorld.PlayerCount];
@@ -88,6 +88,7 @@ namespace Confluence.Sim.Spells
             }
 
             world.AddEventObserver(_feed);
+            world.AddEventObserver(new ListeningEntityForwarder(this)); // ISpellEventListener entities (additive hook)
         }
 
         // ----- step 3 ---------------------------------------------------------------------------------------
@@ -240,6 +241,17 @@ namespace Confluence.Sim.Spells
             return null;
         }
 
+        /// <summary>Whether a recast of the cast would act on anything this tick (spec L94; see <see cref="RecastReadiness"/>).</summary>
+        public bool HasRecastTarget(CastEventId castId) => RecastReadiness.HasTarget(FindCast(castId), _entities);
+
+        /// <summary>IAcquisitionVeil: any live entity that hides the viewer's view of the target (in creation order).</summary>
+        public bool HidesView(DuelWorld world, int viewer, int target)
+        {
+            for (int i = 0; i < _entities.Count; i++)
+                if (_entities[i].Alive && _entities[i] is IAcquisitionVeil veil && veil.HidesView(world, viewer, target)) return true;
+            return false;
+        }
+
         // ----- cast events ----------------------------------------------------------------------------------
 
         private void RunInterrupt(PlayerCaster caster, CastInterrupt cause)
@@ -320,6 +332,7 @@ namespace Confluence.Sim.Spells
             _casts.Add(cast);
             _world.NotifyOffensiveAction(player); // spec L120: invisibility ends on a cast or signature activation
             if (e.Mastery.IsMastered) _world.RecordMasteryCast(player);
+            form.Script?.OnCommitted(_ctx, cast); // commitment-time telegraphs (additive hook)
         }
 
         private void OnRecast(CastRecord cast)

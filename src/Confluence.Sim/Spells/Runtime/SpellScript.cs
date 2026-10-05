@@ -9,6 +9,14 @@ namespace Confluence.Sim.Spells
     /// </summary>
     public abstract class SpellScript
     {
+        /// <summary>
+        /// The cast was committed and paid (tick-order step 3), before its windup: commitment-time telegraphs such as a
+        /// fixed casting marker (spec L96, L549).
+        /// </summary>
+        public virtual void OnCommitted(SpellContext ctx, CastRecord cast)
+        {
+        }
+
         /// <summary>After the delivery released its effect (tick-order step 3).</summary>
         public virtual void OnReleased(SpellContext ctx, CastRecord cast)
         {

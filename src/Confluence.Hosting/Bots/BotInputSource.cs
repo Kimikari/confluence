@@ -71,6 +71,8 @@ namespace Confluence.Hosting.Bots
         private int _guardUntil = int.MinValue;
         private int _dodgeAt = int.MaxValue;
         private BotCastScript _cast;
+        private IBotSpellPlanner _planner; // wizard casting profile (Bots/Profiles), or null for generic slot cycling
+        private BotCastPlan _plan;
         private int _castStart;
         private int _telegraphUntil = int.MinValue;
         private int _nextCastTick;
@@ -85,6 +87,9 @@ namespace Confluence.Hosting.Bots
         }
 
         public BotProfile Profile { get; }
+
+        /// <summary>The wizard casting profile of the current duel, or null when the wizard has none.</summary>
+        public IBotSpellPlanner Planner => _planner;
 
         /// <summary>Diagnostics of the current or last duel.</summary>
         public BotDuelStats Stats { get; private set; } = new BotDuelStats();
@@ -110,6 +115,8 @@ namespace Confluence.Hosting.Bots
             _guardUntil = int.MinValue;
             _dodgeAt = int.MaxValue;
             _cast = null;
+            _planner = BotSpellPlanners.For(me.Setup.WizardId);
+            _plan = null;
             _telegraphUntil = int.MinValue;
             _nextCastTick = 0;
             _slot = 0;
@@ -288,7 +295,11 @@ namespace Confluence.Hosting.Bots
             }
 
             // ---- Where to look ----
-            if (seen.Seen)
+            if (seen.Seen && _cast != null && _plan != null && _plan.Aim != BotAimMode.Chest)
+            {
+                AimAtPoint(me, _plan.Aim == BotAimMode.Point ? _plan.AimPoint : seen.Position);
+            }
+            else if (seen.Seen)
             {
                 AimAt(me, seen, distance);
             }
@@ -327,6 +338,7 @@ namespace Confluence.Hosting.Bots
             }
 
             if (!guarding && !inReach) buttons |= CastButtons(world, me, tick, seen, distance, rushing, ref move);
+            if (!guarding && _cast == null && _planner != null) buttons |= _planner.ExtraButtons(Situation(world, me, tick, seen, distance), _rng, ref _slot);
 
             if (jump || (_hop && me.Motor.Grounded))
             {
@@ -390,9 +402,13 @@ namespace Confluence.Hosting.Bots
                 return InputButtons.None;
             }
 
-            bool wanted = seen.Seen && !rushing && tick >= _nextCastTick && distance >= 2.5f && distance <= Profile.PreferredRange + 5f &&
-                me.Resources.Mana >= 20f && !me.Melee.Busy;
+            bool wanted = _planner != null
+                ? seen.Seen && !rushing && tick >= _nextCastTick && !me.Melee.Busy // the wizard profile judges range and mana
+                : seen.Seen && !rushing && tick >= _nextCastTick && distance >= 2.5f && distance <= Profile.PreferredRange + 5f &&
+                  me.Resources.Mana >= 20f && !me.Melee.Busy;
             if (!wanted) return InputButtons.None;
+            BotCastPlan plan = null;
+            if (_planner != null && !_planner.TryPlanCast(Situation(world, me, tick, seen, distance), _rng, out plan)) return InputButtons.None;
             if (_telegraphUntil == int.MinValue && Profile.TelegraphTicks > 0)
             {
                 _telegraphUntil = tick + Profile.TelegraphTicks;
@@ -401,6 +417,16 @@ namespace Confluence.Hosting.Bots
             }
 
             _telegraphUntil = int.MinValue;
+            if (plan != null)
+            {
+                _plan = plan;
+                _slot = plan.Slot;
+                _cast = plan.Script;
+                _castStart = tick;
+                Stats.Casts++;
+                return _cast.ButtonsAt(0);
+            }
+
             _slot = me.Setup.EquippedSpellIds.Count > 0 ? (_slot + 1) % Math.Min(PlayerInput.SlotCount, me.Setup.EquippedSpellIds.Count) : 0;
             _cast = BotCastScript.For(me.Setup.WizardId, Profile, _rng);
             _castStart = tick;
@@ -411,6 +437,7 @@ namespace Confluence.Hosting.Bots
         private void EndCast(int tick)
         {
             _cast = null;
+            _plan = null;
             _nextCastTick = tick + _rng.NextInt(Ticks.PerSecond, Ticks.FromSeconds(2.5));
         }
 
@@ -428,6 +455,26 @@ namespace Confluence.Hosting.Bots
             Vec3 aim = target - me.Eye;
             TurnToward(CMath.YawOf(aim) + _aimErrorYaw, CMath.PitchOf(aim) + _aimErrorPitch);
         }
+
+        private void AimAtPoint(DuelPlayer me, Vec3 point)
+        {
+            Vec3 aim = point - me.Eye;
+            TurnToward(CMath.YawOf(aim) + _aimErrorYaw, CMath.PitchOf(aim) + _aimErrorPitch);
+        }
+
+        /// <summary>What a wizard casting profile may know (spec L381): own state and the perceived opponent only.</summary>
+        private BotSituation Situation(DuelWorld world, DuelPlayer me, int tick, Observation seen, float distance) => new BotSituation
+        {
+            World = world,
+            Self = me.Index,
+            Tick = tick,
+            Profile = Profile,
+            Sees = seen.Seen,
+            Opponent = seen.Seen ? seen.Position : _lastKnown,
+            OpponentVelocity = seen.Seen ? seen.Velocity : Vec3.Zero,
+            OpponentHeight = seen.Seen ? seen.Height : 0f,
+            Distance = distance,
+        };
 
         private bool AimedWithin(DuelPlayer me, Observation seen, float toleranceDeg)
         {

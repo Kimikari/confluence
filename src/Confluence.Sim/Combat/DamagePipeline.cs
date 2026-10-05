@@ -28,6 +28,12 @@ namespace Confluence.Sim.Combat
 
         public float ShieldAbsorbed;
         public float HealthLost;
+
+        /// <summary>
+        /// Damage the hit's conditional passive reduction (<see cref="DamageRequest.ExtraPassiveReduction"/>, e.g. SPL-011's
+        /// projectile reduction) prevented on its own: the mitigated amount without it minus the amount with it.
+        /// </summary>
+        public float ConditionalPrevented;
         public GuardOutcome Guard;
         public float GuardReduction;
 
@@ -93,6 +99,10 @@ namespace Confluence.Sim.Combat
                 result.AfterGuard += afterGuard;
                 result.AfterResistance += afterResistance;
                 result.Mitigated += mitigated;
+                if (!bypass && request.ExtraPassiveReduction > 0f)
+                {
+                    result.ConditionalPrevented += Math.Max(0f, afterGuard * PassiveMultiplier(target, channel, 0f) - mitigated);
+                }
                 result.Channels[i] = new ChannelDamage { Channel = channel, Raw = raw, Mitigated = mitigated };
             }
 

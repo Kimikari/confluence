@@ -20,7 +20,7 @@ namespace Confluence.Sim.Casting
     /// commitment with the permanent reduction cap and 0.5 s floor (spec L124), and silence, hard control, the alcove
     /// ward, and action locks come from the player's statuses and the world's cast permissions (spec L46, L104-L116).
     /// </summary>
-    public sealed class PlayerCaster : ICastHost
+    public sealed class PlayerCaster : ICastHost, IRecastGate
     {
         private readonly DuelWorld _world;
         private readonly DuelPlayer _player;
@@ -194,6 +194,9 @@ namespace Confluence.Sim.Casting
                 }
             }
         }
+
+        /// <summary>IRecastGate: the spell runtime knows whether the cast's recast target exists yet (spec L94).</summary>
+        public bool HasRecastTarget(CastEventId castId) => !(_world.Spells is SpellRuntime runtime) || runtime.HasRecastTarget(castId);
 
         // ----- server-generated combat events polled from player state ------------------------------------------
 

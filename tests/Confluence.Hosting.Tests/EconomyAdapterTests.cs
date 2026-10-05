@@ -21,7 +21,8 @@ namespace Confluence.Hosting.Tests
             // Only the six Stage 1b proof records (three tier-1 equipment, three Silver augments) carry [ContentBehavior],
             // far below the floors (D-010), so the implemented pools hold exactly those.
             MatchHost host = HostFixture.Host(HostFixture.DuelSettings(HostFixture.SmallDuelSeed, LaboratoryOverrides.None));
-            // Content stages add records to the pools; the proof records stay in them (the equipment floor still fails).
+            // Content stages (shared augments, wizard kits and their transformations) add records to the pools; the proof
+            // records stay in them, and the equipment floor still fails until the equipment stage lands.
             Assert.Subset(new System.Collections.Generic.HashSet<string>(host.Content.PoolIds), new System.Collections.Generic.HashSet<string>(ProofPoolIds));
             HostStartResult start = host.Start();
             Assert.Equal(HostStartCode.RefusedEconomyFloors, start.Code);

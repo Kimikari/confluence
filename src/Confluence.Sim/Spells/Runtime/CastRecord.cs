@@ -76,6 +76,26 @@ namespace Confluence.Sim.Spells
         /// <summary>Live delivery entities spawned by this cast (projectiles, fields, deployables, summons...).</summary>
         public int LiveEntities { get; internal set; }
 
+        /// <summary>
+        /// A choice the caster made for this cast before its release ("Choose gap direction before release"), recorded
+        /// by the form's script at commitment from the caster's input and read by the delivery; 0 = the default form.
+        /// </summary>
+        public int Choice { get; set; }
+
+        /// <summary>
+        /// A world point the cast fixed and announced at commitment (a raised ground marker), recorded by the form's
+        /// script so the release resolves exactly there even when geometry changes during the windup (spec L549).
+        /// </summary>
+        public Vec3 ChosenPoint { get; private set; }
+
+        public bool HasChosenPoint { get; private set; }
+
+        public void SetChosenPoint(Vec3 point)
+        {
+            ChosenPoint = point;
+            HasChosenPoint = true;
+        }
+
         /// <summary>The release resolved or spawned its effect; with no live entities left the effect has ended.</summary>
         public bool Released => ReleaseTick >= 0;
 
@@ -102,6 +122,8 @@ namespace Confluence.Sim.Spells
             h.Add(Form.SpellId);
             h.Add(ReleaseTick);
             h.Add(LiveEntities);
+            h.Add(Choice);
+            if (HasChosenPoint) h.Add(ChosenPoint); // only casts that fix a point add to the hash
             for (int i = 0; i < _hitKinds.Length; i++)
             {
                 h.Add((int)_hitKinds[i]);

@@ -1504,6 +1504,11 @@ namespace Confluence.Sim.Duel
                 return false;
             }
 
+            if (Spells is IAcquisitionVeil veil && veil.HidesView(this, viewer, target))
+            {
+                return false; // a content veil (stricter than L167 only)
+            }
+
             DuelPlayer t = _players[target];
             Vec3 chest = t.Position + new Vec3(0f, t.Motor.Height * 0.6f, 0f);
             return HasClearSight(_players[viewer].Eye, chest);

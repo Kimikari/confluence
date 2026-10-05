@@ -156,7 +156,8 @@ namespace Confluence.Sim.Tests.Spells
             SpellTestKit.Cast(w);
             Assert.Equal(3, SpellTestKit.SpellEvents(w, SpellEventKind.ProjectileLaunched).Count());
             SpellTestKit.Run(w, 60);
-            Assert.Equal(25f, SpellTestKit.HealthLost(w, 1), 3);
+            // Damage dealt (shield and health): the WIZ-002 dummy's Tempered Hands passive shields after the first thermal hit.
+            Assert.Equal(25f, SpellTestKit.TotalDealt(w, 1), 3);
         }
 
         [Fact]

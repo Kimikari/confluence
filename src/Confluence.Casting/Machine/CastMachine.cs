@@ -569,6 +569,7 @@ namespace Confluence.Casting
             // Recast acts only on the selected spell's pending state and never starts a new spell (spec L94).
             RejectReason reject = spell == null ? RejectReason.NoSpellSelected
                 : pending == null ? RejectReason.NoPendingRecast
+                : _host is IRecastGate gate && !gate.HasRecastTarget(pending.CastId) ? RejectReason.NoPendingRecast // nothing to act on yet (L94)
                 : _phase == CastPhase.Preparation || _phase == CastPhase.Windup || _phase == CastPhase.Channel ? RejectReason.Busy
                 : _host.IsWarded ? RejectReason.Warded
                 : _host.IsSilenced ? RejectReason.Silenced
