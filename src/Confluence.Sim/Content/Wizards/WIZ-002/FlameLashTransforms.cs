@@ -11,11 +11,13 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
     /// swings lash once from knot along manual arc, 28 damage." Rank 2: "Knot 4 s, swing 32 damage." Drawback: "First
     /// lash 42 becomes 30; Burn removed." Counterplay: "Break knot or avoid its marked arc."
     /// <list type="bullet">
-    /// <item>Where the lash meets a surface (the wall that stops it, else the ground under its tip) it leaves a visible
-    /// 20-health knot for 3 s (rank 2: 4 s), marked with the arc it would swing.</item>
-    /// <item>One spell recast while the knot stands (spec L94) swings the lash from the knot along the caster's current
-    /// aim, the same 0.5 m-wide line and reach, for 28 thermal (rank 2: 32), a guardable direct hit. Breaking the knot
-    /// first cancels it (spec L512).</item>
+    /// <item>Where the lash meets a surface (the wall that stops the sample line nearest the aim, else the ground under the
+    /// middle of its tip's arc) it leaves a visible 20-health knot for 3 s (rank 2: 4 s), marked with the arc it would
+    /// swing.</item>
+    /// <item>One spell recast while the knot stands (spec L94) swings the lash from the knot, sweeping the same 0.5 m-wide
+    /// lash across the same arc and reach around the caster's current aim, for 28 thermal (rank 2: 32), a guardable
+    /// direct hit. The swing is new secondary damage of the transformation (spec L508: generation 1, no direct-hit,
+    /// resource, lifesteal or proc rewards). Breaking the knot first cancels it (spec L512).</item>
     /// <item>The first lash hits for 30 and applies no Burn (structural delta: the burn tag is removed).</item>
     /// </list>
     /// </summary>
@@ -58,8 +60,8 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
     /// to create 1 m steam strip for 2 s." Rank 2: "Strip width 1.5 m and 3 s." Drawback: "Reach 6 becomes 5 m; no extra
     /// damage or strength." Counterplay: "Move outside strip or wind-clear."
     /// <list type="bullet">
-    /// <item>Where the lash's ground track crosses liquid water, it consumes one water unit per crossed cell and raises a
-    /// 1 m-wide steam strip along that stretch for 2 s (rank 2: 1.5 m, 3 s) — a steam volume of the caster (spec L167,
+    /// <item>Where the ground under the lash tip's curved arc crosses liquid water, it consumes one water unit per crossed
+    /// cell and raises a 1 m-wide steam strip along that stretch (start to end of each wet run) for 2 s (rank 2: 1.5 m, 3 s) — a steam volume of the caster (spec L167,
     /// L670) that wind can clear. The stretch spends the lash's own Heat 1 (no extra strength); dry cells keep it.</item>
     /// <item>Reach 5 m.</item>
     /// </list>
