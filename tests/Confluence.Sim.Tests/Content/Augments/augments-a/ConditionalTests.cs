@@ -114,7 +114,7 @@ namespace Confluence.Sim.Tests.Content.AugmentsA
         // ----- AUG-079 Exact Riposte -----------------------------------------------------------------------
 
         /// <summary>Player 1 strikes player 0 at 1.5 m; player 0 guards from 6 ticks before the strike (perfect) or 20 (ordinary).</summary>
-        private static int GuardAgainstStrike(DuelWorld w, bool perfect)
+        internal static int GuardAgainstStrike(DuelWorld w, bool perfect)
         {
             AKit.FaceOff(w, 1.5f);
             if (!perfect)

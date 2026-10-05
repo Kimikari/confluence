@@ -442,8 +442,8 @@ namespace Confluence.Casting
             }
 
             CastModifiers modifiers = _host.ModifiersFor(_spell);
-            float reduction = modifiers.CostReduction + (mastery.IsMastered ? modifiers.MasteredCostReduction : modifiers.NormalCostReduction);
-            float cost = MasteryClamp.PaidCost(_spell.Mana, reduction, MasteryClamp.ManaEfficiency(mastery, modifiers))
+            float reduction = modifiers.CostReduction + (mastery.IsMastered ? 0f : modifiers.NormalCostReduction);
+            float cost = MasteryClamp.PaidCost(_spell.Mana, reduction, MasteryClamp.RewardedCastEfficiency(mastery, modifiers))
                 + Math.Max(0f, modifiers.CostIncrease);
             if (!_host.TryPayCommitment(_spell, cost))
             {

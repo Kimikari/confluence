@@ -23,7 +23,8 @@ namespace Confluence.Casting
 
         /// <summary>
         /// Cost reduction (fraction of the listed cost) that applies only when this cast earns its mastery reward ("an
-        /// advanced variation costs 8% less"); it joins the other reductions under the 70% floor (spec L124, L480).
+        /// advanced variation costs 8% less"): mastery-linked efficiency, clamped with a mana-efficiency reward at 20% (spec
+        /// L480, <see cref="MasteryClamp.RewardedCastEfficiency"/>), then under the 70% floor with the other reductions (L124).
         /// </summary>
         public float MasteredCostReduction;
 
@@ -96,6 +97,18 @@ namespace Confluence.Casting
         /// <summary>Applied mana-efficiency fraction for a cast (0 unless rewarded with mana efficiency).</summary>
         public static float ManaEfficiency(MasteryResult mastery, CastModifiers modifiers) =>
             mastery.Reward == MasteryReward.ManaEfficiency ? Combined(mastery, modifiers.MasteryLinkedEfficiency) : 0f;
+
+        /// <summary>
+        /// All mastery-linked mana efficiency of a cast (spec L480 "All mastery-linked efficiency rewards, including equipment
+        /// and augments that modify the same rewarded cast, clamp together at 20%"): the mana-efficiency reward with its
+        /// linked bonus plus mastered-only cost reductions, together at most 20%; zero for a cast without its reward.
+        /// </summary>
+        public static float RewardedCastEfficiency(MasteryResult mastery, CastModifiers modifiers)
+        {
+            float efficiency = ManaEfficiency(mastery, modifiers);
+            if (!mastery.IsMastered || !(modifiers.MasteredCostReduction > 0f)) return efficiency;
+            return Math.Min(GlobalRules.Modifiers.MasteryEfficiencyCap, efficiency + modifiers.MasteredCostReduction);
+        }
 
         /// <summary>
         /// Resource actually paid. Reductions from all sources add and are capped so at least 70% of the listed
