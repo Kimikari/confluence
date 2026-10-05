@@ -117,6 +117,41 @@ namespace Confluence.Sim.Tests.Content.Halen
 
         [Fact]
         [Verifies("AUG-437")]
+        public void A_Recast_On_The_Tick_After_The_Break_Throws_Nothing_And_The_Break_Still_Leaves_Water()
+        {
+            // The shield is destroyed after the bubble entity's step (a hit between ticks); the very next tick's casting
+            // phase sees the recast before the entity processes the break. "Recast throws remaining shield": nothing
+            // remains, so nothing is thrown (spec L94: no recast after the original effect has ended).
+            HalenDuel d = Raised(BubbleRelease.Id, 2);
+            d.AimAtOther();
+            d.Step();
+            DamageEvent breaker = BubbleBucklerTests.HitFrom(d, d.P1.Position, 50f);
+            Assert.Equal(35f, breaker.Resolution.ShieldAbsorbed, 3);
+            Assert.Equal(0f, d.P0.Shields.Total, 3);
+            d.Recast();
+            d.Run(40);
+            Assert.Empty(d.Tide(TideEventKind.BubbleReleased));
+            Assert.Empty(d.SpellEvents(SpellEventKind.ProjectileLaunched));
+            Assert.Null(ThrownHit(d));
+            // The normal break handling ran: "Water 1 when broken" at the bubble's front.
+            Assert.Equal(0f, d.Tide(TideEventKind.BubbleBroken).Single().Amount);
+            Assert.Equal(1, d.Units(BubbleBucklerTests.Front(d)).Water);
+
+            // A thermal break on the tick before the recast with AUG-438 still steams (normal break handling preserved).
+            HalenDuel steam = HalenTestKit.Duel(HalenTestKit.Halen(null, HalenTestKit.Aug(BubbleRelease.Id, 1), HalenTestKit.Aug(BubbleSteam.Id, 1)));
+            BubbleBucklerTests.Raised(steam);
+            steam.AimAtOther();
+            steam.Step();
+            BubbleBucklerTests.HitFrom(steam, steam.P1.Position, 50f, DamageChannel.Thermal);
+            steam.Recast();
+            steam.Run(4);
+            Assert.Empty(steam.Tide(TideEventKind.BubbleReleased));
+            Assert.Equal(1f, steam.Tide(TideEventKind.BubbleBroken).Single().Amount);
+            Assert.Contains(steam.Reactions.Volumes, v => v.Kind == VolumeKind.Steam);
+        }
+
+        [Fact]
+        [Verifies("AUG-437")]
         public void A_Guard_Halves_The_Thrown_Bubble_And_The_Base_Bubble_Has_No_Recast()
         {
             HalenDuel d = Raised(BubbleRelease.Id, 1);

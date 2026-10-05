@@ -233,6 +233,21 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
         {
             DuelPlayer holder = ctx.Player(Owner);
             ShieldEntry entry = Entry(holder);
+            bool reactionBreak = ResolvePendingHeat(ctx, holder, ref entry);
+            if (entry == null)
+            {
+                if (ctx.Tick < _expireTick) Break(ctx, holder, _thermalBreak, reactionBreak);
+                End(ctx);
+                return;
+            }
+
+            _lastAmount = entry.Amount;
+            if (ctx.Tick >= _expireTick || !holder.Alive) End(ctx);
+        }
+
+        // The heat reactions recorded since the last step (spec L144); true when one emptied the bubble.
+        private bool ResolvePendingHeat(SpellContext ctx, DuelPlayer holder, ref ShieldEntry entry)
+        {
             bool reactionBreak = false;
             while (_pendingHeat > 0 && entry != null)
             {
@@ -258,15 +273,7 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
             }
 
             _pendingHeat = 0;
-            if (entry == null)
-            {
-                if (ctx.Tick < _expireTick) Break(ctx, holder, _thermalBreak, reactionBreak);
-                End(ctx);
-                return;
-            }
-
-            _lastAmount = entry.Amount;
-            if (ctx.Tick >= _expireTick || !holder.Alive) End(ctx);
+            return reactionBreak;
         }
 
         // "Water 1 when broken"; AUG-438 "Thermal shield break consumes Water 1 and creates 1.5 m steam puff".
@@ -290,15 +297,21 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
         /// <summary>AUG-437 "Recast throws remaining shield as 20 m/s 24-damage bubble, ending guard."</summary>
         protected internal override void OnRecast(SpellContext ctx)
         {
-            if (!Alive || _spec.ReleaseProjectile == null) return;
+            if (!Alive || _ending || _spec.ReleaseProjectile == null) return;
             DuelPlayer holder = ctx.Player(Owner);
             ShieldEntry entry = Entry(holder);
-            float thrown = entry == null ? 0f : entry.Amount;
-            if (entry != null)
-            {
-                entry.Amount = 0f;
-                holder.Shields.Absorb(0f); // the throw ends the shield (no break water: it was released, not broken)
-            }
+            // A heat reaction recorded since the last step resolves first (it consumes shield before anything is thrown);
+            // one that empties the bubble is a thermal break, handled by the bubble's own step below.
+            ResolvePendingHeat(ctx, holder, ref entry);
+            if (entry != null) _lastAmount = entry.Amount;
+
+            // "throws remaining shield": a bubble already broken, emptied or timed out has nothing to throw, even when the
+            // break happened after this entity's last step; its own step still runs the normal break handling (spec L94:
+            // never a recast after the original effect has ended).
+            if (entry == null || !(entry.Amount > 0f) || ctx.Tick >= _expireTick || !holder.Alive) return;
+            float thrown = entry.Amount;
+            entry.Amount = 0f;
+            holder.Shields.Absorb(0f); // the throw ends the shield (no break water: it was released, not broken)
 
             _ending = true;
             Vec3 origin = ctx.AimOrigin(Owner);
@@ -309,6 +322,9 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
             HalenRules.Emit(ctx, TideEventKind.BubbleReleased, Cast, origin, thrown);
             End(ctx);
         }
+
+        /// <summary>An ended bubble stops watching the duel's event stream (no observer outlives its bubble).</summary>
+        protected override void OnEnded(SpellContext ctx) => ctx.World.RemoveEventObserver(this);
 
         /// <summary>A newer bubble of the same caster replaced this one (same shield source).</summary>
         internal void Supersede(SpellContext ctx)

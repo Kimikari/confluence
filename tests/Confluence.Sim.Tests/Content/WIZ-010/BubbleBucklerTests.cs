@@ -157,6 +157,42 @@ namespace Confluence.Sim.Tests.Content.Halen
 
         [Fact]
         [Verifies("SPL-075")]
+        public void An_Ended_Bubble_Stops_Watching_The_Event_Stream()
+        {
+            // Timed end, twice (no observer accumulates across casts).
+            HalenDuel d = HalenTestKit.Duel();
+            int baseline = d.World.EventObserverCount;
+            Raised(d);
+            Assert.Equal(baseline + 1, d.World.EventObserverCount);
+            d.RunSeconds(4.2);
+            Assert.Empty(d.Runtime.Entities.OfType<BubbleShieldEntity>());
+            Assert.Equal(baseline, d.World.EventObserverCount);
+            d.RunSeconds(6.0); // the 10 s cooldown
+            d.Halen = TestWorlds.A;
+            d.Cast(Slot);
+            d.RunUntil(() => d.SpellEvents(SpellEventKind.ShieldRaised).Count() == 2, 30);
+            Assert.Equal(baseline + 1, d.World.EventObserverCount);
+            d.RunSeconds(4.2);
+            Assert.Equal(baseline, d.World.EventObserverCount);
+
+            // A break.
+            HalenDuel broken = Raised();
+            HitFrom(broken, broken.P1.Position, 50f);
+            broken.Run(2);
+            Assert.Single(broken.Tide(TideEventKind.BubbleBroken));
+            Assert.Equal(baseline, broken.World.EventObserverCount);
+
+            // An AUG-437 release.
+            HalenDuel released = Raised(HalenTestKit.Duel(HalenTestKit.Halen(null, HalenTestKit.Aug(BubbleRelease.Id, 1))));
+            released.AimAtOther();
+            released.Step();
+            released.Recast();
+            Assert.Single(released.Tide(TideEventKind.BubbleReleased));
+            Assert.Equal(baseline, released.World.EventObserverCount);
+        }
+
+        [Fact]
+        [Verifies("SPL-075")]
         public void The_Common_100_Point_Shield_Cap_Applies()
         {
             HalenDuel d = HalenTestKit.Duel();
