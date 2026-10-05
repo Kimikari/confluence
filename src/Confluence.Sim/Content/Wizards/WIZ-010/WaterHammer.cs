@@ -75,7 +75,7 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
             Vec3 spot = ctx.Player(target).Position;
             if (PuddleRadius > 0f)
             {
-                HalenRules.DepositWater(ctx, cast, spot, PuddleStrength, PuddleRadius, PuddleLifetimeSec);
+                TidePuddleEntity.Create(ctx, cast, spot, PuddleStrength, PuddleRadius, PuddleLifetimeSec); // a field (spec L128, L510)
             }
             else
             {

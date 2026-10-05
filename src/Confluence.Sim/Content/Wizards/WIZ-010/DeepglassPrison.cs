@@ -133,7 +133,7 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
 
             if (_script.PuddleRadius > 0f)
             {
-                HalenRules.DepositWater(ctx, Cast, _impact, _script.PuddleWater, _script.PuddleRadius, _script.PuddleLifetimeSec);
+                TidePuddleEntity.Create(ctx, Cast, _impact, _script.PuddleWater, _script.PuddleRadius, _script.PuddleLifetimeSec); // a field (spec L128, L510)
             }
 
             HalenRules.Emit(ctx, TideEventKind.PrisonReleased, Cast, _impact, RootApplied ? 1f : 0f, _target);

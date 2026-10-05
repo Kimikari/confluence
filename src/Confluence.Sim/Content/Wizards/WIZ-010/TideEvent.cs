@@ -42,6 +42,9 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
 
         /// <summary>The eddy, pool or stream bonus status changed for a player (Amount 1 on, 0 off).</summary>
         StreamBonus,
+
+        /// <summary>AUG-435 / AUG-441 / AUG-446: an authored puddle field formed (Amount = radius).</summary>
+        PuddleCreated,
     }
 
     /// <summary>A WIZ-010 kit event in the duel's ordered stream (one id sequence, spec L359, L419).</summary>

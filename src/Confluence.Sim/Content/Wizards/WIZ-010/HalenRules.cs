@@ -95,7 +95,11 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
         /// owned by the caster's committed source, lasting the given time. The surface height is the ground's, so a wet
         /// cell stays touchable by a standing body (spec L118, D-150).
         /// </summary>
-        public static void DepositWater(SpellContext ctx, CastRecord cast, Vec3 point, int strength, float radius, float lifetimeSec, int fieldId = 0)
+        public static void DepositWater(SpellContext ctx, CastRecord cast, Vec3 point, int strength, float radius, float lifetimeSec, int fieldId = 0) =>
+            DepositWaterTicks(ctx, cast, point, strength, radius, Ticks.FromSeconds(lifetimeSec), fieldId);
+
+        /// <summary>As <see cref="DepositWater"/> with the lifetime in ticks (a field's remaining lifetime).</summary>
+        public static void DepositWaterTicks(SpellContext ctx, CastRecord cast, Vec3 point, int strength, float radius, int lifetimeTicks, int fieldId = 0)
         {
             if (strength <= 0) return;
             Vec3 ground = Ground(ctx.Collision, point);
@@ -108,7 +112,7 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
                 SourcePlayer = cast.Caster,
                 SourceId = cast.SpellId,
                 OriginEventId = cast.OriginEventId,
-                LifetimeTicks = Ticks.FromSeconds(lifetimeSec),
+                LifetimeTicks = Math.Max(0, lifetimeTicks),
                 Footprint = radius > 0f ? Footprint.Circle(ground.XZ(), radius) : Footprint.Point(ground.XZ()),
                 HasFootprint = true,
                 FieldId = fieldId,

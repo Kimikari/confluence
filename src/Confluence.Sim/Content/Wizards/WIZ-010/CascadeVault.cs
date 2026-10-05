@@ -56,12 +56,20 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
         /// <summary>AUG-442: meters the recast may pull the landing back along the arc; 0 = no brake.</summary>
         public float BrakeMeters { get; set; }
 
+        /// <summary>AUG-441: the landing leaves a puddle field of this radius instead of the landing cell's water; 0 = none.</summary>
+        public float LandingPuddleRadius { get; set; }
+
+        public float LandingPuddleLifetimeSec { get; set; }
+
+        public int LandingPuddleWater { get; set; } = 1;
+
         public override void OnReleased(SpellContext ctx, CastRecord cast)
         {
             // Only a leap that actually launched leaves launch water (a refused leap spawns no movement entity).
             if (cast.LiveEntities <= 0) return;
             int strength = Math.Min(LaunchWater, SourceCap);
             HalenRules.DepositWater(ctx, cast, ctx.Player(cast.Caster).Position, strength, 0f, HalenRules.ImpactWaterLifetimeSec);
+            if (LandingPuddleRadius > 0f) ctx.Spawn(new VaultLandingEntity(cast, this));
         }
 
         /// <summary>
@@ -86,6 +94,39 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
             Vec3 flat = new Vec3(v.X, 0f, v.Z).NormalizedOr(Vec3.Zero);
             Vec3 landing = HalenRules.Ground(ctx.Collision, p.Position + flat * kept);
             HalenRules.Emit(ctx, TideEventKind.VaultBraked, cast, landing, cut);
+        }
+    }
+
+    /// <summary>
+    /// AUG-441: waits for the cast's leap to land (its movement entity ends, which is when the framework places landing
+    /// deposits) and then creates the landing puddle as a gameplay field (<see cref="TidePuddleEntity"/>, spec L510).
+    /// Spawned after the leap's movement entity, so it steps after it and sees the landing on the landing tick.
+    /// </summary>
+    public sealed class VaultLandingEntity : SpellEntity
+    {
+        private readonly CascadeVaultScript _script;
+
+        internal VaultLandingEntity(CastRecord cast, CascadeVaultScript script)
+            : base(cast)
+        {
+            _script = script;
+        }
+
+        protected internal override void Step(SpellContext ctx)
+        {
+            IReadOnlyList<SpellEntity> entities = ctx.Entities;
+            for (int i = 0; i < entities.Count; i++)
+            {
+                if (entities[i].Alive && entities[i] is MovementEntity && entities[i].Cast == Cast) return; // still in the air
+            }
+
+            int water = Math.Min(_script.LandingPuddleWater, _script.SourceCap);
+            TidePuddleEntity.Create(ctx, Cast, ctx.Player(Owner).Position, water, _script.LandingPuddleRadius, _script.LandingPuddleLifetimeSec);
+            End(ctx);
+        }
+
+        protected override void HashState(ref Confluence.Sim.Hashing.StateHasher h)
+        {
         }
     }
 }

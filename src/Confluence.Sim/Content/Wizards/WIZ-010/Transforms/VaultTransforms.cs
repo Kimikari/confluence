@@ -36,16 +36,20 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
         public void Apply(SpellFormBuilder form, int rank)
         {
             MovementDelivery leap = HalenStructure.Delivery<MovementDelivery>(form, Id);
+            if (!(form.Script is CascadeVaultScript script)) throw new InvalidOperationException(Id + " needs SPL-077's script.");
             form.Range = Range.Float;
             leap.Distance = Range.Float;
+            // The landing's Water 1 becomes the puddle: a gameplay field of its own (spec L128, L510), created by the
+            // script at the landing, so the plain landing deposit is removed (one landing deposit, never two).
             for (int i = 0; i < form.Payload.Deposits.Count; i++)
             {
                 DepositSpec d = form.Payload.Deposits[i];
-                if (d.Kind != DepositKind.Water || d.Placement != DepositPlacement.Impact) continue;
-                d.Strength = (int)Water.Value;
-                d.Radius = rank >= 2 ? RadiusRank2.Float : Radius.Float;
-                d.LifetimeSec = rank >= 2 ? LifetimeRank2.Float : Lifetime.Float;
+                if (d.Kind == DepositKind.Water && d.Placement == DepositPlacement.Impact) d.Strength = 0;
             }
+
+            script.LandingPuddleWater = (int)Water.Value;
+            script.LandingPuddleRadius = rank >= 2 ? RadiusRank2.Float : Radius.Float;
+            script.LandingPuddleLifetimeSec = rank >= 2 ? LifetimeRank2.Float : Lifetime.Float;
         }
     }
 
