@@ -64,7 +64,7 @@ namespace Confluence.Net.Tests.TestSupport
         }
 
         public HeadlessPlayer AddPlayer(string name, string wizard, BotCompetence competence = BotCompetence.Adept, ulong seed = 1, TransportSettings transport = null,
-            bool autoEconomy = true)
+            bool autoEconomy = true, bool downloadArenas = false)
         {
             var player = new HeadlessPlayer(new HeadlessPlayerOptions
             {
@@ -79,6 +79,7 @@ namespace Confluence.Net.Tests.TestSupport
                 Clock = Clock,
                 AutoSpectate = true,
                 AutoEconomy = autoEconomy,
+                DownloadArenas = downloadArenas,
                 Log = line => { lock (Log) Log.Add(line); },
             });
             player.Connect(Endpoint);

@@ -51,6 +51,9 @@ namespace Confluence.Net.Game.Client
         /// </summary>
         public int InterpolationDelayMs { get; set; } = 250;
 
+        /// <summary>Download every arena layout from the server instead of regenerating it locally.</summary>
+        public bool DownloadArenas { get; set; }
+
         /// <summary>Follow other duels as a delayed spectator whenever this player is outside a live duel (spec L49).</summary>
         public bool AutoSpectate { get; set; }
 
@@ -83,7 +86,7 @@ namespace Confluence.Net.Game.Client
             _options = options ?? throw new ArgumentNullException(nameof(options));
             if (options.Ruleset == null) throw new ArgumentException("A ruleset fingerprint is required.", nameof(options));
             _clock = options.Clock ?? SystemNetClock.Instance;
-            _arenas = new ClientArenas(options.Catalogue, options.Generator);
+            _arenas = new ClientArenas(options.Catalogue, options.Generator) { AlwaysDownload = options.DownloadArenas };
             Transport = new ClientTransport(new ClientIdentity(options.DisplayName, options.Ruleset, options.ClientBuild), options.Transport ?? GameTransport.Defaults(), _clock);
             Transport.Messages.On(GameProtocol.LobbyState, (c, m) => OnLobby(m));
             Transport.Messages.On(GameProtocol.MatchSettings, (c, m) =>
@@ -113,6 +116,10 @@ namespace Confluence.Net.Game.Client
             });
             Transport.Messages.On(GameProtocol.DuelReport, (c, m) => OnReport(m));
             Transport.Messages.On(GameProtocol.SpectatorFrame, (c, m) => OnSpectatorFrame(m));
+            Transport.Messages.On(GameProtocol.ArenaLayout, (c, m) =>
+            {
+                if (!_arenas.Accept(m)) Log("arena " + m.ArenaId + " layout download failed verification (unsupported version, L427)");
+            });
             Transport.MessageRejected += outcome =>
             {
                 RejectedMessages++;
@@ -167,6 +174,15 @@ namespace Confluence.Net.Game.Client
             if (Transport.IsConnected && !_joinSent && View.Lobby != null && _options.WizardId != null && View.Lobby.Status == LobbyStatus.Waiting)
             {
                 Join(_options.WizardId, _options.Route);
+            }
+
+            if (Transport.IsConnected)
+            {
+                foreach (string arenaId in _arenas.TakeDownloadsNeeded())
+                {
+                    Transport.Send(GameProtocol.ArenaLayoutRequest, new ArenaLayoutRequest { ArenaId = arenaId });
+                    Log("arena " + arenaId + ": local layout unavailable or mismatched; downloading the exact layout");
+                }
             }
 
             ClientDuel duel = Duel;

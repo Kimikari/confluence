@@ -117,6 +117,7 @@ namespace Confluence.Net.Game.Server
         private readonly List<SpectatorItem> _released = new List<SpectatorItem>();
         private readonly ServerTickClock _tickClock;
         private readonly List<string> _metrics = new List<string>();
+        private readonly Dictionary<string, byte[]> _layoutBytes = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         private int _ticksRun;
         private string _notice = string.Empty;
         private System.Threading.Tasks.Task _warmup;
@@ -161,6 +162,7 @@ namespace Confluence.Net.Game.Server
 
             Transport.Messages.On(GameProtocol.DuelInput, OnInput);
             Transport.Messages.On(GameProtocol.Spectate, OnSpectate);
+            Transport.Messages.On(GameProtocol.ArenaLayoutRequest, OnArenaLayoutRequest);
 
             _seats = new Seat[settings.PlayerCount];
             for (int i = 0; i < _seats.Length; i++) _seats[i] = new Seat(i);
@@ -219,6 +221,9 @@ namespace Confluence.Net.Game.Server
         public long DeltaSnapshotsSent { get; private set; }
 
         public long SpectatorFramesSent { get; private set; }
+
+        /// <summary>Exact layouts sent to clients that could not regenerate an arena.</summary>
+        public long LayoutsSent { get; private set; }
 
         /// <summary>Every session metrics record written so far (one JSON line per human duelist and duel).</summary>
         public IReadOnlyList<string> Metrics => _metrics;
@@ -707,6 +712,26 @@ namespace Confluence.Net.Game.Server
 
         /// <summary>Whether a seat is fighting a duel right now (interest management; tests).</summary>
         public bool IsInLiveDuel(int seat) => seat >= 0 && seat < _seats.Length && InLiveDuel(_seats[seat]);
+
+        /// <summary>
+        /// Sends the exact layout of an arena already announced to this seat (research §2.7.1: the authoritative fallback
+        /// when a client's regeneration does not match the layout hash). Unannounced arenas are never sent.
+        /// </summary>
+        private void OnArenaLayoutRequest(PlayerSession session, ArenaLayoutRequest request)
+        {
+            if (!_seatBySession.TryGetValue(session.PlayerId, out Seat seat) || Host == null || request.ArenaId == null) return;
+            if (!seat.AnnouncedArenas.Contains(request.ArenaId)) return;
+            HostedArena hosted = Host.Arenas.Get(request.ArenaId);
+            if (hosted == null) return;
+            if (!_layoutBytes.TryGetValue(request.ArenaId, out byte[] bytes))
+            {
+                bytes = LayoutCodec.Encode(hosted.CreateCopy());
+                _layoutBytes[request.ArenaId] = bytes;
+            }
+
+            LayoutsSent++;
+            SendTo(seat, GameProtocol.ArenaLayout, new ArenaLayoutMessage { ArenaId = request.ArenaId, LayoutHash = hosted.LayoutHash, Layout = bytes });
+        }
 
         private bool InLiveDuel(Seat seat)
         {
@@ -1320,6 +1345,7 @@ namespace Confluence.Net.Game.Server
         private void SendTo<T>(Seat seat, MessageType<T> type, T message) where T : INetMessage, new()
         {
             if (seat == null || seat.IsBot || seat.Session == null || !seat.Session.IsConnected) return;
+            if (message is ArenaMessage arena && arena.ArenaId != null) seat.AnnouncedArenas.Add(arena.ArenaId);
             if (Transport.Send(seat.Session, type, message)) Sent?.Invoke(seat.Index, type, message);
         }
 
@@ -1350,6 +1376,9 @@ namespace Confluence.Net.Game.Server
 
             /// <summary>Match tick at which held standings are sent, or -1.</summary>
             public int StandingsReleaseTick = -1;
+
+            /// <summary>Arena ids announced to this seat (only these layouts may be downloaded).</summary>
+            public readonly HashSet<string> AnnouncedArenas = new HashSet<string>(StringComparer.Ordinal);
         }
 
         /// <summary>One duelist's snapshot stream: rate selection and the frames it may still be acknowledged against.</summary>

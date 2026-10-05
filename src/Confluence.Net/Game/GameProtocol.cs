@@ -120,6 +120,14 @@ namespace Confluence.Net.Game
         public static readonly MessageType<DuelEventsMessage> DuelCosmetic =
             new MessageType<DuelEventsMessage>(96, "duel.cosmetic", NetChannel.Cosmetic, MessageDirection.ServerToClient);
 
+        /// <summary>A client asks for the exact layout of an announced arena it could not regenerate (research §2.7.1).</summary>
+        public static readonly MessageType<ArenaLayoutRequest> ArenaLayoutRequest =
+            new MessageType<ArenaLayoutRequest>(97, "match.arena_layout_request", NetChannel.Match, MessageDirection.ClientToServer, NetRules.Chat);
+
+        /// <summary>The exact layout of an announced arena (deflated, on the reliable Bulk lane).</summary>
+        public static readonly MessageType<ArenaLayoutMessage> ArenaLayout =
+            new MessageType<ArenaLayoutMessage>(98, "match.arena_layout", NetChannel.Bulk, MessageDirection.ServerToClient);
+
         /// <summary>The request type a command kind travels on.</summary>
         public static RequestType<CommandRequest, CommandResponse> RequestFor(Hosting.Commands.CommandKind kind)
         {

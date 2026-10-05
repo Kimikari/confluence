@@ -30,6 +30,9 @@ namespace Confluence.Net.Game.Headless
         public INetClock Clock { get; set; }
         public bool AutoSpectate { get; set; } = true;
 
+        /// <summary>Download arena layouts from the server instead of regenerating them.</summary>
+        public bool DownloadArenas { get; set; }
+
         /// <summary>Shop and draft automatically (false: the caller sends commands itself, as tests do).</summary>
         public bool AutoEconomy { get; set; } = true;
 
@@ -58,6 +61,7 @@ namespace Confluence.Net.Game.Headless
                 Transport = options.Transport,
                 Clock = options.Clock,
                 AutoSpectate = options.AutoSpectate,
+                DownloadArenas = options.DownloadArenas,
                 Log = options.Log,
             });
             Economy = new HeadlessEconomy(Client);
