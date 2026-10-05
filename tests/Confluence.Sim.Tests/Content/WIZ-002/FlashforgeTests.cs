@@ -103,6 +103,34 @@ namespace Confluence.Sim.Tests.Content.Wiz002
 
         [Fact]
         [Verifies("SPL-016")]
+        public void The_Smash_Resolves_On_Its_Marker_Even_When_The_Geometry_Changes_During_The_Windup()
+        {
+            // A temporary wall in the aim line at commitment: the marker is raised on the ground in front of it. The wall
+            // vanishes during the 0.65 s windup; the smash still lands on the marker, not where the aim would now reach.
+            DuelWorld w = Duel();
+            TestWorlds.Place(w, 1, new Vec3(1.5f, 0f, -1.2f), 270f); // inside 2 m of the aimed point, outside 2 m of the marker
+            Assert.True(w.AddTemporarySolid(new TemporarySolidSpec
+            {
+                Box = YawBox.OnFloor(new Vec3(0f, 0f, -3.5f), new Vec3(4f, 3f, 0.5f), 0f),
+                Kind = SolidKind.Wall,
+                BlocksSight = true,
+                LifetimeTicks = BramKit.NormalHold + 20,
+                OwnerPlayer = 1,
+                SourceId = "SPL-T96",
+            }) >= 0);
+            int slot = BramKit.SlotOf(w, Forge);
+            BramKit.Cast(w, slot, BramKit.NormalHold, BramKit.AimAt(w, Point, slot));
+            SpellEvent marker = BramKit.Spell(w, SpellEventKind.Marker).Single(e => e.SpellId == Forge);
+            Assert.InRange(marker.Position.Z, -4.0f, -3.7f); // in front of the wall
+            BramKit.RunUntil(w, () => BramKit.Spell(w, SpellEventKind.AreaBurst).Any(), 60, BramKit.AimAt(w, Point, slot));
+            Assert.False(w.Collision.SegmentCast(w.Player(0).Eye, Point + new Vec3(0f, 0.1f, 0f), SolidMask.Movement, out _)); // the wall is gone
+            SpellEvent burst = BramKit.Spell(w, SpellEventKind.AreaBurst).Single();
+            Assert.InRange(Vec3.DistanceXZ(burst.Position, marker.Position), 0f, 0.01f); // the cue describes the delivery (L549)
+            Assert.Empty(BramKit.DamageTo(w, 1, Forge));
+        }
+
+        [Fact]
+        [Verifies("SPL-016")]
         public void A_Guard_Toward_The_Smash_Reduces_It_And_A_Crest_Release_Adds_12_Percent()
         {
             DuelWorld w = Duel();
@@ -292,6 +320,32 @@ namespace Confluence.Sim.Tests.Content.Wiz002
             // With AUG-319 both reductions apply to one number: the stricter wins (spec L510).
             DuelWorld both = Duel(null, BramKit.Aug("AUG-319"), BramKit.Aug("AUG-320"));
             Assert.Equal(44f, BramKit.Form(both, Forge).Payload.Direct);
+        }
+
+        [Theory]
+        [InlineData(1, 2.5f)]
+        [InlineData(2, 2.5f)]
+        [Verifies("AUG-320")]
+        public void Forge_Vacuum_Counterplay_Stay_Beyond_The_Burst_And_Hide_In_The_Concentrated_Fog(int rank, float steamX)
+        {
+            DuelWorld w = Duel(null, BramKit.Aug("AUG-320", rank));
+            BramKit.Materials(w).CreateVolume(new VolumeSpec
+            {
+                Kind = VolumeKind.Steam,
+                Footprint = Footprint.Circle(new Vec2(steamX, -2f), 1.5f), // loose steam beside the smash point
+                LifetimeTicks = Ticks.FromSeconds(3.0),
+                Owner = 1,
+                SourceEventId = 99,
+            });
+            TestWorlds.Place(w, 1, new Vec3(0f, 0f, 1.5f), 180f); // beyond the 2 m burst, behind the smash point
+            BramKit.Run(w, 1);
+            Assert.True(w.CanAcquire(0, 1)); // the loose steam is off the sight line
+            Smash(w);
+            BramKit.Run(w, 80);
+            Assert.Empty(BramKit.DamageTo(w, 1, Forge)); // "Stay beyond burst"
+            // "exploit concentrated fog": the steam pulled onto the impact point now hides the opponent from Bram.
+            Assert.False(w.CanAcquire(0, 1));
+            Assert.False(w.CanAcquire(1, 0));
         }
     }
 }
