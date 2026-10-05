@@ -84,6 +84,52 @@ namespace Confluence.Sim.Tests.Content
         }
 
         [Fact]
+        public void Every_Transformation_Prose_Parameter_Quotes_Its_Augment_Record_And_Contains_Its_Number()
+        {
+            // D-011 for wizard spell transformations: the quote is in rank 1, rank 2, drawback or counterplay.
+            Catalogue catalogue = SpellTestKit.Catalogue;
+            int transforms = 0;
+            int checkedCount = 0;
+            foreach (string id in ContentRegistry.Default.Ids)
+            {
+                if (!ContentRegistry.Default.TryGetTransform(id, out ISpellTransform behavior)) continue;
+                AugmentDef def = catalogue.Augment(id);
+                string text = string.Join(" | ", def.Rank1, def.Rank2, def.Drawback, def.Counterplay);
+                transforms++;
+                foreach (ProseParameter p in behavior.Parameters)
+                {
+                    Assert.True(text.Contains(p.Quote, StringComparison.Ordinal), id + ": \"" + p.Quote + "\" is not in the record");
+                    Assert.True(p.Quote.Contains(p.WrittenText, StringComparison.Ordinal), id + ": \"" + p.Quote + "\" does not contain " + p.WrittenText);
+                    checkedCount++;
+                }
+            }
+
+            Assert.True(transforms >= 16);   // WIZ-002's sixteen (AUG-305...AUG-320) at least
+            Assert.True(checkedCount >= 60);
+        }
+
+        [Fact]
+        public void Every_Wizard_Kit_Prose_Parameter_Quotes_Its_Signature_Or_Passive()
+        {
+            Catalogue catalogue = SpellTestKit.Catalogue;
+            int kits = 0;
+            foreach (string id in ContentRegistry.Default.Ids)
+            {
+                if (!ContentRegistry.Default.TryGetKit(id, out IWizardKitBehavior behavior)) continue;
+                WizardDef def = catalogue.Wizard(id);
+                string text = string.Join(" | ", def.Signature, def.Passive, def.Mastery, def.NormalCast, def.InputSequence);
+                kits++;
+                foreach (ProseParameter p in behavior.Parameters)
+                {
+                    Assert.True(text.Contains(p.Quote, StringComparison.Ordinal), id + ": \"" + p.Quote + "\" is not in the record");
+                    Assert.True(p.Quote.Contains(p.WrittenText, StringComparison.Ordinal), id + ": \"" + p.Quote + "\" does not contain " + p.WrittenText);
+                }
+            }
+
+            Assert.True(kits >= 1);
+        }
+
+        [Fact]
         public void Every_Registered_Spell_Builds_A_Form_From_Its_Record()
         {
             Catalogue catalogue = SpellTestKit.Catalogue;
