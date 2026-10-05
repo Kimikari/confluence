@@ -36,13 +36,20 @@ namespace Confluence.Net.Protocol
 
         /// <summary>Clock synchronization probes. Unreliable.</summary>
         Time = 8,
+
+        /// <summary>
+        /// Cosmetic one-shot cues (reaction flashes) at snapshot cadence. Sequenced, on its own lane so a lost cue never
+        /// delays a damage confirmation on <see cref="Events"/> and never displaces a snapshot (docs/research/netcode.md
+        /// §2.5.1).
+        /// </summary>
+        Cosmetic = 9,
     }
 
     /// <summary>Mapping between logical channels and LiteNetLib lane numbers and delivery methods.</summary>
     public static class NetChannels
     {
         /// <summary>LiteNetLib channel count (each lane carries one delivery method).</summary>
-        public const byte LaneCount = 9;
+        public const byte LaneCount = 10;
 
         public static DeliveryMethod DeliveryOf(NetChannel channel)
         {
@@ -58,6 +65,7 @@ namespace Confluence.Net.Protocol
                     return DeliveryMethod.ReliableUnordered;
                 case NetChannel.Input:
                 case NetChannel.Snapshot:
+                case NetChannel.Cosmetic:
                     return DeliveryMethod.Sequenced;
                 default:
                     return DeliveryMethod.Unreliable;

@@ -58,12 +58,40 @@ namespace Confluence.Net.Game.Snapshots
         }
 
         /// <summary>The frame a duelist receives: the opponent's exact vitals are removed (only alive and shielded bits stay).</summary>
-        public static DuelFrame ForViewer(DuelFrame truth, int viewerSide)
+        public static DuelFrame ForViewer(DuelFrame truth, int viewerSide) => ForViewer(truth, viewerSide, true, null);
+
+        /// <summary>
+        /// The frame a duelist receives. When the opponent is not replicated to the viewer (invisible beyond the
+        /// silhouette radius, see <see cref="ReplicatesTo"/>), its entry is <see cref="PlayerEntry.AsHidden"/> of the last
+        /// pose the viewer saw, so a modified client learns nothing the rules hide (spec L120, research §2.6.1).
+        /// </summary>
+        public static DuelFrame ForViewer(DuelFrame truth, int viewerSide, bool opponentReplicated, PlayerEntry lastSeen)
         {
             DuelFrame copy = truth.ShallowCopy();
             int other = 1 - viewerSide;
-            copy.Players[other] = truth.Players[other].WithoutVitals();
+            copy.Players[other] = opponentReplicated ? truth.Players[other].WithoutVitals() : truth.Players[other].AsHidden(lastSeen);
             return copy;
+        }
+
+        /// <summary>Extra distance beyond the 4 m silhouette at which an invisible opponent's pose is already sent.</summary>
+        public const float RevealMarginMeters = 1f;
+
+        /// <summary>Closing-speed look-ahead of the early reveal (longer than a typical round trip), so a peek never pops in.</summary>
+        public const float RevealLookAheadSec = 0.25f;
+
+        /// <summary>
+        /// Whether <paramref name="target"/>'s live pose may be sent to <paramref name="viewer"/>: always when visible
+        /// (DuelWorld.IsVisibleTo, spec L120), and slightly before an invisible player comes within the 4 m silhouette
+        /// radius (1 m plus a quarter second of closing speed), so the client can draw the silhouette exactly at 4 m.
+        /// The client itself applies the 4 m rule when drawing (ClientDuel.OpponentVisible).
+        /// </summary>
+        public static bool ReplicatesTo(DuelWorld world, int viewer, int target)
+        {
+            if (world.IsVisibleTo(viewer, target)) return true;
+            DuelPlayer t = world.Player(target);
+            DuelPlayer v = world.Player(viewer);
+            float closing = (t.Motor.Velocity.Length() + v.Motor.Velocity.Length()) * RevealLookAheadSec;
+            return Vec3.Distance(v.Position, t.Position) <= GlobalRules.Statuses.InvisibilitySilhouetteRadius + RevealMarginMeters + closing;
         }
 
         /// <summary>The frame a delayed spectator receives (spec L391): public combat including health, no private state.</summary>

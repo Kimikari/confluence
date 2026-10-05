@@ -149,6 +149,24 @@ namespace Confluence.Net.Game.Client
         public SampleKind LastSampleKind { get; private set; }
 
         /// <summary>
+        /// Whether the opponent may be drawn and targeted (spec L120): not hidden by the server, and when invisible only as
+        /// the silhouette within 4 m of the local player. Hidden players are never outlined (spec L120, L349).
+        /// </summary>
+        public bool OpponentVisible
+        {
+            get
+            {
+                PlayerEntry o = InterpolatedOpponent;
+                if (o == null || o.Has(PlayerBits.Hidden)) return false;
+                if (!o.Has(PlayerBits.Invisible)) return true;
+                return Vec3.Distance(RenderPosition, OpponentRenderPosition) <= Confluence.Core.Rules.GlobalRules.Statuses.InvisibilitySilhouetteRadius;
+            }
+        }
+
+        /// <summary>Cosmetic reaction cues received on their own lane (research §2.5.1).</summary>
+        public int CosmeticEvents { get; private set; }
+
+        /// <summary>
         /// The opponent tick actually displayed (research §2.2.2): the render tick while interpolating, the held newest
         /// tick while starved, the oldest while before it; 0 before any snapshot. Commands report it as their view tick.
         /// </summary>
@@ -418,6 +436,17 @@ namespace Confluence.Net.Game.Client
         }
 
         // ---- Events -----------------------------------------------------------------------------------------------
+
+        /// <summary>Cosmetic cues (reaction flashes): shown, never counted as authoritative outcomes.</summary>
+        internal void OnCosmetic(DuelEventsMessage message)
+        {
+            foreach (WireDuelEvent e in message.Events)
+            {
+                CosmeticEvents++;
+                Events.Add(e);
+                EventReceived?.Invoke(this, e);
+            }
+        }
 
         internal void OnEvents(DuelEventsMessage message)
         {

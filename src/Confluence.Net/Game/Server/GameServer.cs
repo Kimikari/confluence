@@ -91,6 +91,9 @@ namespace Confluence.Net.Game.Server
         private const int SentHistory = 64;
         private const int RateUpdateTicks = 10;
 
+        /// <summary>Cosmetic cues kept for the next snapshot; older ones are dropped (they are cosmetic).</summary>
+        private const int MaxPendingCosmetic = 64;
+
         /// <summary>Message id, snapshot header, and input status bytes in front of a snapshot body (upper bound).</summary>
         private const int SnapshotOverheadBytes = 24;
 
@@ -243,6 +246,7 @@ namespace Confluence.Net.Game.Server
             }
 
             ReleaseSpectators();
+            ReleaseDeferred();
             if (Host.IsFinished && Status == LobbyStatus.Running)
             {
                 Status = LobbyStatus.Finished;
@@ -532,15 +536,20 @@ namespace Confluence.Net.Game.Server
         {
             var msg = new NoticeMessage { Text = text };
             foreach (PlayerSession session in Transport.Sessions.All)
-                if (session.IsConnected) Transport.Send(session, GameProtocol.Notice, msg);
+            {
+                if (!session.IsConnected || !Transport.Send(session, GameProtocol.Notice, msg)) continue;
+                if (_seatBySession.TryGetValue(session.PlayerId, out Seat seat)) Sent?.Invoke(seat.Index, GameProtocol.Notice, msg);
+            }
         }
 
         // ---- Sessions ---------------------------------------------------------------------------------------------
 
         private void OnSessionConnected(PlayerSession session, bool resumed)
         {
-            Transport.Send(session, GameProtocol.LobbyState, LobbyMessage());
+            LobbyStateMessage lobby = LobbyMessage();
+            bool sent = Transport.Send(session, GameProtocol.LobbyState, lobby);
             if (!_seatBySession.TryGetValue(session.PlayerId, out Seat seat)) return;
+            if (sent) Sent?.Invoke(seat.Index, GameProtocol.LobbyState, lobby);
             if (Host == null || Status != LobbyStatus.Running) return;
             bool accepted = Host.SetConnected(seat.Index, true);
             if (seat.Input != null) seat.Input.Connected = accepted;
@@ -673,6 +682,9 @@ namespace Confluence.Net.Game.Server
             seat.Spectating = true;
         }
 
+        /// <summary>Whether a seat is fighting a duel right now (interest management; tests).</summary>
+        public bool IsInLiveDuel(int seat) => seat >= 0 && seat < _seats.Length && InLiveDuel(_seats[seat]);
+
         private bool InLiveDuel(Seat seat)
         {
             foreach (LiveDuel d in _duelOrder)
@@ -735,11 +747,18 @@ namespace Confluence.Net.Game.Server
             int matchTick = Host.CurrentTick;
             bool over = world.IsOver;
 
-            // Events of this step, per audience.
+            // Visibility (spec L120, research §2.6.1) and events of this step, per audience.
             for (int side = 0; side < 2; side++)
             {
                 Stream stream = live.Streams[side];
-                if (stream != null) DuelEventFilter.Convert(world, side, stream.PendingEvents);
+                if (stream == null) continue;
+                stream.OpponentReplicated = FrameCapture.ReplicatesTo(world, side, 1 - side);
+                DuelEventFilter.Convert(world, side, stream.PendingEvents, stream.OpponentReplicated ? -1 : 1 - side, stream.PendingCosmetic);
+                if (stream.PendingCosmetic.Count > MaxPendingCosmetic)
+                {
+                    stream.CosmeticDropped += stream.PendingCosmetic.Count - MaxPendingCosmetic;
+                    stream.PendingCosmetic.RemoveRange(0, stream.PendingCosmetic.Count - MaxPendingCosmetic);
+                }
             }
 
             DuelEventFilter.Convert(world, DuelEventFilter.SpectatorView, live.SpectatorEvents);
@@ -769,7 +788,11 @@ namespace Confluence.Net.Game.Server
                 for (int side = 0; side < 2; side++)
                 {
                     Stream stream = live.Streams[side];
-                    if (stream != null && stream.SendNow) SendSnapshot(stream, FrameCapture.ForViewer(truth, side), FrameCapture.CapturePrivate(world, side), over, world);
+                    if (stream == null || !stream.SendNow) continue;
+                    if (stream.OpponentReplicated) stream.LastSeenOpponent = truth.Players[1 - side];
+                    DuelFrame view = FrameCapture.ForViewer(truth, side, stream.OpponentReplicated, stream.LastSeenOpponent);
+                    SendSnapshot(stream, view, FrameCapture.CapturePrivate(world, side), over, world);
+                    FlushCosmetic(live, stream);
                 }
 
                 if (spectatorPush)
@@ -872,6 +895,18 @@ namespace Confluence.Net.Game.Server
 
             stream.Remember(held);
             if (stream.Seat.Input != null) stream.Seat.Input.NewestShownTick = frame.Tick;
+        }
+
+        /// <summary>Cosmetic cues ride with each snapshot on their own sequenced lane (research §2.5.1).</summary>
+        private void FlushCosmetic(LiveDuel live, Stream stream)
+        {
+            if (stream.PendingCosmetic.Count == 0) return;
+            var msg = new DuelEventsMessage { DuelId = live.Duel.DuelId };
+            int count = Math.Min(WireLimits.MaxDuelEventsPerMessage, stream.PendingCosmetic.Count);
+            msg.Events.AddRange(stream.PendingCosmetic.GetRange(stream.PendingCosmetic.Count - count, count));
+            stream.CosmeticDropped += stream.PendingCosmetic.Count - count;
+            stream.PendingCosmetic.Clear();
+            SendTo(stream.Seat, GameProtocol.DuelCosmetic, msg);
         }
 
         /// <summary>One metrics record per human duelist at duel end (research §2.9.5).</summary>
@@ -1007,21 +1042,74 @@ namespace Confluence.Net.Game.Server
                     if (phase.Phase == MatchPhase.Alcove) SendFinalLoadouts();
                     break;
                 case DuelResolvedEvent resolved:
-                    BroadcastSeats(GameProtocol.DuelResult, ResultWire(resolved));
+                    SendResult(ResultWire(resolved));
                     break;
                 case ResolveChangedEvent _:
                 case DuelScoreChangedEvent _:
                 case PlayerEliminatedEvent _:
                 case ConnectionChangedEvent _:
-                    BroadcastSeats(GameProtocol.Standings, StandingsNow());
+                    SendStandings();
                     break;
                 case MatchFinishedEvent finished:
+                    ReleaseDeferred();
                     BroadcastSeats(GameProtocol.Standings, StandingsNow());
                     BroadcastSeats(GameProtocol.MatchEnd, EndWire(finished.Result));
                     break;
                 case RoundVoidedEvent voided:
                     BroadcastNotice("Round voided: " + voided.Reason);
                     break;
+            }
+        }
+
+        /// <summary>
+        /// A duel result goes at once to its two duelists and to everyone outside a live duel; a player still fighting
+        /// receives other pairs' results only when its own duel ends or the spectator delay has passed (research §2.6.4,
+        /// spec L391: live players get no other pair's information early).
+        /// </summary>
+        private void SendResult(DuelResultMessage result)
+        {
+            int release = Host.CurrentTick + SpectatorDelayTicks;
+            foreach (Seat seat in _seats)
+            {
+                if (seat.IsBot) continue;
+                bool own = seat.Index == result.Side0Seat || seat.Index == result.Side1Seat;
+                if (own || !InLiveDuel(seat)) SendTo(seat, GameProtocol.DuelResult, result);
+                else seat.DeferredResults.Add(new KeyValuePair<int, DuelResultMessage>(release, result));
+            }
+        }
+
+        /// <summary>Standings follow the same rule as results: a live duelist sees them after its duel or the delay.</summary>
+        private void SendStandings()
+        {
+            StandingsMessage now = StandingsNow();
+            foreach (Seat seat in _seats)
+            {
+                if (seat.IsBot) continue;
+                if (!InLiveDuel(seat)) SendTo(seat, GameProtocol.Standings, now);
+                else if (seat.StandingsReleaseTick < 0) seat.StandingsReleaseTick = Host.CurrentTick + SpectatorDelayTicks;
+            }
+        }
+
+        /// <summary>Releases deferred results and standings whose holder left its live duel or whose delay passed.</summary>
+        private void ReleaseDeferred()
+        {
+            int now = Host.CurrentTick;
+            foreach (Seat seat in _seats)
+            {
+                if (seat.IsBot || (seat.DeferredResults.Count == 0 && seat.StandingsReleaseTick < 0)) continue;
+                bool free = !InLiveDuel(seat) || Host.IsFinished;
+                for (int i = 0; i < seat.DeferredResults.Count; i++)
+                {
+                    if (!free && seat.DeferredResults[i].Key > now) continue;
+                    SendTo(seat, GameProtocol.DuelResult, seat.DeferredResults[i].Value);
+                    seat.DeferredResults.RemoveAt(i--);
+                }
+
+                if (seat.StandingsReleaseTick >= 0 && (free || seat.StandingsReleaseTick <= now))
+                {
+                    seat.StandingsReleaseTick = -1;
+                    SendTo(seat, GameProtocol.Standings, StandingsNow());
+                }
             }
         }
 
@@ -1233,6 +1321,12 @@ namespace Confluence.Net.Game.Server
             public NetworkInputSource Input;
             public bool Spectating;
             public int SpectateDuel = -1;
+
+            /// <summary>Other pairs' results held while this player fights (release match tick, message).</summary>
+            public readonly List<KeyValuePair<int, DuelResultMessage>> DeferredResults = new List<KeyValuePair<int, DuelResultMessage>>();
+
+            /// <summary>Match tick at which held standings are sent, or -1.</summary>
+            public int StandingsReleaseTick = -1;
         }
 
         /// <summary>One duelist's snapshot stream: rate selection and the frames it may still be acknowledged against.</summary>
@@ -1341,6 +1435,14 @@ namespace Confluence.Net.Game.Server
 
             private static long DeferralKey(BudgetedSection section, int key) => ((long)section << 32) | (uint)key;
             public List<WireDuelEvent> PendingEvents { get; } = new List<WireDuelEvent>();
+            public List<WireDuelEvent> PendingCosmetic { get; } = new List<WireDuelEvent>();
+            public long CosmeticDropped;
+
+            /// <summary>Whether the opponent's live pose may be sent this step (spec L120).</summary>
+            public bool OpponentReplicated = true;
+
+            /// <summary>The opponent as this viewer last saw it (the frozen pose while hidden).</summary>
+            public PlayerEntry LastSeenOpponent;
             public bool SendNow;
             public int AckedTick = -1;
 

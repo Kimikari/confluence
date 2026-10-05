@@ -30,7 +30,13 @@ namespace Confluence.Net.Game.Snapshots
         Shielded = 1u << 12,
         OutsideBoundary = 1u << 13,
         Invisible = 1u << 14,
-        All = (1u << 15) - 1u,
+
+        /// <summary>
+        /// The viewer may not see this player (invisible beyond the 4 m silhouette, spec L120): the entry carries no
+        /// live pose, only the last pose the viewer saw, frozen (research §2.6.1 server-side visibility culling).
+        /// </summary>
+        Hidden = 1u << 15,
+        All = (1u << 16) - 1u,
     }
 
     /// <summary>A visible status on a player (spec L347 status icons, L433 StatusEvent).</summary>
@@ -309,6 +315,33 @@ namespace Confluence.Net.Game.Snapshots
         {
             if (v < -(1 << 20) || v > 1 << 20) throw new NetReadException(NetReadError.InvalidValue, "velocity out of range");
             return (int)v;
+        }
+
+        /// <summary>
+        /// What a viewer that cannot see this player receives (spec L120, research §2.6.1): the last pose it saw (or the
+        /// origin when it never saw one) with no motion, no action state, no statuses, and no vitals; only alive,
+        /// invisible, and hidden.
+        /// </summary>
+        public PlayerEntry AsHidden(PlayerEntry lastSeen)
+        {
+            PlayerEntry pose = lastSeen ?? new PlayerEntry();
+            var hidden = new PlayerEntry
+            {
+                Position = pose.Position,
+                Velocity = default,
+                Yaw = pose.Yaw,
+                Pitch = pose.Pitch,
+                Bits = (Bits & (PlayerBits.Alive | PlayerBits.Invisible)) | PlayerBits.Hidden,
+                ActiveWeapon = pose.ActiveWeapon,
+                CastPhase = 0,
+                CastSpellId = null,
+                MeleePhase = 0,
+                MeleeSerial = pose.MeleeSerial,
+                HealthDeci = -1,
+                MaxHealthDeci = -1,
+                ShieldDeci = -1,
+            };
+            return hidden;
         }
 
         /// <summary>A copy with the private vitals hidden (what the opponent may see).</summary>

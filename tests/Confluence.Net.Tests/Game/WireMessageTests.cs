@@ -354,7 +354,7 @@ namespace Confluence.Net.Tests.Game
                 }
             }
 
-            Assert.Equal(32, ids.Count); // ids 64..95
+            Assert.Equal(33, ids.Count); // ids 64..96
         }
     }
 }

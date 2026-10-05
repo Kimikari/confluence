@@ -100,6 +100,13 @@ namespace Confluence.Net.Game
         public static readonly MessageType<SpectatorFrameMessage> SpectatorFrame =
             new MessageType<SpectatorFrameMessage>(95, "spectate.frame", NetChannel.Bulk, MessageDirection.ServerToClient);
 
+        /// <summary>
+        /// Cosmetic reaction cues of the receiver's duel, batched at snapshot cadence on their own sequenced lane
+        /// (research §2.5.1): losing one never delays a damage confirmation on the reliable Events lane.
+        /// </summary>
+        public static readonly MessageType<DuelEventsMessage> DuelCosmetic =
+            new MessageType<DuelEventsMessage>(96, "duel.cosmetic", NetChannel.Cosmetic, MessageDirection.ServerToClient);
+
         /// <summary>The request type a command kind travels on.</summary>
         public static RequestType<CommandRequest, CommandResponse> RequestFor(Hosting.Commands.CommandKind kind)
         {

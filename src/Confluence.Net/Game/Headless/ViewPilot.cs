@@ -257,7 +257,7 @@ namespace Confluence.Net.Game.Headless
             bool visible = false;
             Vec3 position = Vec3.Zero;
             Vec3 velocity = Vec3.Zero;
-            if (opponent != null && opponent.Has(PlayerBits.Alive) && !opponent.Has(PlayerBits.Invisible))
+            if (opponent != null && opponent.Has(PlayerBits.Alive) && duel.OpponentVisible)
             {
                 position = duel.OpponentRenderPosition;
                 velocity = opponent.VelocityMetersPerSecond;

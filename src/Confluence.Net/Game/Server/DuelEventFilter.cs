@@ -15,8 +15,13 @@ namespace Confluence.Net.Game.Server
     /// Converts authoritative duel events into wire events for one audience (interest management, spec L72, L391,
     /// L425, L472). The acting player receives everything about themself. The opponent and delayed spectators receive the
     /// public tells only: cast lifecycle without the open preparation's spell, refusals, refunds, or mana; heals, shields
-    /// and guard rewards without amounts; no resource bookkeeping except a visible consumable use; damage events in full
-    /// (they are authoritative confirmations of real hits, L349).
+    /// and guard rewards without amounts; no resource bookkeeping except a visible consumable use. Damage events carry
+    /// exact amounts only to the attacker (the authoritative confirmation of a real hit, L349) and the target (its own
+    /// damage, L347-L349); damage the opponent takes from anything else (boundary, environment, its own effects) reaches
+    /// the viewer without amounts. Opponent health policy (research §2.6.3): the exact value is never sent during a
+    /// duel; it can be bounded from one's own confirmed hits, as on any damage-number HUD, but heals, shields, and
+    /// third-party damage stay hidden; the judgement indicator (L53) and the results (L49) are the public health
+    /// channels. Movement events of a player hidden from the viewer (L120) carry no position.
     /// </summary>
     public static class DuelEventFilter
     {
@@ -24,14 +29,23 @@ namespace Confluence.Net.Game.Server
         public const int SpectatorView = -1;
 
         /// <summary>Converts one world step's events (and its reaction outcomes) for <paramref name="viewerSide"/>.</summary>
-        public static void Convert(DuelWorld world, int viewerSide, List<WireDuelEvent> into)
+        public static void Convert(DuelWorld world, int viewerSide, List<WireDuelEvent> into) => Convert(world, viewerSide, into, -1, null);
+
+        /// <summary>
+        /// Converts one world step's events for <paramref name="viewerSide"/>; <paramref name="hiddenPlayer"/> is the side
+        /// the viewer may not see (-1 none). Reaction events (cosmetic, research §2.5.1) go to <paramref name="cosmetic"/>
+        /// when given, otherwise into the same list.
+        /// </summary>
+        public static void Convert(DuelWorld world, int viewerSide, List<WireDuelEvent> into, int hiddenPlayer, List<WireDuelEvent> cosmetic)
         {
             IReadOnlyList<DuelEvent> events = world.TickEvents;
             for (int i = 0; i < events.Count; i++)
             {
-                WireDuelEvent w = Convert(events[i], viewerSide);
+                WireDuelEvent w = Convert(events[i], viewerSide, hiddenPlayer);
                 if (w != null) into.Add(w);
             }
+
+            List<WireDuelEvent> reactionsInto = cosmetic ?? into;
 
             StepResult step = (world.Materials as ReactionMaterials)?.LastStep;
             if (step != null && step.Tick == world.Tick)
@@ -40,7 +54,7 @@ namespace Confluence.Net.Game.Server
                 for (int i = 0; i < reactions.Count; i++)
                 {
                     ReactionEvent r = reactions[i];
-                    into.Add(new WireDuelEvent
+                    reactionsInto.Add(new WireDuelEvent
                     {
                         Id = 0,
                         Tick = r.Tick,
@@ -57,7 +71,9 @@ namespace Confluence.Net.Game.Server
         }
 
         /// <summary>One event for one viewer, or null when the viewer may not know it.</summary>
-        public static WireDuelEvent Convert(DuelEvent e, int viewerSide)
+        public static WireDuelEvent Convert(DuelEvent e, int viewerSide) => Convert(e, viewerSide, -1);
+
+        public static WireDuelEvent Convert(DuelEvent e, int viewerSide, int hiddenPlayer)
         {
             bool own = viewerSide >= 0 && e.Player == viewerSide;
             var w = new WireDuelEvent { Id = e.Id, Tick = e.Tick, Type = (WireEventType)(byte)e.Type, Player = e.Player };
@@ -71,8 +87,9 @@ namespace Confluence.Net.Game.Server
                     w.Target = damage.Target;
                     w.Kind = (byte)damage.Kind;
                     w.SourceId = damage.SourceId;
-                    w.Amount = damage.Resolution != null ? damage.Resolution.HealthLost : 0f;
-                    w.Amount2 = damage.Resolution != null ? damage.Resolution.ShieldAbsorbed : 0f;
+                    bool party = viewerSide == SpectatorView || viewerSide == damage.Attacker || viewerSide == damage.Target;
+                    w.Amount = party && damage.Resolution != null ? damage.Resolution.HealthLost : 0f;
+                    w.Amount2 = party && damage.Resolution != null ? damage.Resolution.ShieldAbsorbed : 0f;
                     w.Extra = (damage.Resolution != null ? (int)damage.Resolution.Guard : 0) | (damage.Lethal ? 1 << 8 : 0) | ((int)damage.Reaction << 9);
                     w.EntityId = damage.CastId.Sequence;
                     w.PositionSet = true;
@@ -121,8 +138,8 @@ namespace Confluence.Net.Game.Server
                     return w;
                 case MovementEvent move:
                     w.Kind = (byte)move.Change;
-                    w.PositionSet = true;
-                    w.Position = move.Position;
+                    w.PositionSet = move.Player != hiddenPlayer || hiddenPlayer < 0;
+                    w.Position = w.PositionSet ? move.Position : default;
                     w.Amount = move.Amount;
                     w.SourceId = move.SourceId;
                     return w;

@@ -104,6 +104,10 @@ namespace Confluence.Net.Game.Client
             Transport.Messages.On(GameProtocol.Snapshot, (c, m) => OnSnapshot(m));
             Transport.Messages.On(GameProtocol.SnapshotReliable, (c, m) => OnSnapshot(m));
             Transport.Messages.On(GameProtocol.DuelEvents, (c, m) => OnEvents(m));
+            Transport.Messages.On(GameProtocol.DuelCosmetic, (c, m) =>
+            {
+                if (Duel != null && Duel.DuelId == m.DuelId) Duel.OnCosmetic(m);
+            });
             Transport.Messages.On(GameProtocol.DuelReport, (c, m) => OnReport(m));
             Transport.Messages.On(GameProtocol.SpectatorFrame, (c, m) => OnSpectatorFrame(m));
             Transport.MessageRejected += outcome =>

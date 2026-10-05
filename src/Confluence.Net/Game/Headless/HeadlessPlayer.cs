@@ -29,6 +29,10 @@ namespace Confluence.Net.Game.Headless
         public TransportSettings Transport { get; set; }
         public INetClock Clock { get; set; }
         public bool AutoSpectate { get; set; } = true;
+
+        /// <summary>Shop and draft automatically (false: the caller sends commands itself, as tests do).</summary>
+        public bool AutoEconomy { get; set; } = true;
+
         public Action<string> Log { get; set; }
     }
 
@@ -75,7 +79,7 @@ namespace Confluence.Net.Game.Headless
         public void Update()
         {
             Client.Update();
-            Economy.Act();
+            if (Options.AutoEconomy) Economy.Act();
         }
 
         public string Summary()
