@@ -83,6 +83,14 @@ namespace Confluence.Net.Game.Client
 
         public CastPhase Phase => _machine != null ? _machine.Phase : CastPhase.Idle;
 
+        /// <summary>
+        /// The predicted machine's movement effects for the next motor step (server tick order: the motor of tick T reads
+        /// the cast state left by the casting step of tick T-1).
+        /// </summary>
+        public PredictedCast MovementStatus => _machine == null
+            ? default
+            : new PredictedCast { Valid = true, MovementFactor = _machine.MoveSpeedFactor, SprintLock = _machine.IsChanneling || _machine.SuppressesSprint };
+
         /// <summary>The predicted grammar overlay state.</summary>
         public GrammarUiState Ui => _machine != null ? _machine.GrammarUi : GrammarUiState.Inactive;
 

@@ -35,8 +35,15 @@ namespace Confluence.Net.Game.Client
         /// <summary>Corrections larger than this snap instead of being smoothed (a teleport, a knockback).</summary>
         public const float SnapDistance = 3f;
 
-        /// <summary>Visual correction offset half-life in seconds.</summary>
-        public const float CorrectionHalfLifeSec = 0.05f;
+        /// <summary>
+        /// Visual correction decay per 60 Hz frame (research §2.3.2, Gaffer "State Synchronization"): small errors keep
+        /// 95% per frame (eased out over about 0.2 s), errors of <see cref="LargeCorrection"/> or more keep 85%.
+        /// </summary>
+        public const float SmallCorrectionKeep = 0.95f;
+
+        public const float LargeCorrectionKeep = 0.85f;
+
+        public const float LargeCorrection = 0.5f;
 
         private readonly Dictionary<int, DuelFrame> _decoded = new Dictionary<int, DuelFrame>();
         private readonly Queue<int> _decodedOrder = new Queue<int>();
@@ -45,6 +52,7 @@ namespace Confluence.Net.Game.Client
         private readonly PlayerInput[] _sent = new PlayerInput[MaxSentHistory];
         private readonly int[] _sentTick = new int[MaxSentHistory];
         private readonly uint[] _sentSeq = new uint[MaxSentHistory];
+        private readonly PredictedCast[] _sentCast = new PredictedCast[MaxSentHistory];
         private readonly Catalogue _catalogue;
         private float _predictedStamina;
         private InputButtons _lastSentButtons;
@@ -72,6 +80,9 @@ namespace Confluence.Net.Game.Client
         public MotorPredictor Predictor { get; private set; }
 
         public GrammarPredictor Grammar { get; }
+
+        /// <summary>Predict the own cast's movement slow and sprint lock from the local cast machine (default on).</summary>
+        public bool PredictCastMovement { get; set; } = true;
 
         /// <summary>The adaptive interpolation delay of remote entities (research §2.2.1).</summary>
         public InterpolationClock Interpolation { get; }
@@ -117,8 +128,22 @@ namespace Confluence.Net.Game.Client
         /// <summary>Visual offset that eases a reconciliation correction out (never affects the simulation).</summary>
         public Vec3 CorrectionOffset { get; private set; }
 
-        /// <summary>Where to draw the local player: the prediction plus the decaying correction offset.</summary>
-        public Vec3 RenderPosition => HasPrediction ? Predicted.Position + CorrectionOffset : OwnAuthoritativePosition;
+        /// <summary>
+        /// Where to draw the local player's body and camera: the prediction blended between the last two predicted ticks
+        /// by <see cref="RenderAlpha"/> (smooth at 120 fps over the 60 Hz simulation) plus the decaying correction offset.
+        /// Aim and shot origins use <see cref="Predicted"/> itself, never the offset (research §2.3.2).
+        /// </summary>
+        public Vec3 RenderPosition => HasPrediction
+            ? (HasPrevious ? Vec3.Lerp(PreviousPredicted.Position, Predicted.Position, RenderAlpha) : Predicted.Position) + CorrectionOffset
+            : OwnAuthoritativePosition;
+
+        /// <summary>The predicted state one tick before <see cref="Predicted"/> (for sub-tick presentation).</summary>
+        public MotorState PreviousPredicted { get; private set; }
+
+        public bool HasPrevious { get; private set; }
+
+        /// <summary>Fraction of the current simulation tick elapsed at the last render update (0-1).</summary>
+        public float RenderAlpha { get; internal set; } = 1f;
 
         public Vec3 OwnAuthoritativePosition => LatestPrivate != null ? LatestPrivate.Motor.Position : (Latest?.Players[Side].PositionMeters ?? Vec3.Zero);
 
@@ -308,7 +333,9 @@ namespace Confluence.Net.Game.Client
             {
                 if (command.Sequence <= LatestAck) continue;
                 tick++;
-                state = Predictor.Step(state, command.Input, previous, tick, LatestPrivate, ref stamina);
+                int slot = (int)(command.Sequence % MaxSentHistory);
+                PredictedCast cast = _sentSeq[slot] == command.Sequence ? _sentCast[slot] : default;
+                state = Predictor.Step(state, command.Input, previous, tick, LatestPrivate, cast, ref stamina);
                 previous = command.Input.Buttons;
             }
 
@@ -332,11 +359,20 @@ namespace Confluence.Net.Game.Client
                 {
                     CorrectionOffset += delta;
                 }
+
+                // The replayed previous tick moves with the correction so the sub-tick blend stays continuous.
+                if (HasPrevious) PreviousPredicted = Shifted(PreviousPredicted, state.Position - Predicted.Position);
             }
 
             Predicted = state;
             _predictedStamina = stamina;
             HasPrediction = true;
+        }
+
+        private static MotorState Shifted(MotorState m, Vec3 by)
+        {
+            m.Position += by;
+            return m;
         }
 
         // ---- Inputs -----------------------------------------------------------------------------------------------
@@ -353,13 +389,18 @@ namespace Confluence.Net.Game.Client
             _sent[slot] = input;
             _sentTick[slot] = tick;
             _sentSeq[slot] = sequence;
+            // The cast state this tick's motor reads, kept for every replay of this command (research §2.3.1).
+            PredictedCast cast = PredictCastMovement ? Grammar.MovementStatus : default;
+            _sentCast[slot] = cast;
             LocalTick = tick;
 
             if (Predictor != null && HasPrediction)
             {
                 MotorState state = Predicted;
+                PreviousPredicted = state;
+                HasPrevious = true;
                 float stamina = _predictedStamina;
-                state = Predictor.Step(state, input, _lastSentButtons, tick, LatestPrivate, ref stamina);
+                state = Predictor.Step(state, input, _lastSentButtons, tick, LatestPrivate, cast, ref stamina);
                 Predicted = state;
                 _predictedStamina = stamina;
             }
@@ -402,7 +443,9 @@ namespace Confluence.Net.Game.Client
             RenderTick = renderTick;
             if (dtSeconds > 0f && CorrectionOffset != Vec3.Zero)
             {
-                float keep = (float)Math.Pow(0.5, dtSeconds / CorrectionHalfLifeSec);
+                float size = CorrectionOffset.Length();
+                float perFrame = SmallCorrectionKeep - (SmallCorrectionKeep - LargeCorrectionKeep) * Math.Min(1f, size / LargeCorrection);
+                float keep = (float)Math.Pow(perFrame, dtSeconds * 60.0);
                 CorrectionOffset = CorrectionOffset * keep;
                 if (CorrectionOffset.Length() < 1e-4f) CorrectionOffset = Vec3.Zero;
             }

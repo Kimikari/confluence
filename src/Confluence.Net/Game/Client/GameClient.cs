@@ -186,6 +186,7 @@ namespace Confluence.Net.Game.Client
                     // buffer depth; it adapts to measured snapshot lateness (research §2.2.1).
                     int pace = View.Settings != null && View.Settings.TicksPerWallSecond > 0 ? View.Settings.TicksPerWallSecond : Confluence.Core.Time.Ticks.PerSecond;
                     duel.Interpolation.Advance(dt * pace);
+                    duel.RenderAlpha = (float)(serverTick - Math.Floor(serverTick));
                     double render = serverTick - duel.Interpolation.DelayTicks - duel.Start.StartMatchTick;
                     duel.UpdateRender(render, dt);
                 }

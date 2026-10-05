@@ -19,6 +19,14 @@ namespace Confluence.Net.Game.Client
     /// server's tick-order step 2 builds it, with the inputs the server sends in the private state (casting movement
     /// factor, slows, surface, locks, tuning, stamina) and the alcove confinement and boundary from the public layout.
     /// </summary>
+    /// <summary>The own cast's movement effects as the local cast machine predicts them for one tick.</summary>
+    public struct PredictedCast
+    {
+        public bool Valid;
+        public float MovementFactor;
+        public bool SprintLock;
+    }
+
     public sealed class MotorPredictor
     {
         private readonly ArenaLayout _layout;
@@ -80,6 +88,17 @@ namespace Confluence.Net.Game.Client
         /// </summary>
         public MotorState Step(MotorState state, in PlayerInput input, InputButtons previousButtons, int tick, PrivateEntry context, ref float stamina)
         {
+            return Step(state, input, previousButtons, tick, context, default, ref stamina);
+        }
+
+        /// <summary>
+        /// As above, with the own cast's movement status predicted by the local cast machine (research §2.3.1) in place of
+        /// the snapshot's when <paramref name="cast"/> is valid: the casting movement factor and the channel or quick-cast
+        /// sprint lock (spec L80, L92). Opponent- and world-caused slows, stuns, and surfaces still come from the snapshot.
+        /// </summary>
+        public MotorState Step(MotorState state, in PlayerInput input, InputButtons previousButtons, int tick, PrivateEntry context, PredictedCast cast,
+            ref float stamina)
+        {
             PlayerInput i = Wire.PlayerInputCodec.SanitizeLikeServer(input, input.SelectedSlot);
             InputButtons pressed = i.Buttons & ~previousButtons;
             var cmd = new MotorCommand
@@ -92,11 +111,11 @@ namespace Confluence.Net.Game.Client
                 CrouchHeld = (i.Buttons & InputButtons.Crouch) != 0,
                 DodgePressed = (pressed & InputButtons.Dodge) != 0,
                 Stamina = Math.Max(0f, stamina),
-                CastSpeedFactor = context != null ? context.CastMovementFactor : 1f,
+                CastSpeedFactor = cast.Valid ? cast.MovementFactor : context != null ? context.CastMovementFactor : 1f,
                 Traction = context != null ? context.Traction : 0f,
                 Tuning = context != null ? context.Tuning : default,
                 SpeedMultiplier = context != null ? context.SpeedMultiplier : 1f,
-                Locks = context != null ? context.Locks : MotorLocks.None,
+                Locks = LocksWith(context, cast),
                 Surface = context != null ? new SurfaceInfo { Kind = (SurfaceKind)context.SurfaceKind, SlowFraction = context.SurfaceSlow } : SurfaceInfo.Normal,
             };
 
@@ -114,6 +133,17 @@ namespace Confluence.Net.Game.Client
             CharacterMotor.Step(ref state, cmd, Collision, Ticks.Dt, out MotorReport report);
             if (report.StaminaSpent > 0f) stamina -= Math.Min(report.StaminaSpent, stamina);
             return state;
+        }
+
+        private static MotorLocks LocksWith(PrivateEntry context, PredictedCast cast)
+        {
+            MotorLocks locks = context != null ? context.Locks : MotorLocks.None;
+            if (!cast.Valid) return locks;
+            // The snapshot's sprint lock may come from its own cast state; replace that part with the prediction.
+            bool castLocked = context != null && (context.CastChanneling || context.CastSuppressesSprint);
+            if (castLocked) locks &= ~MotorLocks.Sprint;
+            if (cast.SprintLock) locks |= MotorLocks.Sprint;
+            return locks;
         }
 
         /// <summary>The legal boundary at a combat time, as the server's constraint computes it.</summary>
