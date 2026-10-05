@@ -157,6 +157,39 @@ namespace Confluence.Sim.Tests.Content.Wiz002
             Assert.False(BramKit.Reactions(w).HasIceAt(cell));
         }
 
+        [Fact]
+        [Verifies("SPL-014")]
+        public void With_No_Surface_Within_Range_The_Orb_Falls_To_The_Ground_And_Never_Waits_In_Mid_Air()
+        {
+            // Aimed upward over open ground: the 22 m flight ends in the air, then the orb drops to the first surface below.
+            DuelWorld w = Duel();
+            int slot = BramKit.SlotOf(w, Orb);
+            PlayerInput aim = BramKit.AimAt(w, new Vec3(0f, 9f, 14f), slot);
+            BramKit.Cast(w, slot, BramKit.NormalHold, aim);
+            BramKit.RunUntil(w, () => BramKit.Entity<BoilerOrbEntity>(w)?.Falling == true, 150, aim);
+            BoilerOrbEntity orb = BramKit.Entity<BoilerOrbEntity>(w);
+            Assert.True(orb.Falling);
+            Assert.False(orb.Settled);
+            Assert.True(orb.Position.Y > 3f); // where the flight ended
+            BramKit.Recast(w, slot, TestWorlds.A.Selecting(slot)); // nothing to detonate in the air
+            Assert.Empty(BramKit.Spell(w, SpellEventKind.DeployableDetonated));
+
+            BramKit.RunUntil(w, () => orb.Settled || !orb.Alive, 120, TestWorlds.A.Selecting(slot));
+            Assert.True(orb.Settled);
+            Assert.InRange(orb.Position.Y, BoilerOrbEntity.OrbRadius - 0.05f, BoilerOrbEntity.OrbRadius + 0.05f); // resting on the floor
+            SpellEvent placed = BramKit.Spell(w, SpellEventKind.DeployablePlaced).Single();
+            Assert.InRange(placed.Position.Y, 0f, 0.35f);
+
+            // With nothing below at all (beyond the floor's edge) it fades without ever waiting.
+            DuelWorld edge = Duel(TestWorlds.Flat(18f, 8f));
+            int s2 = BramKit.SlotOf(edge, Orb);
+            PlayerInput out_ = BramKit.AimAt(edge, new Vec3(0f, 3f, 16f), s2);
+            BramKit.Cast(edge, s2, BramKit.NormalHold, out_);
+            BramKit.RunUntil(edge, () => BramKit.Spell(edge, SpellEventKind.DeployableExpired).Any(), 240, out_);
+            Assert.Single(BramKit.Spell(edge, SpellEventKind.DeployableExpired));
+            Assert.Empty(BramKit.Spell(edge, SpellEventKind.DeployablePlaced));
+        }
+
         // ----- AUG-315 Boiler Funnel -----------------------------------------------------------------------------
 
         [Theory]
@@ -194,6 +227,39 @@ namespace Confluence.Sim.Tests.Content.Wiz002
             PlaceNear(wet, wetOrb, 1.5f, 1.5f); // beside the jet
             Detonate(wet);
             Assert.Equal(16f, BramKit.DamageTo(wet, 1, Orb).Single().Dealt, 3);
+        }
+
+        [Theory]
+        [InlineData(1)]
+        [InlineData(2)]
+        [Verifies("AUG-315")]
+        public void Boiler_Funnel_Counterplay_Dodging_The_Jet_Line_Keeps_Sight_And_Shooting_The_Orb_Stops_The_Explosion(int rank)
+        {
+            DuelWorld w = Duel(BramKit.FlatWith(BramKit.Water(new Vec2(0f, -0.5f), 1.5f, 1.5f, 2)), BramKit.Aug("AUG-315", rank));
+            BoilerOrbEntity orb = Throw(w, Vec3.Zero);
+            BramKit.Run(w, 2);
+            Assert.True(orb.IsSteamed);
+
+            // Looking down the jet line (the jet runs from the orb along the +Z throw toward the dummy): hidden.
+            TestWorlds.Place(w, 1, new Vec3(0f, 0f, 6f), 180f);
+            BramKit.Run(w, 1);
+            Assert.False(w.CanAcquire(1, 0));
+            Assert.False(w.CanAcquire(0, 1));
+
+            // "Dodge jet line": three meters to the side, the sight line passes beside the 2 m-wide jet.
+            TestWorlds.Place(w, 1, new Vec3(3f, 0f, 6f), 180f);
+            BramKit.Run(w, 1);
+            Assert.True(w.CanAcquire(1, 0));
+
+            // "shoot orb": the 25-health orb shot down never explodes, even when recast.
+            TestWorlds.Place(w, 1, new Vec3(3f, 0f, 2f), 180f);
+            BramKit.OpponentFires(w, 0, orb.Position);
+            BramKit.RunUntil(w, () => !orb.Alive, 40);
+            Assert.Single(BramKit.Spell(w, SpellEventKind.DeployableDestroyed));
+            PlaceNear(w, orb, 1.2f);
+            Detonate(w);
+            Assert.Empty(BramKit.Spell(w, SpellEventKind.DeployableDetonated));
+            Assert.Empty(BramKit.DamageTo(w, 1, Orb));
         }
 
         // ----- AUG-316 Boiler Mine -------------------------------------------------------------------------------
