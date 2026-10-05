@@ -14,7 +14,9 @@
     <ProjectReference Include="..\..\src\Confluence.Reactions\Confluence.Reactions.csproj" />
     <ProjectReference Include="..\..\src\Confluence.Casting\Confluence.Casting.csproj" />
     <ProjectReference Include="..\..\src\Confluence.Arena\Confluence.Arena.csproj" />
-    <ProjectReference Include="..\..\src\Confluence.Sim\Confluence.Sim.csproj" />  </ItemGroup>
+    <ProjectReference Include="..\..\src\Confluence.Sim\Confluence.Sim.csproj" />
+    <ProjectReference Include="..\..\src\Confluence.Economy\Confluence.Economy.csproj" />
+  </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
