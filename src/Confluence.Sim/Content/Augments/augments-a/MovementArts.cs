@@ -704,3 +704,146 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
         }
     }
 }
+
+namespace Confluence.Sim.Content.Augments.AugmentsA
+{
+    /// <summary>
+    /// AUG-105 Wall Reading (Gold, always). Condition "Jump within 0.5 m of solid wall." Rank 1 "Add 0.4 m lateral motion
+    /// away from wall.", rank 2 "Add 0.7 m lateral motion away from wall." Drawback "Costs 2 extra stamina; no wall flight, 5
+    /// s cooldown." An ordinary jump (spec L80) taken with a vertical solid face within 0.5 m of the body (probed in 16
+    /// horizontal directions at waist height) costs 12 instead of 10 stamina and adds 0.4 m (0.7 m) of horizontal travel
+    /// along the face's normal, spread over <see cref="PushSec"/> right after takeoff (a self displacement under the motor's
+    /// collision and the legal boundary, L51); the jump's own vertical arc is unchanged ("no wall flight": no extra height,
+    /// no jump from a wall, no second use within 5 s). A visible cue marks the exit (counterplay "Cover the visible wall
+    /// exit."). Jumps while the cooldown runs cost the normal 10 and get no motion.
+    /// </summary>
+    [ContentBehavior(Id)]
+    public sealed class WallReading : IAugmentBehavior
+    {
+        public const string Id = "AUG-105";
+        public const float WallRange = 0.5f;     // "within 0.5 m of solid wall"
+        public const float Rank1Lateral = 0.4f;  // "Add 0.4 m lateral motion away from wall."
+        public const float Rank2Lateral = 0.7f;  // "Add 0.7 m lateral motion away from wall."
+        public const float ExtraStamina = 2f;    // "Costs 2 extra stamina"
+        public const float CooldownSec = 5f;     // "5 s cooldown"
+
+        /// <summary>Time over which the lateral motion is added (open number: a short shove that keeps the jump readable).</summary>
+        public const float PushSec = 0.1f;
+
+        /// <summary>Probe height above the feet (waist of the 1.8 m standing capsule).</summary>
+        public const float ProbeHeight = 0.9f;
+
+        public const string ExitCue = "wall-exit";
+
+        public void Attach(IEffectHost host, int rank)
+        {
+            ContentArgs.Require(host);
+            host.Attach(new Hook(AugmentsAKit.ByRank(rank, Rank1Lateral, Rank2Lateral)));
+        }
+
+        /// <summary>The outward normal of the nearest vertical solid face within range of a body standing at the feet, if any.</summary>
+        public static bool TryFindWall(Confluence.Sim.World.CollisionWorld collision, Vec3 feet, out Vec3 away)
+        {
+            away = Vec3.Zero;
+            Vec3 origin = feet + new Vec3(0f, ProbeHeight, 0f);
+            float reach = CharacterMotor.Radius + WallRange;
+            float best = float.PositiveInfinity;
+            for (int i = 0; i < 16; i++)
+            {
+                double a = i * Math.PI / 8.0;
+                Vec3 dir = new Vec3((float)Math.Sin(a), 0f, (float)Math.Cos(a));
+                if (!collision.SegmentCast(origin, origin + dir * reach, Confluence.Sim.World.SolidMask.Movement, out Confluence.Sim.World.WorldHit hit))
+                {
+                    continue;
+                }
+
+                Vec3 n = new Vec3(hit.Normal.X, 0f, hit.Normal.Z);
+                if (Math.Abs(hit.Normal.Y) > 0.5f || n.LengthSquared() < 1e-6f || hit.Distance >= best)
+                {
+                    continue; // floors, ceilings and slopes are not walls
+                }
+
+                best = hit.Distance;
+                away = n.Normalized();
+            }
+
+            return best < float.PositiveInfinity;
+        }
+
+        private sealed class Hook : EffectHook
+        {
+            private readonly float _lateral;
+            private int _lastUse = int.MinValue / 2;
+            private Vec3 _preStep = new Vec3(float.NaN, 0f, 0f);
+            private int _jumpEvent;
+            private Vec3 _away;
+            private int _restoreAt = -1;
+            private Vec3 _restoreVelocity;
+
+            public Hook(float lateral) : base(Id)
+            {
+                _lateral = lateral;
+            }
+
+            private bool Ready => Now - _lastUse >= AugmentsAKit.Ticks(CooldownSec);
+
+            private Vec3 PreStep => float.IsNaN(_preStep.X) ? Self.Position : _preStep;
+
+            public override void AdjustMotor(ref MotorCommand command)
+            {
+                if (command.JumpPressed && Self.Motor.Grounded && InCombat && Ready && TryFindWall(World.Collision, Self.Position, out _))
+                {
+                    command.Tuning.JumpStaminaCost += ExtraStamina;
+                }
+            }
+
+            public override void OnEvent(DuelEvent e)
+            {
+                if (e is MovementEvent m && m.Player == Player && m.Change == MovementChange.Jumped && InCombat && Ready
+                    && TryFindWall(World.Collision, PreStep, out Vec3 away))
+                {
+                    _jumpEvent = m.Id;
+                    _away = away;
+                }
+            }
+
+            public override void OnTick()
+            {
+                if (_restoreAt >= 0 && Now >= _restoreAt && !Self.Motor.IsDisplaced)
+                {
+                    // The shove only adds its distance: the body keeps the horizontal velocity it jumped with.
+                    _restoreAt = -1;
+                    Vec3 v = Self.Motor.Velocity;
+                    Self.Motor.Velocity = new Vec3(_restoreVelocity.X, v.Y, _restoreVelocity.Z);
+                }
+
+                if (_jumpEvent != 0)
+                {
+                    int origin = _jumpEvent;
+                    _jumpEvent = 0;
+                    if (!Self.Motor.IsDisplaced && TryActivate(origin, -1, _lateral))
+                    {
+                        _lastUse = Now;
+                        int ticks = Math.Max(1, AugmentsAKit.Ticks(PushSec));
+                        Vec3 hv = new Vec3(Self.Motor.Velocity.X, 0f, Self.Motor.Velocity.Z);
+                        _restoreVelocity = hv;
+                        _restoreAt = Now + ticks;
+                        CharacterMotor.BeginDisplacement(ref Self.Motor, DisplacementKind.Dash, hv + _away * (_lateral / (ticks * Confluence.Core.Time.Ticks.Dt)), ticks);
+                        EmitCue(ExitCue, _lateral);
+                    }
+                }
+
+                _preStep = Self.Position;
+            }
+
+            public override void Hash(ref StateHasher h)
+            {
+                h.Add(_lastUse);
+                h.Add(_jumpEvent);
+                h.Add(_away);
+                h.Add(_restoreAt);
+                h.Add(_restoreVelocity);
+            }
+        }
+    }
+}
