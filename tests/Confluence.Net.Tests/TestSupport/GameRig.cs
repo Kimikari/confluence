@@ -87,9 +87,39 @@ namespace Confluence.Net.Tests.TestSupport
             return player;
         }
 
+        private System.Diagnostics.Stopwatch _pace;
+        private long _paceStartTick;
+
+        /// <summary>
+        /// Real-time pacing: each step waits until wall time catches up with the virtual clock. LiteNetLib stamps its
+        /// reliable resends with wall time, so resend latency is only meaningful in virtual ticks when the rig is paced.
+        /// </summary>
+        public bool PaceRealTime
+        {
+            get => _pace != null;
+            set
+            {
+                if (value == PaceRealTime) return;
+                _pace = value ? System.Diagnostics.Stopwatch.StartNew() : null;
+                _paceStartTick = _ticks;
+            }
+        }
+
         /// <summary>One virtual tick: advance the clock 1/60 s, pump the server (one authoritative step) and every client.</summary>
         public void Step()
         {
+            if (_pace != null)
+            {
+                long dueMs = ((_ticks + 1 - _paceStartTick) * 1000) / 60;
+                while (_pace.ElapsedMilliseconds < dueMs)
+                {
+                    Link?.Poll();
+                    Server.Poll();
+                    foreach (HeadlessPlayer p in _players) p.Client.Transport.Poll();
+                    System.Threading.Thread.Sleep(1);
+                }
+            }
+
             _ticks++;
             long target = 1000 + (_ticks * 1000) / 60;
             Clock.Advance(target - Clock.NowMs);
