@@ -45,6 +45,7 @@ namespace Confluence.Sim.Tests.Content.Halen
             Assert.Equal(1, d.Units(landing).Water);                                 // "Water 1"
             Assert.Equal(1, d.Units(landing + new Vec3(0.6f, 0f, 0f)).Water);
             Assert.Equal(rank >= 2 ? 1 : 0, d.Units(landing + new Vec3(1.3f, 0f, 0f)).Water); // 1 m vs 1.5 m radius
+            Assert.Equal(1, d.Units(landing + new Vec3(0f, 0f, radius - 0.3f)).Water);
             Assert.Equal(0, d.Units(landing + new Vec3(1.8f, 0f, 0f)).Water);
             Assert.Empty(d.DamageTo(1));                                             // "no damage"
 

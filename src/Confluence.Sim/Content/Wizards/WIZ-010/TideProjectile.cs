@@ -203,7 +203,13 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
 
             Vec3 segDir = seg / segLength;
             var best = new SweepContact { Player = -1, SolidId = -1, Distance = float.PositiveInfinity };
-            if (ctx.Collision.SphereSweep(Position, target, r * 0.8f, SolidMask.Movement, out WorldHit wall) && wall.Normal.Y < 0.7f)
+            // The wall check runs level at the higher of the two heights: a rise within the step height is stepped onto
+            // (lifted first, like a body's step-up, spec L80), a drop is rolled off; only a face above the step stops it.
+            float sweepY = Math.Max(Position.Y, target.Y);
+            Vec3 sweepFrom = new Vec3(Position.X, sweepY, Position.Z);
+            Vec3 sweepTo = new Vec3(target.X, sweepY, target.Z);
+            if (ctx.Collision.SphereSweep(sweepFrom, sweepTo, r * 0.8f, SolidMask.Movement, out WorldHit wall) && wall.Normal.Y < 0.7f &&
+                Vec3.Dot(new Vec3(wall.Normal.X, 0f, wall.Normal.Z), Direction) < 0f) // a face it is leaving (a step down) never stops it
             {
                 best = new SweepContact { Found = true, Distance = wall.Distance, Player = -1, SolidId = wall.SolidId, Point = Position + segDir * wall.Distance, Normal = wall.Normal };
             }
