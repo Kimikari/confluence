@@ -58,7 +58,9 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
     /// <list type="bullet">
     /// <item>A recast while the dash is still travelling halts the caster there and bursts once for 24 thermal within
     /// 1.2 m (rank 2: 28) instead of the endpoint burst; the trail covers the shortened path. Each burst is a visible
-    /// event. The brake is a separate payload of the cast (no grammar reward, spec L480).</item>
+    /// event. The brake burst replaces the endpoint burst as the cast's primary damage, so it carries the cast's one
+    /// mastery result (a crest release adds 12%; spec L94, L480: a delivery-changing augment inherits it). Braking can
+    /// only stop the body along the path telegraphed at commitment ("Avoid bright endpoint/brake tell").</item>
     /// <item>The cast costs 33 mana; braking never refunds or grants another dash. With AUG-313 the cast takes two
     /// recasts: the brake during the dash, then the return.</item>
     /// </list>

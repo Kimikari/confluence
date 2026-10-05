@@ -190,6 +190,30 @@ namespace Confluence.Sim.Tests.Content.Wiz002
 
         [Fact]
         [Verifies("AUG-312")]
+        public void Ash_Bellows_Recast_On_The_First_Tick_After_The_Cloud_Appears_Pushes_It()
+        {
+            DuelWorld w = BramKit.Duel(BramKit.Bram(null, BramKit.Aug("AUG-312")));
+            int slot = BramKit.SlotOf(w, Ash);
+            PlayerInput aim = BramKit.AimAt(w, Vec3.Zero, slot);
+            BramKit.Cast(w, Ash, BramKit.NormalHold, aim);
+            BramKit.RunUntil(w, () => Cloud(w) != null, 60, aim); // the tick the cloud's volume was created (step 5)
+            ObscurationVolume cloud = Cloud(w);
+            Assert.NotNull(cloud);
+            Assert.Equal(w.Tick, cloud.CreatedTick); // the recast below is the next tick
+            Vec2 before = Center(cloud);
+            float mana = BramKit.Mana(w);
+
+            PlayerInput east = PlayerInput.Idle(90f).Selecting(slot);
+            BramKit.Recast(w, slot, east); // the very next tick, before the cloud entity's own step binds the volume
+            Assert.Equal(mana - 6f, BramKit.Mana(w), 3);
+            Assert.Single(BramKit.Spell(w, SpellEventKind.CloudMoved));
+            Assert.True(BramKit.Entity<AshCloudEntity>(w).Pushed);
+            BramKit.Run(w, 80, east);
+            Assert.InRange((Center(cloud) - before).X, 1.7f, 2.3f); // the paid recast moved the cloud 2 m
+        }
+
+        [Fact]
+        [Verifies("AUG-312")]
         public void Ash_Bellows_Counterplay_The_Clouds_Original_Location_Opens_After_A_Push()
         {
             DuelWorld w = BramKit.Duel(BramKit.Bram(null, BramKit.Aug("AUG-312")));

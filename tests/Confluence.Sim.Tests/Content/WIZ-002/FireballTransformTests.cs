@@ -193,6 +193,34 @@ namespace Confluence.Sim.Tests.Content.Wiz002
 
         [Fact]
         [Verifies("AUG-306")]
+        [Verifies("SPL-011")]
+        public void Cinder_Seed_Burst_Is_Secondary_Stationary_Damage_Heat_Haze_Does_Not_Reduce_And_It_Raises_No_Procs()
+        {
+            // Two Brams: B holds Heat Haze (12% against projectiles) and Tempered Hands (thermal damage taken -> shield).
+            DuelPlayerSetup b = DuelPlayerSetup.FromCatalogue(BramKit.Catalogue, "B", "WIZ-002", BramKit.DefaultKit);
+            DuelWorld w = BramKit.Duel(BramKit.Bram(null, BramKit.Aug("AUG-306")), other: b);
+            Fire(w, new Vec3(0f, 0f, 3f), run: 60); // the fireball lands 3 m short of B: no splash on B
+            CinderEntity cinder = BramKit.Entity<CinderEntity>(w);
+            Assert.NotNull(cinder);
+            Assert.Empty(BramKit.DamageTo(w, 1, Fireball));
+
+            int haze = w.Player(1).Setup.EquippedSpellIds.IndexOf("SPL-011");
+            PlayerInput bHaze = TestWorlds.B.Selecting(haze);
+            for (int i = 0; i < BramKit.NormalHold; i++) w.Step(TestWorlds.A, bHaze.With(InputButtons.Primary));
+            BramKit.RunUntil(w, () => BramKit.Runtime(w).Entities.OfType<BuffEntity>().Any(e => e.Owner == 1), 40, TestWorlds.A, bHaze);
+            Assert.Contains(BramKit.Runtime(w).Entities.OfType<BuffEntity>(), e => e.Owner == 1 && e.Alive); // B's shimmer is up
+
+            TestWorlds.Place(w, 1, new Vec3(cinder.Position.X, 0f, cinder.Position.Z + 1.2f), 180f);
+            BramKit.Recast(w, 0, null, bHaze);
+            DamageEvent burst = BramKit.DamageTo(w, 1, Fireball).Single();
+            Assert.Equal(24f, burst.Dealt, 3);       // a stationary burst, not projectile damage: no 12% haze reduction
+            Assert.Equal(1, burst.Generation);       // new secondary damage of the transformation (spec L508)
+            BramKit.Run(w, 2, TestWorlds.A, bHaze);
+            Assert.Equal(0f, w.Player(1).Shields.Total, 3); // no trigger: Tempered Hands does not answer secondary damage (L126)
+        }
+
+        [Fact]
+        [Verifies("AUG-306")]
         public void Cinder_Seed_Splashes_16_And_Shares_Heat_2_Between_The_Impact_And_The_Burst()
         {
             var materials = new RecordingMaterials();

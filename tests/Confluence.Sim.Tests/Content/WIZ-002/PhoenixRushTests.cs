@@ -303,5 +303,74 @@ namespace Confluence.Sim.Tests.Content.Wiz002
             Assert.Equal(2, BramKit.Spell(both, SpellEventKind.MovementStarted).Count());
             Assert.InRange(both.Player(0).Position.Z, -6.1f, -5.6f); // back at the ember
         }
+
+        [Theory]
+        [InlineData(1, 24f)]
+        [InlineData(2, 28f)]
+        [Verifies("AUG-314")]
+        public void Rush_Brake_Burst_Carries_The_Casts_One_Mastery_Result(int rank, float damage)
+        {
+            DuelWorld w = Duel(null, BramKit.Aug("AUG-314", rank));
+            int slot = BramKit.SlotOf(w, Rush);
+            BramKit.Cast(w, slot, BramKit.CrestHold, TestWorlds.A.Selecting(slot));
+            Assert.Equal(MasteryReward.DirectDamage, BramKit.Casts(w, CastEventKind.Committed).Single().Cast.Mastery.Reward);
+            BramKit.RunUntil(w, () => BramKit.Spell(w, SpellEventKind.MovementStarted).Any(), 40, TestWorlds.A.Selecting(slot));
+            BramKit.Run(w, 6, TestWorlds.A.Selecting(slot));
+            TestWorlds.Place(w, 1, w.Player(0).Position + new Vec3(1.3f, 0f, 0.6f), 270f);
+            BramKit.Recast(w, slot, TestWorlds.A.Selecting(slot));
+            BramKit.Run(w, 2, TestWorlds.A.Selecting(slot));
+            Assert.Equal(damage * 1.12f, BramKit.DamageTo(w, 1, Rush).Single().Dealt, 3); // the replacement primary payload (L480)
+        }
+
+        [Theory]
+        [InlineData(2)]
+        [InlineData(4)]
+        [InlineData(6)]
+        [Verifies("AUG-314")]
+        public void Rush_Brake_Counterplay_Standing_Clear_Of_The_Telegraphed_Path_Avoids_Every_Brake(int brakeAfter)
+        {
+            DuelWorld w = Duel(null, BramKit.Aug("AUG-314"));
+            int slot = BramKit.SlotOf(w, Rush);
+            BramKit.Cast(w, slot, BramKit.NormalHold, TestWorlds.A.Selecting(slot));
+            // The bright tell: the full path (start, direction, 8 m) is marked at commitment, before the dash starts.
+            SpellEvent path = BramKit.Spell(w, SpellEventKind.Marker).Single(e => e.SpellId == Rush);
+            Assert.Equal(8f, path.Amount, 3);
+            Assert.InRange(path.Direction.Z, 0.99f, 1.01f);
+            Assert.Empty(BramKit.Spell(w, SpellEventKind.MovementStarted));
+
+            // 1.9 m beside the marked line (body surface 1.5 m away): outside the 1.2 m brake burst wherever it stops.
+            TestWorlds.Place(w, 1, new Vec3(1.9f, 0f, -6f + brakeAfter * 0.45f), 270f);
+            BramKit.RunUntil(w, () => BramKit.Spell(w, SpellEventKind.MovementStarted).Any(), 40, TestWorlds.A.Selecting(slot));
+            BramKit.Run(w, brakeAfter, TestWorlds.A.Selecting(slot));
+            BramKit.Recast(w, slot, TestWorlds.A.Selecting(slot));
+            BramKit.Run(w, 2, TestWorlds.A.Selecting(slot));
+            Assert.Single(BramKit.Spell(w, SpellEventKind.AreaBurst)); // it braked and burst
+            Assert.True(BramKit.Entity<RushEntity>(w) == null || BramKit.Entity<RushEntity>(w).Braked);
+            Assert.Empty(BramKit.DamageTo(w, 1, Rush));
+        }
+
+        [Fact]
+        [Verifies("SPL-013")]
+        public void The_Trail_Is_Environmental_Contact_Attributed_To_The_Cast_With_No_Hit_Rewards()
+        {
+            // Two Brams: B standing on A's trail takes the 6 as environmental damage (spec L672) that keeps the cast's
+            // source for attribution; it raises no hit triggers, so B's Tempered Hands does not answer it.
+            DuelPlayerSetup b = DuelPlayerSetup.FromCatalogue(BramKit.Catalogue, "B", "WIZ-002", BramKit.DefaultKit);
+            DuelWorld w = BramKit.Duel(BramKit.Bram(), other: b);
+            TestWorlds.Place(w, 1, new Vec3(6f, 0f, 6f), 180f);
+            w.Player(0).Stats.Add(StatKind.Lifesteal, 0.1f, "TEST");
+            w.Player(0).Resources.LoseHealth(50f);
+            Dash(w);
+            BramKit.Run(w, 1);
+            TestWorlds.Place(w, 1, new Vec3(0f, 0f, -2f), 0f);
+            BramKit.Run(w, 2);
+            DamageEvent contact = BramKit.DamageTo(w, 1, Rush).Single();
+            Assert.Equal(6f, contact.Dealt, 3);
+            Assert.Equal(DamageKind.Environment, contact.Kind);
+            Assert.Equal(0, contact.Attacker);
+            Assert.Equal(BramKit.Casts(w, CastEventKind.Committed).Single().Cast.CastId, contact.CastId);
+            Assert.Equal(0f, w.Player(1).Shields.Total, 3);                                   // no Tempered Hands trigger
+            Assert.DoesNotContain(SpellTestKit.Events<HealEvent>(w), h => h.Lifesteal);      // no direct spell-hit healing
+        }
     }
 }
