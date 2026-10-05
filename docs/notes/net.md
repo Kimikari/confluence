@@ -103,3 +103,13 @@ delay, input and snapshot buffers, clock sync.
   `NetRules` rate limits; drive a `SnapshotRateSelector` per session from `GetLinkStats`; set
   `ServerTransport.TickClock` to the sim clock; feed spectators through `SpectatorDelayBuffer`.
 - Lag compensation (150 ms rewind, L423) belongs to Sim and uses the clock estimate and input acks from here.
+
+## Stage 3 game protocol (branch net-protocol, in progress)
+
+Status (2026-10-05, resumed): game protocol (`Game/Wire`, ids 64-95), snapshot frames with keyed deltas
+(`Game/Snapshots`), `GameServer` (lobby, host routing, snapshots, events, spectators), client session (`Game/Client`:
+prediction, interpolation, grammar prediction), headless player (`Game/Headless`), `Confluence.Server` and
+`Confluence.HeadlessClient` executables, and an in-process two-client Laboratory Duel over UDP all work; 135 Net
+tests pass. Next: apply docs/research/netcode.md (input slip control, view-tick bounds, adaptive interpolation,
+snapshot byte budget, visibility culling, cosmetic event lane, leak tests), the remaining required tests, the
+real-time smoke run, and the full Stage 3 notes below.
