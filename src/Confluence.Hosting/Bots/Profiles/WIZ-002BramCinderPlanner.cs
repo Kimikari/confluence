@@ -90,7 +90,8 @@ namespace Confluence.Hosting.Bots.Profiles
             plan = null;
             if (rng == null) throw new ArgumentNullException(nameof(rng));
             DuelPlayer me = s.Me;
-            if (!s.Sees || me.Caster == null) return false;
+            // Bram holds his grammar casts while pressing in for melee (his signature still fires, see ExtraButtons).
+            if (!s.Sees || s.Rushing || me.Caster == null) return false;
             float health = me.Resources.MaxHealth > 0f ? me.Resources.Health / me.Resources.MaxHealth : 0f;
             float d = s.Distance;
             Vec3 toward = Flat(s.Opponent - me.Position);

@@ -36,10 +36,19 @@ namespace Confluence.Hosting.Bots
         /// <summary>Horizontal distance to <see cref="Opponent"/>.</summary>
         public float Distance;
 
+        /// <summary>The perceived opponent was visibly winding up or releasing a cast (spec L96).</summary>
+        public bool OpponentCasting;
+
+        /// <summary>The bot is pressing in for melee (profiles keep to close-range options or hold fire).</summary>
+        public bool Rushing;
+
+        /// <summary>The opponent's wizard (public at selection, spec L292).</summary>
+        public string OpponentWizardId;
+
         public DuelPlayer Me => World.Player(Self);
     }
 
-    /// <summary>Where a planned cast aims while its script runs.</summary>
+    /// <summary>Where a planned cast aims while its script runs and through its windup until the spell releases.</summary>
     public enum BotAimMode
     {
         /// <summary>The perceived chest (with lead when the profile leads), like the generic bot.</summary>
@@ -48,18 +57,43 @@ namespace Confluence.Hosting.Bots
         /// <summary>The perceived feet (ground-targeted spells).</summary>
         Feet,
 
-        /// <summary>A fixed world point chosen at planning time.</summary>
+        /// <summary>A fixed world point chosen at planning time (<see cref="BotCastPlan.AimPoint"/>).</summary>
         Point,
     }
 
-    /// <summary>One planned cast: the slot to select, its grammar input script, and where to aim while it runs.</summary>
+    /// <summary>
+    /// One planned cast: the slot to select (or the signature), its grammar input script, where to aim, and an optional
+    /// follow-up recast.
+    /// </summary>
     public sealed class BotCastPlan
     {
-        public string SpellId;
-        public int Slot;
-        public BotCastScript Script;
-        public BotAimMode Aim;
-        public Vec3 AimPoint;
+        /// <summary>The spell id (diagnostics and tests; the wizard id for the signature).</summary>
+        public string SpellId { get; set; }
+
+        /// <summary>The equipped slot to cast; ignored for the signature.</summary>
+        public int Slot { get; set; }
+
+        /// <summary>The signature technique (its own binding, no grammar, spec L472).</summary>
+        public bool Signature { get; set; }
+
+        /// <summary>
+        /// The input script, judged by the real grammar (spec L425). Null: the bot uses a <see cref="SignatureScript"/>
+        /// for the signature and the wizard's generic script otherwise.
+        /// </summary>
+        public BotCastScript Script { get; set; }
+
+        public BotAimMode Aim { get; set; }
+
+        public Vec3 AimPoint { get; set; }
+
+        /// <summary>Whether this cast tries the grammar's mastery timing (the script still decides if it lands).</summary>
+        public bool AttemptMastery { get; set; }
+
+        /// <summary>Ticks after the script ends to press the spell-recast binding once; negative = never.</summary>
+        public int RecastAfterTicks { get; set; } = -1;
+
+        /// <summary>A short reason (diagnostics).</summary>
+        public string Reason { get; set; }
     }
 
     /// <summary>
@@ -72,7 +106,7 @@ namespace Confluence.Hosting.Bots
     {
         string WizardId { get; }
 
-        /// <summary>A cast to start now, or false to hold fire this tick.</summary>
+        /// <summary>A cast to start now (with its script, or a signature press), or false to hold fire for now.</summary>
         bool TryPlanCast(in BotSituation situation, Rng rng, out BotCastPlan plan);
 
         /// <summary>
@@ -102,9 +136,11 @@ namespace Confluence.Hosting.Bots
             {
                 if (_byWizard != null) return _byWizard;
                 var map = new Dictionary<string, ConstructorInfo>(StringComparer.Ordinal);
-                foreach (Type type in typeof(BotSpellPlanners).Assembly.GetTypes())
+                Type[] types = typeof(BotSpellPlanners).Assembly.GetTypes();
+                Array.Sort(types, (a, b) => string.CompareOrdinal(a.FullName, b.FullName));
+                foreach (Type type in types)
                 {
-                    if (type.IsAbstract || !typeof(IBotSpellPlanner).IsAssignableFrom(type)) continue;
+                    if (type.IsAbstract || type.IsInterface || !typeof(IBotSpellPlanner).IsAssignableFrom(type)) continue;
                     ConstructorInfo ctor = type.GetConstructor(Type.EmptyTypes);
                     if (ctor == null) continue;
                     var probe = (IBotSpellPlanner)ctor.Invoke(null);
@@ -120,5 +156,16 @@ namespace Confluence.Hosting.Bots
                 return map;
             }
         }
+    }
+
+    /// <summary>A one-tick press of the signature binding (signatures have no grammar, spec L472).</summary>
+    public sealed class SignatureScript : BotCastScript
+    {
+        public SignatureScript()
+        {
+            ReleaseTick = 1;
+        }
+
+        public override InputButtons ButtonsAt(int k) => k == 0 ? InputButtons.Signature : InputButtons.None;
     }
 }

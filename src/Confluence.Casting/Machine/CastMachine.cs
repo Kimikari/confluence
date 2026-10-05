@@ -210,6 +210,18 @@ namespace Confluence.Casting
         public float RefundRemaining(CastEventId castId) => _refunds.Remaining(castId);
 
         /// <summary>
+        /// Lengthens the recovery of the cast that is recovering now by a record-stated conditional amount (SPL-074 "a
+        /// miss leaves 0.3 s recovery"; spec L92: a record may state a longer recovery, never a shorter one). Returns
+        /// false (nothing changes) when that cast is not the one in recovery.
+        /// </summary>
+        public bool ExtendRecovery(CastEventId castId, int addedTicks, int tick)
+        {
+            if (_phase != CastPhase.Recovery || _castId != castId || addedTicks <= 0) return false;
+            _phaseEndTick = Math.Max(_phaseEndTick, tick) + addedTicks;
+            return true;
+        }
+
+        /// <summary>
         /// Order-dependent digest of the machine's authoritative state (phase, attempt, timers, payment, held commit,
         /// re-cast lock, pending recasts) for the simulation state hash (spec L427). Grammar state is derived from the
         /// same input frames and is not included.

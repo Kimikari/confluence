@@ -1614,17 +1614,22 @@ namespace Confluence.Sim.Duel
                 _log.Add(e);
             }
 
+            _emitDepth++;
             for (int i = 0; i < _observers.Count; i++)
             {
                 _observers[i].OnEvent(this, e);
             }
 
+            _emitDepth--;
+            if (_emitDepth == 0 && _observerRemovals.Count > 0) ApplyObserverRemovals();
             return e;
         }
 
         // ----- hooks for later stages (spell runtime, props, effects) ---------------------------------------
 
         private readonly List<IDuelEventObserver> _observers = new List<IDuelEventObserver>();
+        private readonly List<IDuelEventObserver> _observerRemovals = new List<IDuelEventObserver>();
+        private int _emitDepth;
 
         /// <summary>
         /// Emits an event produced by a later stage (cast phases, spell deliveries, props, effects) into the same ordered
@@ -1649,6 +1654,43 @@ namespace Confluence.Sim.Duel
             }
 
             _observers.Add(observer);
+        }
+
+        /// <summary>
+        /// Unregisters an observer added with <see cref="AddEventObserver"/> (a short-lived spell entity that watched the
+        /// stream while it lived). A removal requested while an event is being delivered takes effect after that delivery,
+        /// so the other observers still see the event. Returns false when the observer was not registered.
+        /// </summary>
+        public bool RemoveEventObserver(IDuelEventObserver observer)
+        {
+            if (observer == null || !_observers.Contains(observer))
+            {
+                return false;
+            }
+
+            if (_emitDepth > 0)
+            {
+                _observerRemovals.Add(observer);
+            }
+            else
+            {
+                _observers.Remove(observer);
+            }
+
+            return true;
+        }
+
+        /// <summary>Registered observers (diagnostics and tests).</summary>
+        public int EventObserverCount => _observers.Count;
+
+        private void ApplyObserverRemovals()
+        {
+            for (int i = 0; i < _observerRemovals.Count; i++)
+            {
+                _observers.Remove(_observerRemovals[i]);
+            }
+
+            _observerRemovals.Clear();
         }
 
         /// <summary>

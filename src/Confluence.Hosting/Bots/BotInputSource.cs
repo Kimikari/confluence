@@ -71,14 +71,17 @@ namespace Confluence.Hosting.Bots
         private int _guardUntil = int.MinValue;
         private int _dodgeAt = int.MaxValue;
         private BotCastScript _cast;
-        private IBotSpellPlanner _planner; // wizard casting profile (Bots/Profiles), or null for generic slot cycling
-        private BotCastPlan _plan;
         private int _castStart;
         private int _telegraphUntil = int.MinValue;
         private int _nextCastTick;
         private int _slot;
         private uint _sequence;
         private InputButtons _previous;
+        private IBotSpellPlanner _planner; // the wizard casting profile (Bots/Profiles, BotSpellPlanning.cs), or null for the slot rotation
+        private BotCastPlan _plan;
+        private BotCastPlan _aimPlan; // the plan whose aim is held until its spell releases (or the cast ends unreleased)
+        private BotCastPlan _pendingPlan; // planned before a Novice telegraph, cast when the telegraph ends
+        private int _recastAt = int.MinValue;
 
         public BotInputSource(ulong matchSeed, BotProfile profile)
         {
@@ -88,11 +91,11 @@ namespace Confluence.Hosting.Bots
 
         public BotProfile Profile { get; }
 
-        /// <summary>The wizard casting profile of the current duel, or null when the wizard has none.</summary>
-        public IBotSpellPlanner Planner => _planner;
-
         /// <summary>Diagnostics of the current or last duel.</summary>
         public BotDuelStats Stats { get; private set; } = new BotDuelStats();
+
+        /// <summary>The wizard casting profile of the current duel, or null when the wizard has none.</summary>
+        public IBotSpellPlanner Planner => _planner;
 
         public void BeginDuel(DuelSeat seat)
         {
@@ -115,12 +118,15 @@ namespace Confluence.Hosting.Bots
             _guardUntil = int.MinValue;
             _dodgeAt = int.MaxValue;
             _cast = null;
-            _planner = BotSpellPlanners.For(me.Setup.WizardId);
-            _plan = null;
             _telegraphUntil = int.MinValue;
             _nextCastTick = 0;
             _slot = 0;
             _previous = InputButtons.None;
+            _planner = BotSpellPlanners.For(me.Setup.WizardId);
+            _plan = null;
+            _aimPlan = null;
+            _pendingPlan = null;
+            _recastAt = int.MinValue;
             Stats = new BotDuelStats();
         }
 
@@ -187,6 +193,7 @@ namespace Confluence.Hosting.Bots
                 Position = sees ? them.Position : default,
                 Velocity = sees ? them.Motor.Velocity : default,
                 Height = sees ? them.Motor.Height : 0f,
+                Casting = sees && them.Caster != null && them.Caster.Machine.Phase != Confluence.Casting.CastPhase.Idle, // a visible windup (spec L96)
             };
             if (sees) Stats.TicksWithSight++;
         }
@@ -295,13 +302,17 @@ namespace Confluence.Hosting.Bots
             }
 
             // ---- Where to look ----
-            if (seen.Seen && _cast != null && _plan != null && _plan.Aim != BotAimMode.Chest)
+            // A planned ground or point aim is held through the committed windup to the actual release (spec L92: the
+            // spell releases after its cast time and reads the aim then), not only while the input script presses.
+            BotCastPlan held = HeldAim(me);
+            if (held != null && held.Aim == BotAimMode.Point)
             {
-                AimAtPoint(me, _plan.Aim == BotAimMode.Point ? _plan.AimPoint : seen.Position);
+                AimAtPoint(me, held.AimPoint);
             }
             else if (seen.Seen)
             {
-                AimAt(me, seen, distance);
+                if (held != null && held.Aim == BotAimMode.Feet) AimAtPoint(me, seen.Position);
+                else AimAt(me, seen, distance);
             }
             else if (move.LengthSquared() > 0f)
             {
@@ -338,7 +349,7 @@ namespace Confluence.Hosting.Bots
             }
 
             if (!guarding && !inReach) buttons |= CastButtons(world, me, tick, seen, distance, rushing, ref move);
-            if (!guarding && _cast == null && _planner != null) buttons |= _planner.ExtraButtons(Situation(world, me, tick, seen, distance), _rng, ref _slot);
+            if (!guarding && _cast == null && _planner != null) buttons |= _planner.ExtraButtons(Situation(world, me, tick, seen, distance, rushing), _rng, ref _slot);
 
             if (jump || (_hop && me.Motor.Grounded))
             {
@@ -384,6 +395,12 @@ namespace Confluence.Hosting.Bots
 
         private InputButtons CastButtons(DuelWorld world, DuelPlayer me, int tick, Observation seen, float distance, bool rushing, ref Vec2 move)
         {
+            if (tick == _recastAt)
+            {
+                _recastAt = int.MinValue; // a planned recast (one press of the spell-recast binding)
+                return InputButtons.Recast;
+            }
+
             if (_cast != null)
             {
                 int k = tick - _castStart;
@@ -403,15 +420,29 @@ namespace Confluence.Hosting.Bots
             }
 
             bool wanted = _planner != null
-                ? seen.Seen && !rushing && tick >= _nextCastTick && !me.Melee.Busy // the wizard profile judges range and mana
+                ? seen.Seen && tick >= _nextCastTick && !me.Melee.Busy // the wizard profile judges range, mana and rushes
                 : seen.Seen && !rushing && tick >= _nextCastTick && distance >= 2.5f && distance <= Profile.PreferredRange + 5f &&
                   me.Resources.Mana >= 20f && !me.Melee.Busy;
-            if (!wanted) return InputButtons.None;
-            BotCastPlan plan = null;
-            if (_planner != null && !_planner.TryPlanCast(Situation(world, me, tick, seen, distance), _rng, out plan)) return InputButtons.None;
+            if (!wanted)
+            {
+                _pendingPlan = null;
+                return InputButtons.None;
+            }
+
+            // A wizard profile plans first, so a Novice never telegraphs a cast it has nothing for; the plan is kept
+            // through the telegraph and cast when it ends.
+            BotCastPlan plan = _pendingPlan;
+            _pendingPlan = null;
+            if (plan == null && _planner != null && (!_planner.TryPlanCast(Situation(world, me, tick, seen, distance, rushing), _rng, out plan) || plan == null))
+            {
+                _nextCastTick = tick + Profile.ThinkTicks; // nothing worth casting yet
+                return InputButtons.None;
+            }
+
             if (_telegraphUntil == int.MinValue && Profile.TelegraphTicks > 0)
             {
                 _telegraphUntil = tick + Profile.TelegraphTicks;
+                _pendingPlan = plan;
                 move = Vec2.Zero;
                 return InputButtons.None;
             }
@@ -420,24 +451,41 @@ namespace Confluence.Hosting.Bots
             if (plan != null)
             {
                 _plan = plan;
-                _slot = plan.Slot;
-                _cast = plan.Script;
-                _castStart = tick;
-                Stats.Casts++;
-                return _cast.ButtonsAt(0);
+                if (!plan.Signature) _slot = plan.Slot;
+                _cast = plan.Script ?? (plan.Signature ? new SignatureScript() : BotCastScript.For(me.Setup.WizardId, Profile, _rng));
+                _aimPlan = plan.Aim != BotAimMode.Chest ? plan : null;
+            }
+            else
+            {
+                _aimPlan = null;
+                _slot = me.Setup.EquippedSpellIds.Count > 0 ? (_slot + 1) % Math.Min(PlayerInput.SlotCount, me.Setup.EquippedSpellIds.Count) : 0;
+                _cast = BotCastScript.For(me.Setup.WizardId, Profile, _rng);
             }
 
-            _slot = me.Setup.EquippedSpellIds.Count > 0 ? (_slot + 1) % Math.Min(PlayerInput.SlotCount, me.Setup.EquippedSpellIds.Count) : 0;
-            _cast = BotCastScript.For(me.Setup.WizardId, Profile, _rng);
             _castStart = tick;
             Stats.Casts++;
             return _cast.ButtonsAt(0);
         }
 
+        /// <summary>
+        /// The plan whose aim the bot holds now: while its input script runs, and afterwards while the cast it started is
+        /// still in preparation or its committed windup; released, cancelled or never committed casts drop it.
+        /// </summary>
+        private BotCastPlan HeldAim(DuelPlayer me)
+        {
+            if (_aimPlan == null) return null;
+            if (_cast != null) return _aimPlan;
+            Confluence.Casting.CastPhase phase = me.Caster != null ? me.Caster.Machine.Phase : Confluence.Casting.CastPhase.Idle;
+            if (phase == Confluence.Casting.CastPhase.Preparation || phase == Confluence.Casting.CastPhase.Windup) return _aimPlan;
+            _aimPlan = null;
+            return null;
+        }
+
         private void EndCast(int tick)
         {
-            _cast = null;
+            if (_plan != null && _plan.RecastAfterTicks >= 0) _recastAt = tick + Math.Max(1, _plan.RecastAfterTicks);
             _plan = null;
+            _cast = null;
             _nextCastTick = tick + _rng.NextInt(Ticks.PerSecond, Ticks.FromSeconds(2.5));
         }
 
@@ -456,6 +504,7 @@ namespace Confluence.Hosting.Bots
             TurnToward(CMath.YawOf(aim) + _aimErrorYaw, CMath.PitchOf(aim) + _aimErrorPitch);
         }
 
+        /// <summary>Looks at a world point (a kit planner's ground or hazard target), with the bot's usual aim error.</summary>
         private void AimAtPoint(DuelPlayer me, Vec3 point)
         {
             Vec3 aim = point - me.Eye;
@@ -463,7 +512,7 @@ namespace Confluence.Hosting.Bots
         }
 
         /// <summary>What a wizard casting profile may know (spec L381): own state and the perceived opponent only.</summary>
-        private BotSituation Situation(DuelWorld world, DuelPlayer me, int tick, Observation seen, float distance) => new BotSituation
+        private BotSituation Situation(DuelWorld world, DuelPlayer me, int tick, Observation seen, float distance, bool rushing) => new BotSituation
         {
             World = world,
             Self = me.Index,
@@ -474,6 +523,9 @@ namespace Confluence.Hosting.Bots
             OpponentVelocity = seen.Seen ? seen.Velocity : Vec3.Zero,
             OpponentHeight = seen.Seen ? seen.Height : 0f,
             Distance = distance,
+            OpponentCasting = seen.Casting, // perceived with the same reaction latency as the position
+            OpponentWizardId = world.Player(1 - me.Index).Setup.WizardId, // public at selection (spec L292)
+            Rushing = rushing,
         };
 
         private bool AimedWithin(DuelPlayer me, Observation seen, float toleranceDeg)
@@ -553,6 +605,7 @@ namespace Confluence.Hosting.Bots
             public Vec3 Position;
             public Vec3 Velocity;
             public float Height;
+            public bool Casting;
         }
 
         private readonly struct MeleeProfileView
