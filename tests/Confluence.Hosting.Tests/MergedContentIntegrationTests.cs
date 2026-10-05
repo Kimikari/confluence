@@ -214,6 +214,19 @@ namespace Confluence.Hosting.Tests
             List<DuelEvent> log = recorder.Duels.SelectMany(d => d.World.EventLog).ToList();
             var drafted = new HashSet<string>(owned);
             foreach (var g in log.OfType<EffectEvent>().GroupBy(e => e.SourceId + ":" + e.Change)) _output.WriteLine("effect " + g.Key + " " + g.Count());
+            // A drafted Fieldcraft record prices WIZ-002's Ash Curtain cloud (a kit field, Sim FieldShapes.cs): with AUG-053
+            // or AUG-065 owned, some commitment paid more than the listed 20 (or the crest's 17.6) for a near or covered cloud.
+            var pricedClouds = new List<float>();
+            foreach (DuelRecord d in recorder.Duels)
+            {
+                foreach (CastDuelEvent c in d.World.EventLog.OfType<CastDuelEvent>().Where(c => c.SpellId == "SPL-012" && c.Kind == CastEventKind.Committed))
+                {
+                    _output.WriteLine("ash duel " + d.DuelId + " mana " + c.Cast.Mana + " augs " + string.Join(",", d.Setups[c.Player].Augments.Select(a => a.Id)));
+                    if (d.Setups[c.Player].Augments.Any(a => a.Id == "AUG-053" || a.Id == "AUG-065")) pricedClouds.Add(c.Cast.Mana);
+                }
+            }
+
+            Assert.Contains(pricedClouds, mana => Math.Abs(mana - 20f) > 1e-3f && Math.Abs(mana - 20f * 0.88f) > 1e-3f);
             Assert.Contains(log.OfType<EffectEvent>(), e => e.Change == EffectChange.Activated && drafted.Contains(e.SourceId) && AugmentsAShared(e.SourceId));
 
             // A drafted projectile-family augment acts on a kit's own projectile (Sim ProjectileShapes.cs): AUG-038 First
