@@ -832,7 +832,7 @@ namespace Confluence.Net.Game.Server
             bool spectatorPush = over || world.Tick % spectatorInterval == 0;
             if (capture || spectatorPush)
             {
-                DuelFrame truth = FrameCapture.Capture(world, duel.DuelId, matchTick);
+                DuelFrame truth = FrameCapture.Capture(world, duel.DuelId, matchTick, live.Cells);
                 for (int side = 0; side < 2; side++)
                 {
                     Stream stream = live.Streams[side];
@@ -1550,6 +1550,7 @@ namespace Confluence.Net.Game.Server
             public Stream[] Streams { get; } = new Stream[2];
             public SpectatorDelayBuffer<SpectatorItem> Spectator { get; }
             public List<WireDuelEvent> SpectatorEvents { get; } = new List<WireDuelEvent>();
+            public CellCapture Cells { get; } = new CellCapture();
             public int StartMatchTick;
             public bool Ended;
 

@@ -30,7 +30,13 @@ namespace Confluence.Net.Game.Snapshots
     {
         public const int VelocityScale = 64;
 
-        public static DuelFrame Capture(DuelWorld world, int duelId, int matchTick)
+        public static DuelFrame Capture(DuelWorld world, int duelId, int matchTick) => Capture(world, duelId, matchTick, null);
+
+        /// <summary>
+        /// Capture with a per-duel incremental cell tracker (research §2.4.5); null scans the whole grid. Both yield the
+        /// same cells (CellCaptureTests).
+        /// </summary>
+        public static DuelFrame Capture(DuelWorld world, int duelId, int matchTick, CellCapture cells)
         {
             if (world == null) throw new ArgumentNullException(nameof(world));
             var f = new DuelFrame
@@ -49,7 +55,8 @@ namespace Confluence.Net.Game.Snapshots
             if (reactions != null)
             {
                 CaptureVolumes(reactions, f.Volumes);
-                CaptureCells(reactions, f.Cells);
+                if (cells != null) cells.Capture(reactions, f.Cells);
+                else CaptureCells(reactions, f.Cells);
             }
 
             CaptureProps(world, f.Props);
@@ -332,23 +339,14 @@ namespace Confluence.Net.Game.Snapshots
             KeyedSection.Sort(into);
         }
 
-        private static void CaptureCells(ReactionWorld reactions, List<CellEntry> into)
+        /// <summary>Every non-empty cell of the grid in key order (the reference full scan).</summary>
+        public static void CaptureCells(ReactionWorld reactions, List<CellEntry> into)
         {
-            CellGrid grid = reactions.Grid;
-            int count = grid.CellCount;
+            int count = reactions.Grid.CellCount;
             for (int i = 0; i < count && into.Count < Wire.WireLimits.MaxCells; i++)
             {
-                CellUnits u = reactions.UnitsAtCell(i);
-                Vec2 c = grid.CellCenter(i);
-                var point = new Vec3(c.X, 0f, c.Y);
-                CellBits bits = CellBits.None;
-                if (reactions.IsWetCell(i)) bits |= CellBits.Wet;
-                if (reactions.HasIceAt(point)) bits |= CellBits.Ice;
-                if (reactions.IsBurningAt(point)) bits |= CellBits.Burning;
-                if (reactions.IsChargedAt(point)) bits |= CellBits.Charged;
-                if (reactions.IsDampAt(point)) bits |= CellBits.Damp;
-                if (u.Total == 0 && bits == CellBits.None) continue;
-                into.Add(new CellEntry(i, B(u.Water), B(u.Heat), B(u.Frost), B(u.Dust), B(u.Sand), B(u.Growth), B(u.Venom), bits));
+                CellEntry e = CellCapture.Query(reactions, i);
+                if (e != null) into.Add(e);
             }
         }
 

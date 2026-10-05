@@ -7,25 +7,28 @@ using Confluence.Reactions.Grid;
 namespace Confluence.Net.Game.Snapshots
 {
     /// <summary>
-    /// Incremental capture of a duel's replicated reaction cells (research §2.4.5): only cells that can have changed are
-    /// queried, so the cost follows the reacting cells instead of the whole 48x48-96x96 grid. A cell's units or state
-    /// change only through ReactionWorld's touch, which puts it in the active set until its decay ends; the refresh set
-    /// is therefore the active cells now plus the active cells of the previous capture (those that just went quiet). A
-    /// full scan runs on the first capture and every <see cref="FullScanEvery"/> captures as a safety net.
+    /// Incremental capture of a duel's replicated reaction cells (research §2.4.5): the cost follows the reacting cells
+    /// instead of the whole 48x48-96x96 grid. Exactness rests on one Reactions invariant: a cell with any units, ice,
+    /// burning, damp, charge or venom state is active (Cell.IsActive), and after every step the active list holds every
+    /// active cell (ReactionWorld.RebuildActive). So every cell that is non-empty now is in
+    /// <see cref="ReactionWorld.ActiveCells"/>, and every cell that just became empty was non-empty at the previous
+    /// capture (it is in the cache). Refreshing "active now" plus "cached" therefore reproduces the full scan; a full scan
+    /// still runs on the first capture and every <see cref="FullScanEvery"/> captures as a safety net, and
+    /// <c>CellCaptureTests</c> compares both paths every capture over real duels.
     /// </summary>
     public sealed class CellCapture
     {
         public const int FullScanEvery = 30;
 
         private readonly SortedDictionary<int, CellEntry> _cells = new SortedDictionary<int, CellEntry>();
-        private readonly List<int> _previousActive = new List<int>();
+        private readonly List<int> _scratch = new List<int>();
         private int _sinceFull = -1;
 
         public long FullScans { get; private set; }
         public long IncrementalScans { get; private set; }
         public long CellsQueried { get; private set; }
 
-        /// <summary>Fills <paramref name="into"/> with every non-empty cell in key order.</summary>
+        /// <summary>Fills <paramref name="into"/> with every non-empty cell in key order (at most WireLimits.MaxCells).</summary>
         public void Capture(ReactionWorld reactions, List<CellEntry> into)
         {
             if (reactions == null) return;
@@ -39,16 +42,15 @@ namespace Confluence.Net.Game.Snapshots
             }
             else
             {
+                _scratch.Clear();
+                foreach (int key in _cells.Keys) _scratch.Add(key);
                 IReadOnlyList<int> active = reactions.ActiveCells;
                 for (int i = 0; i < active.Count; i++) Refresh(reactions, active[i]);
-                for (int i = 0; i < _previousActive.Count; i++) Refresh(reactions, _previousActive[i]);
+                for (int i = 0; i < _scratch.Count; i++) Refresh(reactions, _scratch[i]);
                 _sinceFull++;
                 IncrementalScans++;
             }
 
-            _previousActive.Clear();
-            IReadOnlyList<int> now = reactions.ActiveCells;
-            for (int i = 0; i < now.Count; i++) _previousActive.Add(now[i]);
             foreach (CellEntry e in _cells.Values)
             {
                 if (into.Count >= Wire.WireLimits.MaxCells) break;
@@ -56,7 +58,7 @@ namespace Confluence.Net.Game.Snapshots
             }
         }
 
-        /// <summary>The full-scan result for one cell, or null when it is empty (the reference the incremental path matches).</summary>
+        /// <summary>The replicated entry of one cell, or null when it is empty (shared by the full scan).</summary>
         public static CellEntry Query(ReactionWorld reactions, int index)
         {
             CellGrid grid = reactions.Grid;
