@@ -24,16 +24,20 @@ src/Confluence.Sim          -> Core, Reactions, Casting. DuelWorld: collision, c
                             (Casting/: PlayerCaster over CastMachine), spell runtime (Spells/: forms, deliveries),
                             world materials over ReactionWorld (World/Materials/), props (Props/), effect framework
                             (Effects/: triggers, conditions, budgets, cast pricing), content registry and behaviors
-                            (Content/: SpellBehaviors/, Augments/, Equipment/, Biomes/; later Transforms/, Wizards/),
+                            (Content/: SpellBehaviors/, Augments/ (proof records, augments-a/), Equipment/, Biomes/,
+                            Wizards/WIZ-nnn/: kit spells, transformations, signature, passive),
                             boundary, duel result, feat events, lag-compensation history
 src/Confluence.Match        -> Core, Economy, Arena. Conclave/Duel round flow, phase timers, pairing, byes, Resolve,
                             bracket, income, placements. Runs duels through IDuelRunner (Sim adapter wired by server)
 src/Confluence.Hosting      -> Core, Reactions, Casting, Arena, Economy, Sim, Match. Authoritative match host without
                             transport: IDuelRunner over Sim (SimWorldFactory: spells, reactions, props, effects),
                             IMatchEconomy over Economy, IArenaProvider over Arena, commands, loadout -> duel setup
-                            mapping, replays, bots. Shared by the server and offline client modes
-src/Confluence.Net          -> all libs (incl. Hosting) + LiteNetLib. Protocol, serialization, server host, client session
-                            (prediction, reconciliation, interpolation)
+                            mapping, replays, bots (four competences; per-wizard casting profiles in Bots/Profiles/).
+                            Shared by the server and offline client modes
+src/Confluence.Net          -> all libs (incl. Hosting) + LiteNetLib. Transport, sessions and serialization; the game
+                            layer (Game/): protocol and wire bodies, snapshots, GameServer (lobby, MatchHost, interest
+                            management, lag compensation), GameClient (prediction, reconciliation, interpolation),
+                            headless players
 src/Confluence.Server       net10.0 console: authoritative match server
 src/Confluence.HeadlessClient net10.0 console: scripted/bot client for automated network validation
 tests/Confluence.*.Tests    net10.0 xUnit, one project per library
@@ -60,6 +64,16 @@ Descriptive prose becomes executable behavior in `Confluence.Sim` through one re
 - **Spells** — an `ISpellBehavior` builds a typed `SpellForm` from the base `SpellDef` (mana, cooldown, cast time, range come from the catalogue; prose parameters such as projectile speed, splash radius, and world units are written explicitly with a comment quoting the source text). Custom logic such as detonation recasts goes in a `SpellScript`; deliveries (projectile, ray, cone, arc, field, shield, buff, movement, deployable, summon, wave, tether) are the shared primitives.
 - **Transformations** — an `ISpellTransform` edits the `SpellForm` for rank 1/2 in the spec's application order: base → delivery/trajectory → payload/reaction → equipment → mastery → global caps and proc budgets. Structural tag changes (for example projectile → trap) are declared once in `Core.Content.StructuralDeltas` and read by both Economy eligibility and Sim.
 - **Shared augments, equipment, signatures, passives** — typed effects (`Sim.Effects.Effect`, `ConditionalModifier`, stat modifiers) with trigger, condition, magnitude, channel, target filter, budget group, stacking rule, and permitted secondary events (spec §14 data model). Effects dispatch once per tick at the end of step 7; reaction, prop, boundary and other secondary damage raises no triggers (L126).
+- **Effect hooks** — records whose rule is a number at a specific point (augments-a) attach an `Effects.EffectHook`: an
+  event observer plus adjustment points the rules call where they apply (cast price and timing, mastery price, outgoing
+  damage, launch and in-flight projectile speed, gait, solid damage, field placement binding). Mastery-linked damage
+  and speed bonuses are summed over hooks and clamped once with the cast's own reward (L480); a hook's activations go
+  through the same proc budget as effects (L126).
+- **Kit deliveries and shared shapes** — a kit builds its own delivery where the primitives fall short (WIZ-010's Tide
+  projectiles and stream, WIZ-002's heat projectiles and ash cloud). It then implements the shared shape of its family
+  (`Sim.Spells.IProjectileDelivery`/`IProjectileBody`, `IFieldDelivery`/`IFieldBody` in `Spells/Deliveries/`), and
+  shared augments, effects and Net snapshots read that shape, never a concrete framework class, so every record the
+  Economy offers for a structural tag acts on every delivery carrying it.
 - **Biome rules and props** — `IBiomeRuleBehavior` installs a biome's environment rule into the duel's `ReactionWorld`; prop bodies come from the generator's stored collision boxes (`PropPlacement.CollisionBox`) with catalogue mass and durability, and `IPropBehavior` will add prop-specific interactions.
 
 Casting costs: the cast machine prices a commitment from the listed cost, the stat cost reduction and pending "next cast" reductions of the effect framework, and mastery efficiency (all reductions together leave at least 70%), then adds drawback increases; the payment goes through the effect framework, which consumes those bonuses and records it. Every refund of a cast (interrupt-refund tag or an effect) draws on the cast machine's ledger, at most 25% of the payment.
@@ -83,3 +97,5 @@ Damage resolves in this order: valid hit and guard angle → precision multiplie
 ## Networking
 
 The server owns all state listed in spec §14. Clients send input commands per tick, each with a sequence number and redundant recent inputs. The server sends snapshots 20–30 times per second carrying the last processed input sequence, plus reliable events (casts, damage, reactions, phase changes). The local client predicts its own movement and preparation using `Sim.CharacterMotor` and replays unacknowledged inputs after each snapshot. Remote entities interpolate about 100 ms behind. Lag compensation rewinds player hit volumes by at most 150 ms; fields, props, and projectiles stay authoritative at impact time. Match, shop, and draft actions are reliable request/response messages validated atomically by the server.
+
+Stage 3 (merged 2026-10-05) implements this in `Confluence.Net/Game` with `Confluence.Server` and `Confluence.HeadlessClient` (details in `docs/notes/net.md`): `GameServer` runs the lobby (only `[ContentBehavior]` kits are offered; Laboratory adds grammar-route wizards) and one `MatchHost`, routes its outbox by audience, and replicates per viewer. The 150 ms rewind bound covers the whole step-to-view distance, interpolation included, and the declared interpolation is bounded per session. An opponent hidden from the viewer is culled (no live pose, no locating event positions); opponent health is never sent during a duel; other pairs' results reach a seat only when 15 s old, when no duel of the pass is live, or at match end. Laboratory overrides are explicit (`GameServerSettings.Overrides`, `--lab`, `--lab-floors-only`) and labeled in the lobby and settings fingerprint.

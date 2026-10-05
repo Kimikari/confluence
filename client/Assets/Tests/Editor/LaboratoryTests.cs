@@ -559,7 +559,9 @@ namespace Confluence.Client.Tests
             Step(world, Ticks.FromSeconds(1f));
             hud.Refresh(world);
             Assert.Greater(hud.Shield, 0f, "the timed shield is up");
-            Assert.Less(hud.Health + hud.Shield, hud.MaxHealth + TrainingEffects.Shield, "the burn pulsed");
+            // The burn's pulses are rule damage through the shields; WIZ-002's Tempered Hands passive answers thermal damage
+            // with its own 20-point shield, so the HUD sum is no longer a measure of the burn.
+            Assert.IsTrue(world.EventLog.OfType<DamageEvent>().Any(d => d.Target == 0 && d.SourceId == TrainingEffects.SourceId && d.Dealt > 0f), "the burn pulsed");
             Assert.IsTrue(hud.Statuses.Any(s => s.Kind == StatusIconKind.Wet));
             Assert.IsTrue(hud.Statuses.Any(s => s.Kind == StatusIconKind.DamageOverTime && s.Value == "4/s"), "burn damage per second");
             Assert.IsTrue(hud.Statuses.Any(s => s.Kind == StatusIconKind.Slow && s.Value == "25%"), "the slowed fraction");
