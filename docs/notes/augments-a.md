@@ -35,10 +35,17 @@ reactions (144 records with empty `target_spell_ids`). Code: `src/Confluence.Sim
     "no automatic slow"). The earlier version reduced any slow (including enemy spell slows) on a wet surface, which
     the record never states. Needs a rules-side shallow-water penalty (or a DECISIONS entry defining one) first.
   - Field-requirement records (AUG-049..055, 060, 065, 066, 068, 070) are verified in DuelWorld with test field
-    behaviors (`ShapedField`) registered under SPL-012/SPL-013 (the catalogue supplies their mana, range and windup);
-    `ContentRegistry.Default` ships no field spell yet (only Fireball and Cinder Sweep), so in MatchHost they act once
-    the first real field spell lands. Re-verify them against it then. Multi-spell records (AUG-020 etc.) likewise use
-    `TestBolt` under SPL-015/016/073.
+    behaviors (`ShapedField`) registered under SPL-012/SPL-013 (the catalogue supplies their mana, range and windup).
+    Re-verified at the Stage 2 merge against the real kit fields (`tests/Confluence.Sim.Tests/Integration/
+    KitFieldAugmentTests.cs`: Ash Curtain cloud, Riptide Lane stream, Pool Divide pools) and in the hosted Laboratory
+    match (Bram's AUG-053/065 price his ash clouds). Multi-spell records (AUG-020 etc.) use `TestBolt` under
+    SPL-015/016/073.
+  - Stage 2 merge (2026-10-05): the projectile and Fieldcraft families recognised only the framework
+    `ProjectileDelivery`/`FieldDelivery`, so they were inert on Halen's Pressure Jet and Deepglass Prison, Bram's
+    transformed Fireball, Ash Curtain and Riptide Lane although the Economy drafted them for those spells' tags. They now
+    read the shared shapes (`Spells/Deliveries/ProjectileShapes.cs`, `FieldShapes.cs`); a lane's placement distance is
+    measured from its start (the footprint's center had been used, its midpoint). Fields left behind by other
+    deliveries (AUG-307 heat strip, AUG-316 Boiler Orb trap, WIZ-010 puddles) are still skipped.
   - AUG-114 Dash Brake: the drawback "Dash costs 2 extra stamina when applicable" belongs to stamina-paid dashes
     (EQP-094 Traveler's Burst), which have no implementation or cost hook yet.
   - Beam records (AUG-008, 034..037, 046) need a damaging channel spell; AUG-010, 011, 022..024, 029, 040, 045, 047, 048,

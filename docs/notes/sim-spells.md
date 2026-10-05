@@ -15,10 +15,14 @@ Owner paths: `src/Confluence.Sim/Casting/**`, `src/Confluence.Sim/Spells/**`, `s
   releases raise `CastReleased`, effect refunds share the machine's `RefundLedger` (`PlayerCaster.TryRefundPayment`),
   projectile impacts reach Reactions (`SpellContext.ReportImpact` -> `IWorldMaterials.QueueImpact`), and a wizard
   without an executable grammar or a guided route gets no loadout (no caster) instead of throwing.
-- Next: the remaining WIZ-002 / WIZ-010 spells on these primitives; WIZ-002 signature (Kiln Vent) and passive
-  (Tempered Hands) as an `IWizardKitBehavior` (the effect host now attaches passives); record-specific scripts (recast
-  follow-ups such as SPL-008, conditional riders); `TerrainCollision` combat events; reflection hooks from Reactions
-  prisms; impact reports for cone, arc, wave and ray deliveries.
+- Stage 2 + 3 batch 1 merge (2026-10-05): the WIZ-002 and WIZ-010 kits (16 spells, 32 transformations, signatures and
+  passives) and the augments-a shared augments are merged; the shared projectile and field shapes (layout below) let
+  the shared projectile and Fieldcraft records act on the kits' own deliveries (merge integration tests
+  `tests/Confluence.Sim.Tests/Integration/KitProjectileAugmentTests.cs`, `KitFieldAugmentTests.cs`).
+- Next: `IFieldDelivery` for fields left behind by other deliveries (AUG-307 heat strip, AUG-316 Boiler Orb trap,
+  WIZ-010 puddles) once a Fieldcraft interpretation for secondary fields exists; record-specific scripts for the next
+  kits; `TerrainCollision` combat events; reflection hooks from Reactions prisms; impact reports for cone, arc, wave and
+  ray deliveries.
 
 ## Layout
 - `Input/PlayerInput.cs` — the per-tick command. Buttons use `Confluence.Casting.InputButtons` (the only flag enum;
@@ -33,6 +37,21 @@ Owner paths: `src/Confluence.Sim/Casting/**`, `src/Confluence.Sim/Spells/**`, `s
   `CatalogueLoadouts`), `SpellScript`.
 - `Spells/Deliveries/` — Projectile, Ray (+ `IRayReflector`), Cone, Arc, Field, Shield, Buff, Movement (dash, leap,
   teleport), Deployable, Summon, Wave, Tether. `Spells/SpellRules.cs` holds spec-open defaults; `SpellEvents.cs`.
+- Shared shapes (Stage 2 merge): kits build their own deliveries where the primitives are not enough, so shared
+  records judge and edit deliveries through interfaces, never through the concrete framework class:
+  - `ProjectileShapes.cs`: `IProjectileDelivery` (Speed, Radius, MaxRange, Gravity, Count) on `ProjectileDelivery`,
+    WIZ-002 `HeatProjectileDelivery` (AUG-305/306 Fireball variants) and WIZ-010 `TideProjectileDelivery` (SPL-073,
+    SPL-079 and their transformations); `IProjectileBody` (Position, Velocity, Radius) on their entities, plus the
+    internal `IProjectileSpeedScale` for in-flight speed changes (AUG-030). Every projectile delivery's `Release`
+    calls `Effects.AdjustProjectileSpeed` after the mastery multiplier (AUG-001 and the other release-time hooks).
+  - `FieldShapes.cs`: `IFieldDelivery` (Shape, Radius, Width, Length, LifetimeSec, Placement, IsDamaging,
+    EnterPayload, `FootprintAt`) on `FieldDelivery`, WIZ-002 `AshCloudDelivery` (SPL-012, the cloud counts as a
+    field, L128), WIZ-010 `StreamDelivery` (SPL-078) and `TwinPoolDelivery` (AUG-440; the records see the left pool);
+    `IFieldBody` (Cast, HasAppeared, Footprint, Center, PlacementPoint, Owned) on `FieldEntity` and `AshCloudEntity`;
+    `FieldFootprints.Of` builds circle/rectangle/lane footprints. Field deliveries that place at the aim call
+    `Effects.BindFieldPlacement` in `Release` (a placement priced at commitment, AUG-065/066).
+  - Not covered yet (no `IFieldDelivery`): fields left behind by other deliveries (AUG-307 heat strip, AUG-316 Boiler
+    Orb trap, WIZ-010 puddles); the Fieldcraft records skip those forms.
 - `Content/` — `ContentRegistry` (the one registry: reflection scan, `Empty`, `FromBehaviors`, `Availability` as
   `IContentAvailability`), behavior interfaces (`ISpellBehavior`, `ISpellTransform`, `IWizardKitBehavior`,
   `IAugmentBehavior`, `IEquipmentBehavior`, `IBiomeRuleBehavior`, `IPropBehavior`, and the attachment surface

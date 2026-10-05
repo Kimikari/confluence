@@ -131,3 +131,12 @@ reaction latency). `BotSpellPlanners.For(wizardId)` discovers planners by reflec
   and `PlayerCaster : IRecastGate`; new `src/Confluence.Sim/Duel/IAcquisitionVeil.cs`, one check in
   `DuelWorld.CanAcquire` and `SpellRuntime : IAcquisitionVeil`; `DamagePipeline` (+`DamageResolution.ConditionalPrevented`),
   `SpellContext` (`PayloadHit.Secondary/Environmental/Reaction/NotProjectile`), `CastRecord` (+`ChosenPoint`).
+
+## Stage 2 merge (2026-10-05)
+- `HeatProjectileDelivery`/`HeatProjectileEntity` implement the shared projectile shape (`IProjectileDelivery`,
+  `IProjectileBody`, Sim `Spells/Deliveries/ProjectileShapes.cs`) and its `Release` applies the release-time speed
+  hooks, so the shared projectile records (AUG-001, 025, 026, 038 ...) act on the AUG-305/306 Fireball variants.
+- `AshCloudDelivery`/`AshCloudEntity` implement the shared field shape (`IFieldDelivery`, `IFieldBody`,
+  `FieldShapes.cs`): the Fieldcraft records (AUG-049..055, 060, 065, 066, 070) widen, lengthen and price Ash Curtain's
+  cloud (circle or AUG-311 curtain); `Release` honours a placement bound at commitment (`BindFieldPlacement`), and the
+  entity keeps the cloud's footprint and registry entry. Verified in `tests/Confluence.Sim.Tests/Integration/`.

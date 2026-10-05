@@ -50,9 +50,11 @@ Owner paths: `src/Confluence.Hosting/**`, `tests/Confluence.Hosting.Tests/**`. S
 - Lobby allow-list (L71) restricts only the record types it names; unnamed types stay unrestricted.
 - Floors (D-010, D-082): `Start()` refuses with `RefusedEconomyFloors` when the implemented pools break the
   ten-per-rarity draft floor or cannot fill the shop. `LaboratoryOverrides.BypassEconomyFloors` starts anyway (gaps
-  logged and announced via `HostNoticeMessage`). Today only the six proof records (EQP-051/066/096, AUG-145/169/175)
-  have behavior classes, so standard rules still refuse; match tests use `bypass-economy-floors` +
-  `pools-whole-catalogue` (`HostFixture.WholeCatalogue`).
+  logged and announced via `HostNoticeMessage`). After the Stage 2 batch 1 merge the draft floors pass for WIZ-002 and
+  WIZ-010 (Silver 38/37, Gold 23, Prismatic 21 legal implemented alternatives) but only three tier-1 items are
+  implemented (EQP-051/066/096; six needed), so standard rules still refuse on the equipment floor alone. Older match
+  tests use `bypass-economy-floors` + `pools-whole-catalogue` (`HostFixture.WholeCatalogue`); the merge tests use
+  `bypass-economy-floors` only (`MergedContentIntegrationTests.FloorsOnly`).
 - Economy streams: shops on the Offer stream and drafts on the Draft stream keyed by scheduled round and lobby slot
   (Economy's own constructors, L435, D-084). Match supplies income + winner bonus (`ShopOpening.Income`), credited on
   `OpenShop`. The draft freezes the loadout while open (Economy's `AugmentDraft`, L227); `CloseDraft` times out an
@@ -111,6 +113,21 @@ Owner paths: `src/Confluence.Hosting/**`, `tests/Confluence.Hosting.Tests/**`. S
   field here, or replays drop it).
 - Match: the three seams only (`IArenaProvider`, `IMatchEconomy`, `IDuelRunner`) plus `MatchFlow` events/players.
 - Economy: `HostedEconomy` and `CommandGateway` dispatch.
+
+## Stage 2 + 3 batch 1 merge (2026-10-05)
+- `BotNavigator` never planned a route to a goal at the origin: `_plannedTick` started (and was reset after a stuck
+  sidestep) at `int.MinValue`, so `tick - _plannedTick` overflowed and never came due, and the arena center (0,0,0)
+  equals the default `_plannedGoal`. Bots that could not walk straight to the central floor slid along cover near
+  their alcove for the whole duel (most duels ended by the boundary). Fixed with an explicit "no plan yet" check; bot
+  duels now end by death far more often and the headless `ViewPilot` (Net) benefits too.
+- One bot planning framework (`BotSpellPlanning.cs`: `IBotSpellPlanner`, `BotSituation`, `BotCastPlan`) serves both
+  kits (`Profiles/WIZ-002BramCinderPlanner.cs`, `Profiles/WIZ-010HalenTideBotPlanner.cs`); see the merge commit.
+- Integration tests: `MergedContentIntegrationTests` (draft floors of WIZ-002/WIZ-010 pass without overrides, only the
+  tier-1 equipment floor 3/6 remains; a Duel match WIZ-002 vs WIZ-010 bots with the single override
+  `bypass-economy-floors` and implemented pools: shops every round, drafts on rounds 1-6, transformations and shared
+  augments drafted and attached, a scripted spell swap making AUG-038 dormant for one round and restoring it, AUG-038
+  on Pressure Jet, AUG-043 activations, Fireball steam inside a live Water Pool), `LedgerClaimsTests` (the
+  [ContentBehavior] registry equals the merged branches' claims, 205 records).
 
 ## Status / next steps
 - Done: everything in the Stage 1b hosting task, merged 2026-10-03 with the spell runtime and the world effects. 36

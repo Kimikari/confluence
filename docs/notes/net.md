@@ -464,3 +464,24 @@ Not done, with reasons:
   server); footstep cues for hidden players; the view pilot rarely finds its opponent on arenas larger than 24 m;
   catalogue ordinals; received-snapshot ack bitfield; spectator delta stream; replay files with 60-tick checkpoints;
   Unity client integration (Stage 4: `GameClient` + `HudView` + `ClientMatchView`, golden arena hashes in Mono).
+
+## Stage 2 + 3 batch 1 merge (2026-10-05)
+
+- `GameServerSettings.Overrides` (explicit `LaboratoryOverrides`; null keeps the `Laboratory` flag's full set or the
+  standard rules) and the server CLI option `--lab-floors-only` (`bypass-economy-floors` only: implemented pools,
+  implemented kits, no grammar-route wizards). The lobby, settings fingerprint, match settings and log name the exact
+  override text.
+- Snapshots capture the merged kits' own entities as what they are: any `IProjectileBody` (Sim `ProjectileShapes.cs`:
+  the framework projectile, WIZ-010 Tide projectiles, WIZ-002 heat projectiles) as a positioned `Projectile`, any other
+  `ISpellBody` (Boiler Orb, cinder, lash knot, embers) as a positioned `Deployable`; before, they fell to `Other`
+  (owner-attached, drawn on the caster). Other kit entities (ash cloud, stream current, puddles) stay `Other`; their
+  fields and clouds reach the client through the owned-entity and cell sections.
+- `ClientDuel` counts reconciliations whose authoritative base was displaced by a spell (Phoenix Rush, Cascade Vault,
+  pushes) apart from prediction error (`DisplacementCorrections`, `MaxDisplacementCorrection`, `DisplacementSnaps`).
+- `InterestManagementTests` ages other pairs' results from the authoritative `DuelResolvedEvent` tick; it used the
+  first participant delivery, which never happens for a bot-vs-bot duel (a false failure once bots finish duels).
+- Merge tests: `MergedKitsEndToEndTests` (standard lobby offers exactly the implemented kits WIZ-002/WIZ-010, refuses
+  WIZ-001, and refuses to start on the equipment floor alone; two headless clients over UDP play a whole Duel with only
+  `bypass-economy-floors`: every round shop, draft (rounds 1-6), alcove, combat, results, the L193 rewards, implemented
+  offers only, both kits casting their spells), `KitEntityCaptureTests` (a Pressure Jet in flight is a positioned
+  projectile in the frame).

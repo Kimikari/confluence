@@ -137,3 +137,12 @@ Owner paths: `src/Confluence.Sim/Content/Wizards/WIZ-010/**`, `tests/Confluence.
 ## Gaps
 - None for the WIZ-010 records. Note for the hub: SPL-009 Fireball's Heat 2 is consumed at impact (no persistent hot
   ground), so the Seal the Spring end-to-end duel places its hot field directly in the reaction world.
+
+## Stage 2 merge (2026-10-05)
+- `TideProjectileDelivery`/`TideProjectileEntity` implement the shared projectile shape (`IProjectileDelivery`,
+  `IProjectileBody`, speed scaling; Sim `Spells/Deliveries/ProjectileShapes.cs`) and `Release` applies the release-time
+  speed hooks: the shared projectile records (AUG-001 Steady Hand, 025, 026, 030 on the AUG-445 rolling bubble, 038,
+  043 ...) act on Pressure Jet and Deepglass Prison. `TideProjectileEntity.Speed` became settable (in-flight scaling).
+- `StreamDelivery` (Riptide Lane) and `TwinPoolDelivery` (AUG-440) implement the shared field shape (`IFieldDelivery`,
+  `FieldShapes.cs`); their `Release` honours a placement bound at commitment. The Fieldcraft records see the stream's
+  first lane and the left pool. Snapshots now carry Tide projectiles as positioned projectiles (Net `FrameCapture`).
