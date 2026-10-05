@@ -35,7 +35,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
         /// <summary>The form is a direct projectile: a projectile delivery whose primary payload has direct damage.</summary>
         public static bool IsDirectProjectile(SpellForm form) =>
-            form != null && form.Delivery is ProjectileDelivery && form.Payload != null && form.Payload.Direct > 0f;
+            form != null && form.Delivery is IProjectileDelivery && form.Payload != null && form.Payload.Direct > 0f;
 
         // Mastery-linked damage and projectile-speed bonuses are reported through EffectHook.LinkedDirectDamage and
         // EffectHook.LinkedProjectileSpeed; the effect host sums them over all records and clamps the total once with the

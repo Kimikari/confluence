@@ -22,16 +22,19 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
     internal static class ProjectileForms
     {
-        /// <summary>The form's projectile delivery when its primary payload deals direct damage, else null.</summary>
-        public static ProjectileDelivery DirectProjectile(SpellFormBuilder form) =>
-            form.Delivery is ProjectileDelivery p && form.Payload != null && form.Payload.Direct > 0f ? p : null;
+        /// <summary>
+        /// The form's projectile delivery (the framework projectile or a kit's own, Spells/Deliveries/ProjectileShapes.cs)
+        /// when its primary payload deals direct damage, else null.
+        /// </summary>
+        public static IProjectileDelivery DirectProjectile(SpellFormBuilder form) =>
+            form.Delivery is IProjectileDelivery p && form.Payload != null && form.Payload.Direct > 0f ? p : null;
 
         /// <summary>Whether a hit is the direct impact of one of the attacker's projectile casts.</summary>
         public static bool IsProjectileDirectHit(DuelWorld world, DamageRequest hit)
         {
             if (hit.Kind != DamageKind.Direct || !hit.IsSpellHit) return false;
             CastRecord cast = AugmentsAKit.FindCast(world, hit.CastId);
-            return cast != null && cast.Form.Delivery is ProjectileDelivery;
+            return cast != null && cast.Form.Delivery is IProjectileDelivery;
         }
     }
 
@@ -53,11 +56,11 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
         public void ApplyToForm(SpellFormBuilder form, int rank)
         {
-            ProjectileDelivery p = ProjectileForms.DirectProjectile(form);
+            IProjectileDelivery p = ProjectileForms.DirectProjectile(form);
             if (p == null || p.Gravity > 0f) return;
             p.Speed *= 1f + AugmentsAKit.ByRank(rank, Rank1Speed, Rank2Speed);
             if (p.MaxRange > 0f) p.MaxRange *= 1f - LifetimeCut;
-            if (p.LifetimeSec > 0f) p.LifetimeSec *= 1f - LifetimeCut;
+            if (p is ProjectileDelivery timed && timed.LifetimeSec > 0f) timed.LifetimeSec *= 1f - LifetimeCut; // kit projectiles are range-limited only
         }
     }
 
@@ -78,7 +81,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
         public void ApplyToForm(SpellFormBuilder form, int rank)
         {
-            ProjectileDelivery p = ProjectileForms.DirectProjectile(form);
+            IProjectileDelivery p = ProjectileForms.DirectProjectile(form);
             if (p == null) return;
             form.Payload.Direct *= 1f + AugmentsAKit.ByRank(rank, Rank1Damage, Rank2Damage);
             p.Speed *= 1f - SpeedCut;
@@ -104,7 +107,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
         public void ApplyToForm(SpellFormBuilder form, int rank)
         {
-            ProjectileDelivery p = ProjectileForms.DirectProjectile(form);
+            IProjectileDelivery p = ProjectileForms.DirectProjectile(form);
             if (p == null || p.Count != 1 || !(p.Radius < MaxRadius)) return;
             p.Radius += AugmentsAKit.ByRank(rank, Rank1Radius, Rank2Radius);
             form.Payload.Direct *= 1f - DamageCut;
@@ -129,7 +132,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
         public void ApplyToForm(SpellFormBuilder form, int rank)
         {
-            ProjectileDelivery p = ProjectileForms.DirectProjectile(form);
+            IProjectileDelivery p = ProjectileForms.DirectProjectile(form);
             if (p == null || !(p.Radius > MinRadius)) return;
             form.Payload.Direct *= 1f + AugmentsAKit.ByRank(rank, Rank1Damage, Rank2Damage);
             p.Radius = Math.Max(MinRadius, p.Radius * (1f - RadiusCut));
@@ -172,7 +175,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
             public override void OnEvent(DuelEvent e)
             {
                 if (e is CastDuelEvent c && c.Player == Player && c.Kind == CastEventKind.Released
-                    && AugmentsAKit.FormOf(Self, c.SpellId)?.Delivery is ProjectileDelivery
+                    && AugmentsAKit.FormOf(Self, c.SpellId)?.Delivery is IProjectileDelivery
                     && Self.Position.Y - Opponent.Position.Y >= MinHeight - 1e-4f)
                 {
                     _high.Add(c.CastId);
@@ -539,12 +542,12 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 for (int i = _flights.Count - 1; i >= 0; i--)
                 {
                     Flight f = _flights[i];
-                    ProjectileEntity p = Find(runtime, f.EntityId);
+                    IProjectileBody p = Find(runtime, f.EntityId);
                     if (p != null)
                     {
                         // The closest approach of this tick's travel to the enemy's body surface.
                         float d2 = Intersections.SegmentSegmentClosest(f.Last, p.Position, body.A, body.B, out _, out _, out _, out _);
-                        f.Nearest = Math.Min(f.Nearest, (float)Math.Sqrt(d2) - body.Radius - p.Spec.Radius);
+                        f.Nearest = Math.Min(f.Nearest, (float)Math.Sqrt(d2) - body.Radius - p.Radius);
                         f.Last = p.Position;
                         continue;
                     }
@@ -561,13 +564,13 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 }
             }
 
-            private static ProjectileEntity Find(SpellRuntime runtime, int entityId)
+            private static IProjectileBody Find(SpellRuntime runtime, int entityId)
             {
                 if (runtime == null) return null;
                 IReadOnlyList<SpellEntity> entities = runtime.Entities;
                 for (int i = 0; i < entities.Count; i++)
                 {
-                    if (entities[i].Id == entityId && entities[i].Alive && entities[i] is ProjectileEntity p) return p;
+                    if (entities[i].Id == entityId && entities[i].Alive && entities[i] is IProjectileBody p) return p;
                 }
 
                 return null;
@@ -643,7 +646,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
         public void ApplyToForm(SpellFormBuilder form, int rank)
         {
-            if (form.Delivery is ProjectileDelivery p)
+            if (form.Delivery is IProjectileDelivery p)
             {
                 p.Radius *= 1f - RadiusCut;
             }
@@ -797,7 +800,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 IReadOnlyList<SpellEntity> all = runtime.Entities;
                 for (int e = 0; e < all.Count; e++)
                 {
-                    if (!(all[e] is ProjectileEntity p) || !p.Alive || p.Owner != Player) continue;
+                    if (!(all[e] is IProjectileBody p) || !p.Alive || p.Owner != Player) continue;
                     int i = _ids.IndexOf(p.Id);
                     if (i < 0)
                     {
@@ -811,25 +814,25 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                     float moved = Vec3.Distance(_last[i], p.Position);
                     _last[i] = p.Position;
                     if (_skimmed[i] < 0f) continue; // already boosted
-                    float clearance = p.Position.Y - p.Spec.Radius;
-                    bool skimming = World.Collision.Raycast(p.Position, Vec3.Down, p.Spec.Radius + SkimHeight, SolidMask.Movement, out WorldHit ground)
+                    float clearance = p.Position.Y - p.Radius;
+                    bool skimming = World.Collision.Raycast(p.Position, Vec3.Down, p.Radius + SkimHeight, SolidMask.Movement, out WorldHit ground)
                         && clearance - ground.Point.Y <= SkimHeight + 1e-4f;
                     _skimmed[i] = skimming ? _skimmed[i] + moved : 0f;
                     if (_skimmed[i] >= SkimDistance)
                     {
                         _skimmed[i] = -1f;
-                        p.ScaleSpeed(1f + _bonus);
+                        ((IProjectileSpeedScale)p).ScaleSpeed(1f + _bonus);
                         EmitCue("skim", _bonus);
                     }
                 }
             }
 
-            private static ProjectileEntity Find(SpellRuntime runtime, int id)
+            private static IProjectileBody Find(SpellRuntime runtime, int id)
             {
                 IReadOnlyList<SpellEntity> all = runtime.Entities;
                 for (int e = 0; e < all.Count; e++)
                 {
-                    if (all[e].Id == id && all[e].Alive && all[e] is ProjectileEntity p) return p;
+                    if (all[e].Id == id && all[e].Alive && all[e] is IProjectileBody p) return p;
                 }
 
                 return null;

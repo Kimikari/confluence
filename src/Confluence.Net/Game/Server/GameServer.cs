@@ -60,6 +60,16 @@ namespace Confluence.Net.Game.Server
         /// </summary>
         public bool Laboratory { get; set; }
 
+        /// <summary>
+        /// An explicit set of Laboratory overrides (spec L69, L71) instead of the full set <see cref="Laboratory"/> implies; null
+        /// uses Laboratory's set, or the standard rules. A modified set labels the match like Laboratory and never counts for
+        /// rating; it does not open the lobby to grammar-route wizards (only <see cref="Laboratory"/> does).
+        /// </summary>
+        public LaboratoryOverrides Overrides { get; set; }
+
+        /// <summary>The overrides the match runs with.</summary>
+        public LaboratoryOverrides EffectiveOverrides => Overrides ?? (Laboratory ? new LaboratoryOverrides(true, true) : LaboratoryOverrides.None);
+
         /// <summary>Authoritative ticks per wall-clock second: 60 in real time; more is the labeled accelerated test mode.</summary>
         public int TicksPerWallSecond { get; set; } = Ticks.PerSecond;
 
@@ -187,7 +197,7 @@ namespace Confluence.Net.Game.Server
 
             Status = LobbyStatus.Waiting;
             Log("Server ready: " + settings.Mode + ", " + settings.PlayerCount + " seats (" + settings.Bots + " bots), " +
-                (settings.Laboratory ? "LABORATORY overrides" : "standard rules") +
+                (settings.EffectiveOverrides.IsModified ? "LABORATORY overrides (" + settings.EffectiveOverrides.CanonicalText() + ")" : "standard rules") +
                 (settings.IsAccelerated ? ", ACCELERATED TEST PACE " + settings.TicksPerWallSecond + " ticks/s" : ", real time 60 ticks/s") +
                 ", ruleset " + ruleset.ShortHex + ", match seed " + MatchSeed.ToString("X16", CultureInfo.InvariantCulture) +
                 (settings.Seed.HasValue ? " (fixed)" : " (random)") + ".");
@@ -334,7 +344,7 @@ namespace Confluence.Net.Game.Server
             text.Append(";mode=").Append(_settings.Mode);
             text.Append(";seats=").Append(_settings.PlayerCount.ToString(CultureInfo.InvariantCulture));
             text.Append(";bots=").Append(_settings.Bots.ToString(CultureInfo.InvariantCulture)).Append('/').Append(_settings.BotCompetence);
-            text.Append(";lab=").Append(_settings.Laboratory ? new LaboratoryOverrides(true, true).CanonicalText() : LaboratoryOverrides.None.CanonicalText());
+            text.Append(";lab=").Append(_settings.EffectiveOverrides.CanonicalText());
             if (_settings.Mode == MatchMode.Conclave) text.Append(";conclave=").Append(ConclaveSettingsFor().Fingerprint);
             text.Append(";spectator=").Append(SpectatorDelayTicks.ToString(CultureInfo.InvariantCulture));
             text.Append(";pace=").Append(_settings.TicksPerWallSecond.ToString(CultureInfo.InvariantCulture));
@@ -440,7 +450,7 @@ namespace Confluence.Net.Game.Server
                 ids.Add("P" + s.Index.ToString(CultureInfo.InvariantCulture) + ":" + s.Name);
             }
 
-            LaboratoryOverrides overrides = _settings.Laboratory ? new LaboratoryOverrides(true, true) : LaboratoryOverrides.None;
+            LaboratoryOverrides overrides = _settings.EffectiveOverrides;
             var hostSettings = new MatchHostSettings
             {
                 Mode = _settings.Mode,
@@ -548,7 +558,7 @@ namespace Confluence.Net.Game.Server
                 Mode = _settings.Mode,
                 PlayerCount = _settings.PlayerCount,
                 Status = Status,
-                LaboratoryLabel = _settings.Laboratory ? new LaboratoryOverrides(true, true).CanonicalText() : string.Empty,
+                LaboratoryLabel = _settings.EffectiveOverrides.IsModified ? _settings.EffectiveOverrides.CanonicalText() : string.Empty,
                 CountsForRating = Host != null ? Host.CountsForRating : false,
                 SettingsFingerprint = SettingsFingerprint,
                 Notice = _notice,

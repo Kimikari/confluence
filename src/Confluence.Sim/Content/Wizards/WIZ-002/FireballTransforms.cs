@@ -172,7 +172,7 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
     /// own post-bounce payload (AUG-305), and an optional cinder planted at the impact (AUG-306). Direct hits are guarded
     /// like any projectile (spec L104) and the flight is never lag-compensated (spec L423).
     /// </summary>
-    public sealed class HeatProjectileDelivery : DeliverySpec
+    public sealed class HeatProjectileDelivery : DeliverySpec, IProjectileDelivery
     {
         private float _speed;
         private float _radius = SpellRules.DefaultProjectileRadius;
@@ -209,6 +209,11 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
 
         public bool PlantsSeed => SeedLifetimeSec > 0f;
 
+        // Straight flight with at most one ground bounce, one projectile per cast (Spells/Deliveries/ProjectileShapes.cs).
+        float IProjectileDelivery.Gravity => 0f;
+
+        int IProjectileDelivery.Count => 1;
+
         internal override void ApplyGlobalCaps()
         {
             _radius = Math.Max(0.01f, _radius);
@@ -229,7 +234,8 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
         {
             Vec3 origin = ctx.AimOrigin(cast.Caster);
             Vec3 dir = AimDirection(ctx, cast);
-            float speed = Speed * cast.ProjectileSpeedMultiplier;
+            float speed = Speed * cast.ProjectileSpeedMultiplier; // a projectile-speed mastery reward (spec L480)
+            speed = ctx.World.Effects.AdjustProjectileSpeed(cast, speed); // release-time content hooks, as ProjectileDelivery
             bool normalImpact = BounceChoice && cast.Choice == BounceChoiceScript.NormalImpact;
             int bounces = normalImpact ? 0 : Bounces;
             var p = ctx.Spawn(new HeatProjectileEntity(cast, this, origin, dir * speed, bounces));
@@ -242,7 +248,7 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
     }
 
     /// <summary>A Fireball variant in flight (see <see cref="HeatProjectileDelivery"/>).</summary>
-    public sealed class HeatProjectileEntity : SpellEntity, IAwaitsRecastTarget
+    public sealed class HeatProjectileEntity : SpellEntity, IAwaitsRecastTarget, IProjectileBody, IProjectileSpeedScale
     {
         public const float WalkableNormalY = 0.7f;
 
@@ -263,6 +269,10 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
         public Vec3 Position { get; private set; }
         public Vec3 Velocity { get; private set; }
         public bool Bounced => _bounced;
+
+        float IProjectileBody.Radius => _spec.Radius;
+
+        void IProjectileSpeedScale.ScaleSpeed(float factor) => Velocity *= Math.Max(0f, factor);
 
         /// <summary>AUG-306: the cinder the recast bursts is planted on impact; a press while the fireball flies does nothing (spec L94).</summary>
         public bool AwaitingRecastTarget => _spec.PlantsSeed;

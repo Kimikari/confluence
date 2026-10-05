@@ -14,7 +14,7 @@ namespace Confluence.Sim.Spells
     /// splash around it, excluding a directly hit target when the record makes them exclusive (spec L525); impact
     /// deposits go to the materials seam (spec L163). Projectiles are never lag-compensated (spec L423).
     /// </summary>
-    public sealed class ProjectileDelivery : DeliverySpec
+    public sealed class ProjectileDelivery : DeliverySpec, IProjectileDelivery
     {
         private float _speed;
         private float _radius = SpellRules.DefaultProjectileRadius;
@@ -96,7 +96,7 @@ namespace Confluence.Sim.Spells
     }
 
     /// <summary>A projectile in flight (see <see cref="ProjectileDelivery"/>).</summary>
-    public sealed class ProjectileEntity : SpellEntity
+    public sealed class ProjectileEntity : SpellEntity, IProjectileBody, IProjectileSpeedScale
     {
         private readonly ProjectileDelivery _spec;
         private readonly PayloadSpec _payload;
@@ -122,6 +122,10 @@ namespace Confluence.Sim.Spells
 
         /// <summary>Changes the flight speed from the next step on (content that speeds a projectile mid-flight).</summary>
         internal void ScaleSpeed(float factor) => Velocity *= Math.Max(0f, factor);
+
+        float IProjectileBody.Radius => _spec.Radius;
+
+        void IProjectileSpeedScale.ScaleSpeed(float factor) => ScaleSpeed(factor);
 
         protected internal override void Step(SpellContext ctx)
         {

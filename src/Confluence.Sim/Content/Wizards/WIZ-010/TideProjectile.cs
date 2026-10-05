@@ -27,7 +27,7 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
     /// obstacles; bodies whose feet are above its top (a jump) are not touched.</item>
     /// </list>
     /// </summary>
-    public sealed class TideProjectileDelivery : DeliverySpec
+    public sealed class TideProjectileDelivery : DeliverySpec, IProjectileDelivery
     {
         /// <summary>Rolling bubbles ride this far above the ground (decision: contact without scraping).</summary>
         public const float RollClearance = 0.02f;
@@ -71,6 +71,11 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
 
         public float MissCloudLifetimeSec { get => _missCloudLifetimeSec; set => _missCloudLifetimeSec = Set(value); }
 
+        // Straight flight or a ground roll, one projectile per cast (the shared projectile shape, Spells/Deliveries/ProjectileShapes.cs).
+        float IProjectileDelivery.Gravity => 0f;
+
+        int IProjectileDelivery.Count => 1;
+
         internal override void ApplyGlobalCaps()
         {
             _radius = Math.Max(0.01f, _radius);
@@ -94,6 +99,7 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
         {
             Vec3 aim = AimDirection(ctx, cast);
             float speed = Speed * cast.ProjectileSpeedMultiplier; // a projectile-speed mastery reward (spec L480)
+            speed = ctx.World.Effects.AdjustProjectileSpeed(cast, speed); // release-time content hooks, as ProjectileDelivery
             Vec3 origin;
             Vec3 dir;
             float preRoll = 0f;
@@ -122,7 +128,7 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
     }
 
     /// <summary>A Halen projectile in flight or rolling (see <see cref="TideProjectileDelivery"/>).</summary>
-    public sealed class TideProjectileEntity : SpellEntity
+    public sealed class TideProjectileEntity : SpellEntity, IProjectileBody, IProjectileSpeedScale
     {
         private readonly TideProjectileDelivery _spec;
         private PayloadSpec _payload;
@@ -144,9 +150,15 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
         public TideProjectileDelivery Spec => _spec;
         public Vec3 Position { get; private set; }
         public Vec3 Direction { get; private set; }
-        public float Speed { get; }
+        public float Speed { get; private set; }
         public float Travelled => _travelled;
         public bool Banked => _banked;
+
+        Vec3 IProjectileBody.Velocity => Direction * Speed;
+
+        float IProjectileBody.Radius => _spec.Radius;
+
+        void IProjectileSpeedScale.ScaleSpeed(float factor) => Speed *= Math.Max(0f, factor);
 
         protected internal override void Step(SpellContext ctx)
         {

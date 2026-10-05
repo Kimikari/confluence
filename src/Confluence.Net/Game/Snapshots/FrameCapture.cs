@@ -255,11 +255,11 @@ namespace Confluence.Net.Game.Snapshots
                 int extra = 0;
                 switch (entity)
                 {
-                    case ProjectileEntity projectile:
+                    case IProjectileBody projectile: // the framework projectile and kit projectiles (Sim ProjectileShapes.cs)
                         kind = EntityKind.Projectile;
                         position = projectile.Position;
                         velocity = projectile.Velocity;
-                        radius = projectile.Spec.Radius;
+                        radius = projectile.Radius;
                         break;
                     case FieldEntity field:
                         kind = EntityKind.Field;
@@ -293,6 +293,11 @@ namespace Confluence.Net.Game.Snapshots
                     case BuffEntity buff:
                         kind = EntityKind.Buff;
                         extra = buff.EndTick;
+                        break;
+                    case ISpellBody body: // a kit's own positioned spell body (orb, cinder, knot, ember): drawn where it is
+                        kind = EntityKind.Deployable;
+                        position = body.BodyCenter;
+                        radius = body.BodyRadius;
                         break;
                 }
 

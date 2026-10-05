@@ -72,8 +72,11 @@ namespace Confluence.Hosting.Bots
                 return _unstickDir;
             }
 
+            // No plan yet (int.MinValue: "tick - _plannedTick" would overflow and never come due, so a goal at the
+            // origin, the arena center, was never planned), the interval elapsed, or the goal moved.
             int interval = _direct ? replanTicks : Math.Max(replanTicks, MinPathReplanTicks);
-            if (tick - _plannedTick >= interval || Vec3.Distance(goal, _plannedGoal) > GoalMovedReplan) Plan(position, goal, tick);
+            bool due = _plannedTick == int.MinValue || tick - _plannedTick >= interval;
+            if (due || Vec3.Distance(goal, _plannedGoal) > GoalMovedReplan) Plan(position, goal, tick);
 
             Vec3 target = goal;
             if (!_direct)

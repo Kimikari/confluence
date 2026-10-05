@@ -144,6 +144,9 @@ namespace Confluence.Net.Tests.Game
                 int checkedForeignResults = 0;
                 int checkedStandings = 0;
                 var resolvedAt = new Dictionary<int, int>();
+                // Resolution ticks from the authoritative match log, so a bot-vs-bot duel (whose seats receive nothing) is
+                // aged from its real resolution too, not from the first nonparticipant delivery.
+                foreach (DuelResolvedEvent e in server.Host.Flow.Events.OfType<DuelResolvedEvent>()) resolvedAt[e.Setup.DuelId] = e.Tick;
                 var lastOutcome = new Dictionary<int, string>();
                 int delayTicks = NetRules.SpectatorDelayMinTicks;
                 foreach (Sent s in sent)

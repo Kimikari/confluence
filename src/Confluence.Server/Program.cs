@@ -7,6 +7,7 @@ using System.Threading;
 using Confluence.Arena.Generation;
 using Confluence.Core.Content;
 using Confluence.Core.Rules;
+using Confluence.Hosting;
 using Confluence.Hosting.Bots;
 using Confluence.Net.Game.Server;
 using Confluence.Net.Protocol;
@@ -30,6 +31,7 @@ namespace Confluence.Server
             "  --seed <n>             fixed match seed (only with --lab or --allow-fixed-seed; default: cryptographically random)\n" +
             "  --allow-fixed-seed     permit --seed without Laboratory overrides (reproductions, custom hosts)\n" +
             "  --lab                  Laboratory overrides: bypass economy floors, whole-catalogue pools, grammar-route wizards\n" +
+            "  --lab-floors-only      Laboratory override bypass-economy-floors only (implemented pools and kits)\n" +
             "  --accelerated <x>      LABELED TEST MODE: run x times faster than real time (2-16: the protocol carries at most 1000 ticks/s)\n" +
             "  --spectator-delay <s>  spectator delay in seconds (never below 15 while the match runs)\n" +
             "  --catalogue <path>     catalogue JSON (default: docs/confluence/confluence-catalogue.json)\n" +
@@ -87,6 +89,7 @@ namespace Confluence.Server
                     BotCompetence = o.Competence,
                     Seed = o.Seed,
                     Laboratory = o.Laboratory,
+                    Overrides = o.FloorsOnly ? new LaboratoryOverrides(bypassEconomyFloors: true) : null,
                     TicksPerWallSecond = 60 * o.Accelerated,
                     SpectatorDelaySec = o.SpectatorDelaySec,
                     Transport = TransportFor(o),
@@ -159,6 +162,7 @@ namespace Confluence.Server
             public ulong? Seed;
             public bool AllowFixedSeed;
             public bool Laboratory;
+            public bool FloorsOnly;
             public int Accelerated = 1;
             public float SpectatorDelaySec = GlobalRules.Match.SpectatorDelayMinSec;
             public string CataloguePath;
@@ -191,6 +195,7 @@ namespace Confluence.Server
                             break;
                         case "--seed": o.Seed = ulong.Parse(Value(args, ref i), CultureInfo.InvariantCulture); break;
                         case "--lab": o.Laboratory = true; break;
+                        case "--lab-floors-only": o.FloorsOnly = true; break;
                         case "--allow-fixed-seed": o.AllowFixedSeed = true; break;
                         case "--accelerated": o.Accelerated = Int(args, ref i, 1, Net.NetRules.MaxAcceleration); break;
                         case "--spectator-delay": o.SpectatorDelaySec = float.Parse(Value(args, ref i), CultureInfo.InvariantCulture); break;
@@ -209,7 +214,8 @@ namespace Confluence.Server
                 if (o.Players < 0) o.Players = o.Mode == MatchMode.Duel ? 2 : GlobalRules.Match.LobbySize;
                 if (o.Mode == MatchMode.Duel && o.Players != 2) throw new ArgumentException("a Duel has 2 seats");
                 if (o.Bots > o.Players) throw new ArgumentException("--bots exceeds --players");
-                if (o.Seed.HasValue && !o.Laboratory && !o.AllowFixedSeed)
+                if (o.Laboratory && o.FloorsOnly) throw new ArgumentException("--lab and --lab-floors-only are alternatives");
+                if (o.Seed.HasValue && !o.Laboratory && !o.FloorsOnly && !o.AllowFixedSeed)
                 {
                     // A guessable seed exposes every hidden offer stream (research §2.6.2).
                     throw new ArgumentException("--seed needs --lab or --allow-fixed-seed: standard matches use a cryptographically random seed");
