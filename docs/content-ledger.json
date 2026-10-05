@@ -25,25 +25,25 @@
     "tests/Confluence.Sim.Tests/bin/Debug/net10.0/Confluence.Sim.Tests.dll"
   ],
   "trx_files": 9,
-  "verifying_test_methods": 171,
+  "verifying_test_methods": 642,
   "out_of_scope_ids": [],
   "unknown_ids": [],
   "summary": {
     "wizards": {
       "total": 36,
-      "unstarted": 36,
-      "implemented": 0,
-      "implemented-tests-not-run": 0,
-      "implemented-tests-failing": 0,
-      "verified": 0
-    },
-    "spells": {
-      "total": 288,
-      "unstarted": 286,
+      "unstarted": 34,
       "implemented": 0,
       "implemented-tests-not-run": 0,
       "implemented-tests-failing": 0,
       "verified": 2
+    },
+    "spells": {
+      "total": 288,
+      "unstarted": 272,
+      "implemented": 0,
+      "implemented-tests-not-run": 0,
+      "implemented-tests-failing": 0,
+      "verified": 16
     },
     "equipment": {
       "total": 120,
@@ -55,11 +55,11 @@
     },
     "augments": {
       "total": 864,
-      "unstarted": 861,
+      "unstarted": 754,
       "implemented": 0,
       "implemented-tests-not-run": 0,
       "implemented-tests-failing": 0,
-      "verified": 3
+      "verified": 110
     },
     "biomes": {
       "total": 24,
@@ -95,11 +95,11 @@
     },
     "all": {
       "total": 1500,
-      "unstarted": 1418,
+      "unstarted": 1295,
       "implemented": 0,
       "implemented-tests-not-run": 0,
       "implemented-tests-failing": 0,
-      "verified": 82
+      "verified": 205
     }
   },
   "records": [
@@ -115,8 +115,10 @@
       "id": "WIZ-002",
       "type": "wizard",
       "name": "Bram Cinder",
-      "status": "unstarted",
-      "implemented_by": [],
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.BramCinderKit"
+      ],
       "verifying_tests": [
         {
           "test": "Confluence.Casting.Tests.Grammars.PressureReleaseGrammarTests.A_Queued_Early_Release_Can_Be_Cancelled_For_Free",
@@ -182,6 +184,96 @@
           "test": "Confluence.Casting.Tests.Grammars.PressureReleaseGrammarTests.Windows_Match_The_Record",
           "assembly": "Confluence.Casting.Tests",
           "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.MergedContentIntegrationTests.Laboratory_Duel_Match_Plays_The_Merged_Kits_With_Drafted_Augments_Dormancy_And_Steam",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002BotDuelTests.Two_Bram_Bots_Duel_Through_The_Crest_Grammar_With_Signature_And_Passive",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.BramDuelEndToEndTests.Two_Brams_Duel_With_All_Eight_Spells_Both_Signatures_And_Both_Passives",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.CrestRewardScopeTests.A_Crest_Fireball_Raises_Its_Direct_Hit_But_Not_Its_Alternative_Splash",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.KilnVentTests.Kiln_Vent_Costs_25_Mana_Cools_Down_14_Seconds_And_Releases_After_A_0_35_Second_Windup",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.KilnVentTests.Kiln_Vent_Counterplay_Leaving_The_Cone_During_The_Windup_Avoids_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.KilnVentTests.Kiln_Vent_Counterplay_Moving_Sideways_Or_Out_Of_Reach_Avoids_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.KilnVentTests.Kiln_Vent_Gives_Heat_1_To_Props_In_The_Cone_And_Leaves_No_Fire_Field",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.KilnVentTests.Kiln_Vent_Is_Reduced_By_A_Frontal_Guard_And_Stopped_By_Cover",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.KilnVentTests.Kiln_Vent_Is_Visible_From_Its_Press_And_Deals_28_Thermal_In_Its_4_Meter_Cone",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.KilnVentTests.Kiln_Vent_Prose_Parameters_Quote_The_Wizard_Record",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.KilnVentTests.Kiln_Vent_Push_Is_Hard_Control_So_Control_Immunity_Stops_It_But_Not_The_Damage",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.KilnVentTests.Kiln_Vent_Pushes_Enemies_1_5_Meters_Away_From_Bram",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TemperedHandsTests.Tempered_Hands_Grants_A_Visible_20_Point_Shield_For_2_Seconds_After_Thermal_Damage",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TemperedHandsTests.Tempered_Hands_Ignores_Nonthermal_Damage",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TemperedHandsTests.Tempered_Hands_Respects_The_Shared_100_Shield_Cap",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TemperedHandsTests.Tempered_Hands_Shield_Absorbs_The_Next_Hit_And_Thermal_Damage_Still_Lands_Afterwards",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TemperedHandsTests.Tempered_Hands_Triggers_Once_Per_8_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
         }
       ]
     },
@@ -245,8 +337,10 @@
       "id": "WIZ-010",
       "type": "wizard",
       "name": "Halen Tide",
-      "status": "unstarted",
-      "implemented_by": [],
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.HalenTideKit"
+      ],
       "verifying_tests": [
         {
           "test": "Confluence.Casting.Tests.Grammars.PressureMeterGrammarTests.Holding_To_0_90_s_Inside_The_Safe_Band_Auto_Vents_A_Normal_Cast",
@@ -321,6 +415,76 @@
         {
           "test": "Confluence.Casting.Tests.Grammars.PressureMeterGrammarTests.Windows_Match_The_Record",
           "assembly": "Confluence.Casting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideBotTests.Every_Spell_And_The_Signature_Cast_Through_The_Bot_Scripts_In_A_Real_Duel",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideBotTests.Hosted_Bot_Duels_Cast_Halen_s_Kit_Through_The_Planner",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.MergedContentIntegrationTests.Laboratory_Duel_Match_Plays_The_Merged_Kits_With_Drafted_Augments_Dormancy_And_Steam",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenEndToEndTests.Halen_Duels_Bram_With_His_Default_Kit_Signature_Passive_And_Water_Heat_Combos",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenEndToEndTests.Halen_Seals_Bram_s_Heat_And_Imprisons_Him_With_The_Other_Two_Spells",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTideKitTests.Every_Kit_Parameter_Quotes_The_Wizard_Record",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTideKitTests.Pressure_Reserve_Fires_At_Most_Once_Per_6_Seconds_And_Refunds_Never_Retrigger_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTideKitTests.Pressure_Reserve_Gives_10_Stamina_After_A_30_Mana_Commitment",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTideKitTests.Pressure_Reserve_Ignores_Cheaper_Casts_And_The_Mastered_Discount_Below_30",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTideKitTests.The_Registry_Supplies_The_Kit_And_A_Halen_Loadout_Uses_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTideKitTests.Undertow_Mantle_Costs_20_Cools_17_Seconds_And_Releases_After_A_Quarter_Second",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTideKitTests.Undertow_Mantle_Damages_A_Late_Entrant_And_Ends_After_3_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTideKitTests.Undertow_Mantle_Lays_Water_1_That_Heat_And_Frost_Alter",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTideKitTests.Undertow_Mantle_Slows_Enemies_And_The_Caster_15_Percent_And_Damages_Each_Body_12_Once",
+          "assembly": "Confluence.Sim.Tests",
           "outcome": "passed"
         }
       ]
@@ -616,6 +780,11 @@
       ],
       "verifying_tests": [
         {
+          "test": "Confluence.Hosting.Tests.MergedContentIntegrationTests.Laboratory_Duel_Match_Plays_The_Merged_Kits_With_Drafted_Augments_Dormancy_And_Steam",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
           "test": "Confluence.Sim.Tests.Content.FireballTests.A_Crest_Release_Adds_12_Percent_To_The_Direct_Hit_Only",
           "assembly": "Confluence.Sim.Tests",
           "outcome": "passed"
@@ -706,6 +875,11 @@
           "test": "Confluence.Sim.Tests.Content.CinderSweepTests.The_Caster_Moves_15_Percent_Slower_During_Its_Windup",
           "assembly": "Confluence.Sim.Tests",
           "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.CinderSweepTransformTests.Its_Heat_1_Dries_Thin_Wetness_Along_The_Cone_In_The_Reaction_World",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
         }
       ]
     },
@@ -713,55 +887,278 @@
       "id": "SPL-011",
       "type": "spell",
       "name": "Heat Haze",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.HeatHaze"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FireballTransformTests.Cinder_Seed_Burst_Is_Secondary_Stationary_Damage_Heat_Haze_Does_Not_Reduce_And_It_Raises_No_Procs",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.HeatHazeTests.A_Crest_Release_Pays_12_Percent_Less_Mana_Because_It_Deals_No_Damage",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.HeatHazeTests.It_Reduces_Incoming_Projectile_Damage_12_Percent_But_Not_Melee_And_Not_After_It_Ends",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.HeatHazeTests.Its_Heat_1_Dries_The_Casters_Wetness_Once_At_Release",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.HeatHazeTests.Its_Reduction_Joins_The_45_Percent_Passive_Cap",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.HeatHazeTests.The_Visible_Shimmer_Lasts_4_Seconds_Costs_18_Mana_And_Cools_Down_12_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "SPL-012",
       "type": "spell",
       "name": "Ash Curtain",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.AshCurtain"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.AshCurtainTests.It_Creates_A_3_Meter_Opaque_Ash_Cloud_For_6_Seconds_At_The_Aimed_Ground_Point",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.AshCurtainTests.Its_16_Meter_Range_Bounds_The_Placement_And_A_Crest_Release_Saves_12_Percent_Mana",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.AshCurtainTests.Nobody_Acquires_Through_It_It_Deals_No_Damage_And_Projectiles_Pass_Through",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.AshCurtainTests.Water_Under_It_Collapses_The_Cloud",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.AshCurtainTests.Wind_Displaces_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "SPL-013",
       "type": "spell",
       "name": "Phoenix Rush",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.PhoenixRush"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.PhoenixRushTests.Dash_Bonuses_Never_Exceed_The_8_Meter_Cap",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.PhoenixRushTests.It_Dashes_Up_To_8_Meters_Along_The_Ground_For_28_Mana_With_A_13_Second_Cooldown",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.PhoenixRushTests.It_Leaves_A_1_Meter_Heat_1_Trail_For_3_Seconds_That_Deals_6_Per_Second_To_Entrants",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.PhoenixRushTests.It_Stops_At_Solid_Geometry_So_The_Endpoint_Can_Be_Blocked",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.PhoenixRushTests.Its_1_Meter_Endpoint_Burst_Deals_30_Thermal_Unguarded_And_Takes_The_Crest_Bonus",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.PhoenixRushTests.Its_Path_Is_Telegraphed_At_Commitment_And_Fixed_For_The_Windup",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.PhoenixRushTests.The_Trail_Is_Environmental_Contact_Attributed_To_The_Cast_With_No_Hit_Rewards",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.PhoenixRushTests.The_Trail_Is_Neutral_And_The_Dash_Grants_No_Invulnerability",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "SPL-014",
       "type": "spell",
       "name": "Boiler Orb",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.BoilerOrb"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.BoilerOrbTests.A_Crest_Release_Adds_12_Percent_To_The_Explosion",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.BoilerOrbTests.A_Dry_Orb_Releases_Its_Heat_3_Where_It_Explodes",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.BoilerOrbTests.An_Early_Recast_While_The_Orb_Flies_Does_Nothing_And_The_Waiting_Orb_Still_Detonates",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.BoilerOrbTests.Shooting_The_25_Health_Orb_Destroys_It_Without_An_Explosion",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.BoilerOrbTests.The_18_Meter_Per_Second_Orb_Waits_On_The_First_Surface_For_Up_To_3_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.BoilerOrbTests.The_Recast_Detonates_32_Thermal_Within_2_Meters_Unguarded",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.BoilerOrbTests.Water_Consumes_The_Orbs_Heat_Into_Steam_And_The_Explosion_Drops_To_16",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.BoilerOrbTests.With_No_Surface_Within_Range_The_Orb_Falls_To_The_Ground_And_Never_Waits_In_Mid_Air",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "SPL-015",
       "type": "spell",
       "name": "Flame Lash",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.FlameLash"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlameLashTests.A_Parry_Reduces_The_Lash_And_A_Crest_Release_Adds_12_Percent",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlameLashTests.Counterplay_Retreating_Before_The_Fixed_Arc_Resolves_Avoids_The_Lash",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlameLashTests.Its_Fixed_Arc_Resolves_Where_It_Was_Committed_And_Walls_Stop_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlameLashTests.Its_Heat_1_Ignites_Dry_Growth_Touched_By_The_Arc",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlameLashTests.Its_Heat_1_Lies_Once_Under_The_Tips_Curved_Arc",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlameLashTests.The_Curved_Whip_Sweeps_Its_Arc_With_A_0_5_Meter_Lash_Out_To_6_Meters",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlameLashTests.The_Lash_Hits_For_42_Thermal_And_Adds_Burn_4_Per_Second_For_3_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "SPL-016",
       "type": "spell",
       "name": "Flashforge",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.Flashforge"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlashforgeTests.A_Guard_Toward_The_Smash_Reduces_It_And_A_Crest_Release_Adds_12_Percent",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlashforgeTests.An_Intact_Metal_Prop_In_The_Area_Turns_Red_Hot_For_4_Seconds_Dealing_8_Per_Second_On_Contact",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlashforgeTests.It_Smashes_A_2_Meter_Ground_Area_For_58_Thermal_After_Its_0_65_Second_Windup",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlashforgeTests.Its_Heat_3_Melts_Ice_Under_The_Smashed_Area",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlashforgeTests.Only_Metal_Props_Heat_And_Destroying_Or_Cooling_The_Prop_Ends_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlashforgeTests.The_Raised_Casting_Marker_Is_Fixed_At_Commitment_So_Leaving_It_Avoids_The_Smash",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlashforgeTests.The_Smash_Resolves_On_Its_Marker_Even_When_The_Geometry_Changes_During_The_Windup",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "SPL-017",
@@ -1271,73 +1668,397 @@
       "id": "SPL-073",
       "type": "spell",
       "name": "Pressure Jet",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.PressureJet"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PressureJetTests.A_Band_Held_Release_Pays_15_Percent_Less_Mana",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PressureJetTests.A_Direct_Hit_Deals_32_Physical_And_Pushes_1_5_Meters_Along_The_Stream",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PressureJetTests.A_Guard_Halves_The_Stream_And_Its_Push",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PressureJetTests.A_Struck_Target_Is_Wetted_At_Its_Feet",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PressureJetTests.Cover_Stops_The_Narrow_Stream",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PressureJetTests.It_Costs_16_Mana_At_Commitment_And_Cools_Down_5_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PressureJetTests.It_Flies_At_35_Meters_Per_Second_After_A_Quarter_Second_Windup",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PressureJetTests.Its_Range_Ends_The_Stream_At_20_Meters",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PressureJetTests.Pushing_A_Target_Into_A_Wall_Adds_No_Collision_Damage",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PressureJetTests.Sidestepping_Its_Narrow_Line_Avoids_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PressureJetTests.Water_1_Wets_The_First_Surface_It_Strikes_For_Three_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "SPL-074",
       "type": "spell",
       "name": "Water Hammer",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.WaterHammer"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.WaterHammerTests.A_Guard_Or_Parry_Halves_The_Thrust_And_Its_Push",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.WaterHammerTests.A_Miss_Leaves_03_Seconds_More_Recovery_To_Punish",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.WaterHammerTests.A_Thrust_Hit_Deals_48_Physical_And_Pushes_2_Meters_After_The_04_Second_Windup",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.WaterHammerTests.A_Thrust_Into_A_Wall_Sprays_There_And_Counts_As_A_Miss",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.WaterHammerTests.It_Costs_20_Mana_And_Cools_Down_8_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.WaterHammerTests.It_Reaches_3_Meters",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.WaterHammerTests.The_Thrust_Is_08_Meters_Wide",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.WaterHammerTests.Water_1_Sprays_Only_The_Impact_Spot",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "SPL-075",
       "type": "spell",
       "name": "Bubble Buckler",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.BubbleBuckler"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BubbleBucklerTests.A_Heat_Reaction_That_Empties_The_Bubble_Breaks_It_With_Water_And_Steam",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BubbleBucklerTests.A_Real_Fireball_Splash_On_The_Bubble_Is_A_Heat_Reaction",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BubbleBucklerTests.A_Timed_End_Leaves_No_Water_But_A_Break_Leaves_Water_1_At_Its_Front",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BubbleBucklerTests.An_Ended_Bubble_Stops_Watching_The_Event_Stream",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BubbleBucklerTests.Heat_Consumes_10_Shield_Into_A_1_Meter_Steam_Puff",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BubbleBucklerTests.It_Protects_Only_The_Forward_100_Degree_Arc",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BubbleBucklerTests.It_Raises_A_45_Point_Shield_For_4_Seconds_After_Its_02_Second_Windup",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BubbleBucklerTests.Melee_From_Behind_Goes_Around_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BubbleBucklerTests.The_Common_100_Point_Shield_Cap_Applies",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "SPL-076",
       "type": "spell",
       "name": "Water Pool",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.WaterPool"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.MergedContentIntegrationTests.Laboratory_Duel_Match_Plays_The_Merged_Kits_With_Drafted_Augments_Dormancy_And_Steam",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.WaterPoolTests.Electricity_Stays_Within_Its_Connected_Footprint",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.WaterPoolTests.Entrants_Are_Wet_And_Not_Slowed_And_Leaving_Dries_Them",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.WaterPoolTests.Frost_Freezes_It_And_Ice_Wets_Nobody",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.WaterPoolTests.Heat_On_The_Pool_Creates_Steam",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.WaterPoolTests.It_Places_One_3_Meter_Field_Of_Water_2_For_6_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.WaterPoolTests.Its_Cells_Form_One_Connected_Disc",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "SPL-077",
       "type": "spell",
       "name": "Cascade Vault",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.CascadeVault"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.CascadeVaultTests.A_Refused_Vault_Leaves_No_Water",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.CascadeVaultTests.It_Grants_No_Invulnerability_And_The_Fixed_Landing_Can_Be_Attacked",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.CascadeVaultTests.It_Lands_At_Most_3_Meters_Higher",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.CascadeVaultTests.It_Launches_Toward_The_Aimed_Point_And_Lands_There_Leaving_Water_At_Both_Ends",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.CascadeVaultTests.One_Cast_Adds_At_Most_Water_2_To_A_Cell",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.CascadeVaultTests.The_Landing_Is_At_Most_6_Meters_Away",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "SPL-078",
       "type": "spell",
       "name": "Riptide Lane",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.RiptideLane"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.RiptideLaneTests.Crosswise_Or_Upstream_Travel_Gets_Nothing",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.RiptideLaneTests.Everyone_Moving_With_Its_Arrow_Gets_15_Percent_Speed",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.RiptideLaneTests.Freezing_Its_Route_Removes_The_Bonus_There_And_Leaving_Ends_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.RiptideLaneTests.It_Creates_A_10_By_2_Meter_Stream_Of_Water_2_For_6_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.RiptideLaneTests.It_Remains_Connected_For_Electricity_And_The_Bonus_Ends_With_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.RiptideLaneTests.The_Bonus_Stays_Inside_The_20_Percent_Movement_Cap",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "SPL-079",
       "type": "spell",
       "name": "Deepglass Prison",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.DeepglassPrison"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.DeepglassPrisonTests.A_Hit_Deals_26_Roots_For_06_Seconds_And_Then_Slows_20_Percent_For_15_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.DeepglassPrisonTests.Dodging_The_Bubble_Avoids_The_Prison",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.DeepglassPrisonTests.It_Is_Telegraphed_By_The_Hard_Control_Cue_And_Flies_22_Meters_Per_Second",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.DeepglassPrisonTests.The_Root_Obeys_Hard_Control_Immunity_And_Grants_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.DeepglassPrisonTests.Water_2_Lands_At_The_Impact_And_Its_Range_Is_18_Meters",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "SPL-080",
       "type": "spell",
       "name": "Seal the Spring",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.SealTheSpring"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideBotTests.The_Bot_Holds_Its_Planned_Ground_Aim_Through_The_Windup_To_The_Release",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.SealTheSpringTests.A_Field_Hidden_Behind_The_Struck_Wall_Is_Untouched",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.SealTheSpringTests.A_Field_The_Caster_Cannot_See_Through_Steam_Is_Not_Chosen",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.SealTheSpringTests.A_Wall_Impact_Splashes_The_Field_At_Its_Base",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.SealTheSpringTests.It_Neutralizes_A_Corrosive_Field_Too",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.SealTheSpringTests.It_Removes_Up_To_2_Units_From_The_Hot_Field_Under_The_Splash",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.SealTheSpringTests.It_Requires_A_Surface_Impact",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.SealTheSpringTests.Only_One_Connected_Field_Is_Touched",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "SPL-081",
@@ -4214,8 +4935,10 @@
       "id": "AUG-001",
       "type": "augment",
       "name": "Steady Hand",
-      "status": "unstarted",
-      "implemented_by": [],
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.SteadyHand"
+      ],
       "verifying_tests": [
         {
           "test": "Confluence.Economy.Tests.DraftTests.ADormantRankOneIsNotOfferedAsRankTwo",
@@ -4240,6 +4963,36 @@
         {
           "test": "Confluence.Economy.Tests.StructuralProfileTests.AnEnabledTransformationReshapesItsTargetSpell",
           "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Steady_Hand_Clamps_With_A_Projectile_Speed_Reward_At_15_Percent",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Steady_Hand_Needs_The_Aim_To_Stay_Within_1_Degree_And_No_Sprint",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Steady_Hand_Speeds_A_Projectile_Released_With_A_Steady_Aim",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.StackingTests.Linked_Speed_Bonuses_Clamp_With_A_Projectile_Speed_Reward",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.StackingTests.Two_Linked_Speed_Bonuses_On_One_Cast_Clamp_Together_At_15_Percent",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Integration.KitProjectileAugmentTests.Steady_Hand_Speeds_A_Pressure_Jet_Released_After_Steady_Aim",
+          "assembly": "Confluence.Sim.Tests",
           "outcome": "passed"
         }
       ]
@@ -4284,16 +5037,31 @@
       "id": "AUG-005",
       "type": "augment",
       "name": "On the Beat",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.OnTheBeat"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.On_The_Beat_Never_Shortens_The_Anticipatory_Cue",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.On_The_Beat_Shortens_The_Windup_Of_A_Crest_Release",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-006",
       "type": "augment",
       "name": "Anchored Cast",
-      "status": "unstarted",
-      "implemented_by": [],
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.AnchoredCast"
+      ],
       "verifying_tests": [
         {
           "test": "Confluence.Economy.Tests.DormancyTests.RoundIsCheckedAtAcquisitionAndEquipmentStaysOngoing",
@@ -4304,6 +5072,26 @@
           "test": "Confluence.Economy.Tests.PredicateLeafTests.RoundAtLeastUsesTheConclaveScheduleInBothModes",
           "assembly": "Confluence.Economy.Tests",
           "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ConditionalTests.Anchored_Cast_Boosts_A_Mastered_Release_After_Standing_Still",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ConditionalTests.Anchored_Cast_Needs_Mastery_Stillness_And_Clamps_With_The_Mastery_Damage_Reward",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.StackingTests.Anchored_Cast_And_Magnum_Opus_Clamp_Together_With_The_Damage_Reward",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.StackingTests.Linked_Damage_Bonuses_On_An_Efficiency_Rewarded_Cast_Still_Total_At_Most_15_Percent",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
         }
       ]
     },
@@ -4311,12 +5099,29 @@
       "id": "AUG-007",
       "type": "augment",
       "name": "Flying Script",
-      "status": "unstarted",
-      "implemented_by": [],
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.FlyingScript"
+      ],
       "verifying_tests": [
         {
           "test": "Confluence.Economy.Tests.PredicateLeafTests.EquippedTagCountsLiveTagsOfEquippedItems",
           "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ConditionalTests.Flying_Script_Is_Lost_On_Landing_Needs_Mastery_And_Clamps_With_A_Speed_Reward",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ConditionalTests.Flying_Script_Leaves_Incoming_Airborne_Hits_Normal",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ConditionalTests.Flying_Script_Speeds_A_Projectile_Mastered_In_The_Air",
+          "assembly": "Confluence.Sim.Tests",
           "outcome": "passed"
         }
       ]
@@ -4339,9 +5144,22 @@
       "id": "AUG-009",
       "type": "augment",
       "name": "Needle Discipline",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.NeedleDiscipline"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Needle_Discipline_Boosts_A_Head_Hit_And_Cuts_Body_Hits",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Needle_Discipline_Stays_Inside_The_125_Precision_Cap",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-010",
@@ -4380,12 +5198,29 @@
       "id": "AUG-012",
       "type": "augment",
       "name": "Perfect Landing",
-      "status": "unstarted",
-      "implemented_by": [],
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.PerfectLanding"
+      ],
       "verifying_tests": [
         {
           "test": "Confluence.Economy.Tests.PredicateLeafTests.AlwaysHoldsForEveryWizard",
           "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Perfect_Landing_A_Commitment_In_The_Window_Whose_Release_Falls_Outside_It_Gets_Nothing",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Perfect_Landing_Decreases_The_Cost_Of_A_Normal_Spell_Released_01_To_025_s_After_Landing",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Perfect_Landing_Gives_Nothing_To_An_Advanced_Variation_And_Respects_The_Refund_Cap",
+          "assembly": "Confluence.Sim.Tests",
           "outcome": "passed"
         }
       ]
@@ -4394,17 +5229,48 @@
       "id": "AUG-013",
       "type": "augment",
       "name": "Patient Cursor",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.PatientCursor"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Patient_Cursor_Boosts_A_Projectile_After_06_s_Of_Tracking",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Patient_Cursor_Is_Reset_By_Losing_Sight_Or_Aim",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-014",
       "type": "augment",
       "name": "Parry Syntax",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.ParrySyntax"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProofsAndGraduatesTests.Parry_Syntax_Clamps_With_The_Mana_Reward_At_20_Percent",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProofsAndGraduatesTests.Parry_Syntax_Discounts_A_Mastered_Cast_Soon_After_A_Perfect_Guard",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProofsAndGraduatesTests.Parry_Syntax_Needs_A_Perfect_Guard_A_Mastered_Cast_And_The_Window",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-015",
@@ -4426,40 +5292,134 @@
       "id": "AUG-017",
       "type": "augment",
       "name": "Recovered Rhythm",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.RecoveredRhythm"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Recovered_Rhythm_Needs_A_Different_Spell_Within_4_s",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Recovered_Rhythm_Refund_Stays_Inside_The_25_Percent_Cap",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Recovered_Rhythm_Refunds_A_Mastered_Cast_Of_A_Different_Spell_After_A_Failed_One",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-018",
       "type": "augment",
       "name": "Deliberate Repetition",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.DeliberateRepetition"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Deliberate_Repetition_Is_Reset_By_A_Different_Spell_And_Needs_Two_Variations",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Deliberate_Repetition_Speeds_The_Second_Advanced_Variation_Of_The_Same_Spell",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.StackingTests.Linked_Speed_Bonuses_Clamp_With_A_Projectile_Speed_Reward",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.StackingTests.Two_Linked_Speed_Bonuses_On_One_Cast_Clamp_Together_At_15_Percent",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-019",
       "type": "augment",
       "name": "Pressure Examination",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.PressureExamination"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Pressure_Examination_Follows_The_100_Shield_Cap_And_Its_5_s_Cooldown",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Pressure_Examination_Ignores_Normal_Casts_And_Healthy_Casters",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Pressure_Examination_Shields_An_Advanced_Variation_Below_90_Health_For_1_s",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-020",
       "type": "augment",
       "name": "Magnum Opus",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.MagnumOpus"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Magnum_Opus_A_Miss_Or_Normal_Casts_Leave_The_Fourth_Hit_Unboosted",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Magnum_Opus_Boosts_The_Fourth_Different_Advanced_Hit_Inside_The_15_Percent_Mastery_Cap",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Magnum_Opus_Gives_Its_Full_Rank_Bonus_When_The_Reward_Is_Not_Damage",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.CastingMasteryTests.Magnum_Opus_Needs_The_Four_Hits_Inside_6_s",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.StackingTests.Anchored_Cast_And_Magnum_Opus_Clamp_Together_With_The_Damage_Reward",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.StackingTests.Linked_Damage_Bonuses_On_An_Efficiency_Rewarded_Cast_Still_Total_At_Most_15_Percent",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-021",
       "type": "augment",
       "name": "Disciplined Loadout",
-      "status": "unstarted",
-      "implemented_by": [],
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.DisciplinedLoadout"
+      ],
       "verifying_tests": [
         {
           "test": "Confluence.Economy.Tests.PredicateLeafTests.RoundAtLeastUsesTheConclaveScheduleInBothModes",
@@ -4469,6 +5429,16 @@
         {
           "test": "Confluence.Economy.Tests.PredicateLeafTests.TwoCopiesOfOneDefinitionAreOneSource",
           "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProofsAndGraduatesTests.Disciplined_Loadout_Grants_Stamina_For_A_Mastered_Cast",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProofsAndGraduatesTests.Disciplined_Loadout_Ignores_Normal_Casts_And_Waits_3_Seconds",
+          "assembly": "Confluence.Sim.Tests",
           "outcome": "passed"
         }
       ]
@@ -4507,33 +5477,100 @@
       "id": "AUG-025",
       "type": "augment",
       "name": "Fast Release",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.FastRelease"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Fast_Release_Drawback_A_Target_At_The_End_Of_Fireball_Range_Is_Out_Of_Reach",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Fast_Release_Leaves_Lobbed_Projectiles_And_Cones_Unchanged_And_Shortens_A_Lifetime",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Fast_Release_Speeds_A_Straight_Projectile_And_Shortens_Its_Travel",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Integration.KitProjectileAugmentTests.Fast_Release_Speeds_Halen_Straight_Projectiles_And_Shortens_Their_Range",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-026",
       "type": "augment",
       "name": "Heavy Core",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.HeavyCore"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Heavy_Core_Applies_Before_Mastery_And_Ignores_Cones",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Heavy_Core_Raises_Direct_Damage_And_Slows_The_Projectile",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Integration.KitProjectileAugmentTests.Heavy_Core_Edits_Halen_Tide_Projectiles_And_Bram_Transformed_Fireball",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-027",
       "type": "augment",
       "name": "Broad Tip",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.BroadTip"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Broad_Tip_Skips_Wide_Multiple_And_Non_Projectile_Spells",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Broad_Tip_Widens_A_Narrow_Single_Projectile_At_A_Damage_Cost",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-028",
       "type": "augment",
       "name": "Fine Tip",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.FineTip"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Fine_Tip_Never_Narrows_Below_008_m_And_Skips_Projectiles_At_The_Minimum",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Fine_Tip_Raises_Damage_And_Narrows_The_Projectile",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-029",
@@ -4547,28 +5584,81 @@
       "id": "AUG-030",
       "type": "augment",
       "name": "Ground Skimmer",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.GroundSkimmer"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.GroundSkimmerTests.Ground_Skimmer_Drawback_Cuts_Damage_To_Airborne_Targets",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.GroundSkimmerTests.Ground_Skimmer_Needs_Ground_Within_0_3_Metres",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.GroundSkimmerTests.Ground_Skimmer_Speeds_A_Projectile_After_2_Metres_Close_Over_Ground",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Integration.KitProjectileAugmentTests.Ground_Skimmer_Speeds_Halen_Rolling_Prison_Bubble_After_2_Metres",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-031",
       "type": "augment",
       "name": "High Arc",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.HighArc"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.High_Arc_Drawback_Cuts_Player_Damage_And_A_Raised_Enemy_Gets_Neither",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.High_Arc_Gives_Nothing_To_A_Level_Ground_Release",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.High_Arc_Raises_Prop_Damage_Of_A_Release_Above_The_Enemy",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-032",
       "type": "augment",
       "name": "Range Compression",
-      "status": "unstarted",
-      "implemented_by": [],
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.RangeCompression"
+      ],
       "verifying_tests": [
         {
           "test": "Confluence.Economy.Tests.DraftTests.ExclusiveGroupConflictsAreIneligible",
           "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ConditionalTests.Range_Compression_Boosts_Close_Projectile_Hits",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ConditionalTests.Range_Compression_Leaves_Mid_Range_And_Cuts_Long_Range",
+          "assembly": "Confluence.Sim.Tests",
           "outcome": "passed"
         }
       ]
@@ -4577,12 +5667,24 @@
       "id": "AUG-033",
       "type": "augment",
       "name": "Range Extension",
-      "status": "unstarted",
-      "implemented_by": [],
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.RangeExtension"
+      ],
       "verifying_tests": [
         {
           "test": "Confluence.Economy.Tests.DraftTests.ExclusiveGroupConflictsAreIneligible",
           "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ConditionalTests.Range_Extension_Boosts_Long_Projectile_Hits",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ConditionalTests.Range_Extension_Leaves_Mid_Range_And_Cuts_Close_Range",
+          "assembly": "Confluence.Sim.Tests",
           "outcome": "passed"
         }
       ]
@@ -4623,17 +5725,48 @@
       "id": "AUG-038",
       "type": "augment",
       "name": "First Contact",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.FirstContact"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.First_Contact_Boosts_A_Projectile_Hit_On_A_Full_Health_Enemy",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.First_Contact_Drawback_Below_75_Health_And_Nothing_In_Between_Or_For_Cones",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Integration.KitProjectileAugmentTests.First_Contact_Raises_A_Pressure_Jet_Hit_On_A_Full_Health_Enemy",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-039",
       "type": "augment",
       "name": "Last Crossing",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.LastCrossing"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Last_Crossing_Boosts_A_Hit_During_Landing_Recovery",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Last_Crossing_Gives_Nothing_After_The_Recovery_And_Cuts_Hits_On_Walking_Enemies",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-040",
@@ -4647,12 +5780,39 @@
       "id": "AUG-041",
       "type": "augment",
       "name": "Prepared Patience",
-      "status": "unstarted",
-      "implemented_by": [],
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.PreparedPatience"
+      ],
       "verifying_tests": [
         {
           "test": "Confluence.Economy.Tests.PredicateLeafTests.SpellCastTimeCountIsInclusive",
           "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Prepared_Patience_Drawback_Slows_Walking_During_The_Windup_Only",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Prepared_Patience_Needs_The_Ground_And_A_04_s_Windup",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Prepared_Patience_Refund_Shares_The_25_Percent_Ledger_After_The_Cost_Floor",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Prepared_Patience_Returns_Part_Of_A_Long_Grounded_Cast",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.StackingTests.Exit_Interview_Buff_And_Prepared_Patience_Penalty_Add_Up_In_Either_Order",
+          "assembly": "Confluence.Sim.Tests",
           "outcome": "passed"
         }
       ]
@@ -4661,12 +5821,24 @@
       "id": "AUG-042",
       "type": "augment",
       "name": "Quick Recovery",
-      "status": "unstarted",
-      "implemented_by": [],
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.QuickRecovery"
+      ],
       "verifying_tests": [
         {
           "test": "Confluence.Economy.Tests.PredicateLeafTests.SpellCastTimeCountIsInclusive",
           "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Quick_Recovery_Shortens_The_Recovery_Of_A_Fast_Spell",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Quick_Recovery_Skips_Slower_Spells_And_Keeps_The_01_s_Minimum",
+          "assembly": "Confluence.Sim.Tests",
           "outcome": "passed"
         }
       ]
@@ -4675,17 +5847,63 @@
       "id": "AUG-043",
       "type": "augment",
       "name": "Visible Afterimage",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.VisibleAfterimage"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Visible_Afterimage_A_Near_Miss_Leaves_A_Trail_And_Discounts_The_Next_Different_Spell",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Visible_Afterimage_Discount_Stays_Inside_The_Cost_Floor_And_Expires_After_1_s",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Visible_Afterimage_Drawback_The_Public_Trail_Shows_The_Release_Point_And_Casting_Direction",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Visible_Afterimage_Fires_At_Most_Once_Per_4_s",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Visible_Afterimage_Needs_A_Miss_Within_1_m_Of_An_Untransformed_Projectile",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Integration.KitProjectileAugmentTests.Visible_Afterimage_Follows_A_Pressure_Jet_That_Narrowly_Misses",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-044",
       "type": "augment",
       "name": "Narrow Verdict",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.NarrowVerdict"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Narrow_Verdict_Boosts_A_Hit_Through_An_Opening_Narrower_Than_1_m",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProjectileShapingTests.Narrow_Verdict_Gives_Nothing_In_The_Open_Through_A_Wide_Gap_Or_Into_Concealment",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-045",
@@ -4729,57 +5947,173 @@
       "id": "AUG-049",
       "type": "augment",
       "name": "Wide Foundation",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.WideFoundation"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Wide_Foundation_Leaves_Damaging_Fields_Alone",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Wide_Foundation_Widens_Non_Damaging_Fields_For_Two_Mana",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Integration.KitFieldAugmentTests.Wide_Foundation_Widens_Both_Pool_Divide_Pools",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Integration.KitFieldAugmentTests.Wide_Foundation_Widens_The_Ash_Cloud_And_The_Riptide_Lane_For_Two_Mana",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-050",
       "type": "augment",
       "name": "Compact Hazard",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.CompactHazard"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Compact_Hazard_Ignores_Non_Damaging_Fields",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Compact_Hazard_Raises_First_Contact_Damage_And_Shrinks_The_Field",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-051",
       "type": "augment",
       "name": "Slow Dissipation",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.SlowDissipation"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Slow_Dissipation_Lengthens_Short_Fields_And_Cuts_First_Contact",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Slow_Dissipation_Skips_Long_Fields_And_Never_Passes_8_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Integration.KitFieldAugmentTests.Slow_Dissipation_Lengthens_The_Six_Second_Ash_Cloud_And_Stream",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-052",
       "type": "augment",
       "name": "Quick Dissipation",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.QuickDissipation"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Quick_Dissipation_Never_Lengthens_A_Field_Already_Under_1_Second",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Quick_Dissipation_Trades_Lifetime_For_First_Contact_Damage",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-053",
       "type": "augment",
       "name": "Remote Survey",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.RemoteSurvey"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Remote_Survey_Charges_Near_Fields_And_Ignores_The_Middle_Band",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Remote_Survey_Discounts_Fields_Placed_Beyond_8_Metres",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Remote_Survey_Settles_Against_The_Field_Created_When_The_Aim_Changes_During_The_Windup",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Integration.KitFieldAugmentTests.Remote_Survey_Prices_Ash_Curtain_By_Where_The_Cloud_Appears",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-054",
       "type": "augment",
       "name": "Home Circle",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.HomeCircle"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Home_Circle_Charges_Fields_Beyond_10_Metres",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Home_Circle_Discounts_Fields_Within_2_Metres",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-055",
       "type": "augment",
       "name": "Edge Casting",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.EdgeCasting"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Edge_Casting_Gives_Nothing_At_The_Center_Far_Away_Or_Airborne",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Edge_Casting_Shortens_A_Spell_Begun_At_A_Field_Edge",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-056",
@@ -4815,17 +6149,53 @@
       "id": "AUG-059",
       "type": "augment",
       "name": "Breaker's Dividend",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.BreakersDividend"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftTests.Breakers_Dividend_Drawback_Cuts_Direct_Player_Damage_Only",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftTests.Breakers_Dividend_Grants_Stamina_When_A_Direct_Spell_Destroys_Enemy_Cover",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftTests.Breakers_Dividend_Needs_Enemy_Cover_A_Spell_And_Respects_Its_Cooldown",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-060",
       "type": "augment",
       "name": "Safe Corridor",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.SafeCorridor"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Safe_Corridor_A_Field_Appearing_Under_The_Placement_During_The_Windup_Counts",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Safe_Corridor_Charges_Overlap_With_Any_Field_Including_The_Enemys",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Safe_Corridor_Discounts_A_Field_Clear_Of_Other_Fields",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-061",
@@ -4839,9 +6209,27 @@
       "id": "AUG-062",
       "type": "augment",
       "name": "Practical Ruin",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.PracticalRuin"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftTests.Practical_Ruin_Discounts_The_Next_Field_After_Breaking_A_Nearby_Prop",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftTests.Practical_Ruin_Expires_Needs_A_Field_A_Near_Prop_And_Has_A_Cooldown",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftTests.Practical_Ruin_Opens_At_Most_Once_Per_4_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-063",
@@ -4863,33 +6251,105 @@
       "id": "AUG-065",
       "type": "augment",
       "name": "Open Sky",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.OpenSky"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Field_Placement_Is_Bound_At_Commitment_When_Cover_Sets_The_Windup",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Open_Sky_Charges_A_Field_Under_A_Ceiling",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Open_Sky_Shortens_Fields_Created_In_The_Open",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Integration.KitFieldAugmentTests.Cover_Records_Bind_The_Ash_Cloud_And_Stream_To_The_Placement_Committed",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-066",
       "type": "augment",
       "name": "Sheltered Work",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.ShelteredWork"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Field_Placement_Is_Bound_At_Commitment_When_Cover_Sets_The_Windup",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Sheltered_Work_Discounts_Fields_Under_Overhead_Cover",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.Sheltered_Work_Lengthens_Fields_Created_Outdoors",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Integration.KitFieldAugmentTests.Cover_Records_Bind_The_Ash_Cloud_And_Stream_To_The_Placement_Committed",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-067",
       "type": "augment",
       "name": "Surveyed Demolition",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.SurveyedDemolition"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftTests.Surveyed_Demolition_Needs_A_Recent_Weapon_Hit",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftTests.Surveyed_Demolition_Raises_Spell_Damage_To_Cover_The_Weapon_Just_Damaged",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-068",
       "type": "augment",
       "name": "One Landmark",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.OneLandmark"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.One_Landmark_Discounts_Spells_Cast_Inside_The_Only_Field",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftFieldTests.One_Landmark_Ends_With_A_Second_Field_Or_Outside_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-069",
@@ -4903,9 +6363,22 @@
       "id": "AUG-070",
       "type": "augment",
       "name": "Graduate Survey",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.GraduateSurvey"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProofsAndGraduatesTests.Graduate_Survey_Extends_Long_Field_Placement",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProofsAndGraduatesTests.Graduate_Survey_Leaves_Short_Range_And_Caster_Fields_Range_Alone",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-071",
@@ -4927,48 +6400,120 @@
       "id": "AUG-073",
       "type": "augment",
       "name": "Close Curriculum",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.CloseCurriculum"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Close_Curriculum_Drawback_Cuts_Direct_Spell_Damage_Beyond_15_m",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Close_Curriculum_Leaves_Weapon_Hits_Beyond_2_m_And_Close_Spell_Hits_Unchanged",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Close_Curriculum_Raises_Weapon_Hits_Within_2_m_By_Rank",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-074",
       "type": "augment",
       "name": "Light Footwork",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.LightFootwork"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Light_Footwork_Cheapens_Light_Blade_Strikes_And_Costs_1_Damage",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Light_Footwork_Does_Not_Touch_Other_Profiles",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-075",
       "type": "augment",
       "name": "Heavy Economy",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.HeavyEconomy"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Heavy_Economy_Cheapens_Heavy_Strikes_And_Lengthens_The_Windup_By_005_s",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Heavy_Economy_Leaves_The_Light_Blade_Alone",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-076",
       "type": "augment",
       "name": "Spear Poise",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.SpearPoise"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Spear_Poise_Drawback_Slows_Walking_5_Percent_During_The_Spear_Windup_Only",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Spear_Poise_Extends_A_Grounded_Spear_Strike_By_Rank",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Spear_Poise_Gives_No_Reach_To_A_Strike_Begun_In_The_Air",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-077",
       "type": "augment",
       "name": "Buttstrike Lesson",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.ButtstrikeLesson"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Buttstrike_Lesson_Adds_Damage_To_The_Focus_Strike_And_Costs_1_Stamina",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-078",
       "type": "augment",
       "name": "Guard Economy",
-      "status": "unstarted",
-      "implemented_by": [],
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.GuardEconomy"
+      ],
       "verifying_tests": [
         {
           "test": "Confluence.Economy.Tests.DormancyTests.DormantAugmentKeepsRankTwo",
@@ -4979,6 +6524,11 @@
           "test": "Confluence.Economy.Tests.WorkedBuildTests.TwoDefendedThesesTakesFourRanksThenTheThesis",
           "assembly": "Confluence.Economy.Tests",
           "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Guard_Economy_Cheapens_The_Guard_And_Adds_02_s_Cooldown",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
         }
       ]
     },
@@ -4986,8 +6536,10 @@
       "id": "AUG-079",
       "type": "augment",
       "name": "Exact Riposte",
-      "status": "unstarted",
-      "implemented_by": [],
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.ExactRiposte"
+      ],
       "verifying_tests": [
         {
           "test": "Confluence.Economy.Tests.DormancyTests.ADormantParentMakesDependentsDormantUntilRestored",
@@ -4998,6 +6550,16 @@
           "test": "Confluence.Economy.Tests.DraftTests.ReplacingAParentNeedsASlotChoiceAndConfirmationOfDormantDependents",
           "assembly": "Confluence.Economy.Tests",
           "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ConditionalTests.Exact_Riposte_Adds_Damage_To_A_Weapon_Hit_Soon_After_A_Perfect_Guard",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ConditionalTests.Exact_Riposte_Needs_A_Perfect_Guard_And_The_06_Second_Window",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
         }
       ]
     },
@@ -5005,9 +6567,32 @@
       "id": "AUG-080",
       "type": "augment",
       "name": "Guarded Study",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.GuardedStudy"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Guarded_Study_A_Spell_Begun_In_The_Window_But_Paid_After_It_Pays_In_Full",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Guarded_Study_Discount_Stays_Inside_The_70_Percent_Cost_Floor",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Guarded_Study_Discounts_A_Spell_Paid_Within_05_s_Of_A_Perfect_Guard_And_Adds_005_s_Recovery",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Guarded_Study_Gives_Nothing_After_The_Window_Or_Without_A_Perfect_Guard",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-081",
@@ -5021,36 +6606,97 @@
       "id": "AUG-082",
       "type": "augment",
       "name": "Blade and Bolt",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.BladeAndBolt"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ConditionalTests.Blade_And_Bolt_Adds_Direct_Damage_To_A_Projectile_Soon_After_A_Weapon_Hit",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ConditionalTests.Blade_And_Bolt_Boosts_A_Projectile_That_Strikes_On_Its_Release_Tick",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ConditionalTests.Blade_And_Bolt_Second_Weapon_Hit_Resets_And_The_Window_Closes",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-083",
       "type": "augment",
       "name": "Bolt and Blade",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.BoltAndBlade"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Bolt_And_Blade_Cheapens_The_First_Strike_Within_1_s_Of_A_Direct_Spell_Hit",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Bolt_And_Blade_Opportunity_Is_Spent_By_A_Missed_Strike_And_Lapses_After_1_s",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-084",
       "type": "augment",
       "name": "Walking Pressure",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.WalkingPressure"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Walking_Pressure_Grants_Walk_Speed_For_1_s_After_A_Walking_Hit",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Walking_Pressure_Has_A_4_s_Cooldown_And_Respects_The_20_Percent_Movement_Cap",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Walking_Pressure_Sprint_Cancels_The_Buff_And_A_Standing_Hit_Grants_Nothing",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-085",
       "type": "augment",
       "name": "Guard Breaker",
-      "status": "unstarted",
-      "implemented_by": [],
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.GuardBreaker"
+      ],
       "verifying_tests": [
         {
           "test": "Confluence.Economy.Tests.DormancyTests.NotAugmentIsOngoing",
           "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Guard_Breaker_Drawback_Cuts_Weapon_Damage_On_An_Unguarded_Target",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Guard_Breaker_Removes_Extra_Stamina_From_A_Guard_That_Blocks_The_Weapon",
+          "assembly": "Confluence.Sim.Tests",
           "outcome": "passed"
         }
       ]
@@ -5059,41 +6705,101 @@
       "id": "AUG-086",
       "type": "augment",
       "name": "Shield Cut",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.ShieldCut"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Shield_Cut_Never_Reaches_Health_And_Its_Drawback_Cuts_Hits_On_Unshielded_Targets",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Shield_Cut_Removes_Extra_Shield_When_A_Weapon_Hit_Damages_A_Shield",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-087",
       "type": "augment",
       "name": "Measured Follow-Through",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.MeasuredFollowThrough"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Measured_Follow_Through_Discounts_A_Spell_Committed_Within_08_s_Of_A_Missed_Strike",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Measured_Follow_Through_Lapses_After_08_s_And_Has_A_4_s_Cooldown",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-088",
       "type": "augment",
       "name": "Cover Duelist",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.CoverDuelist"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ConditionalTests.Cover_Duelist_Boosts_Weapon_Hits_Near_Cover",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ConditionalTests.Cover_Duelist_Charges_Open_Ground_Strikes_And_Adds_Nothing",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-089",
       "type": "augment",
       "name": "Patient Edge",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.PatientEdge"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Patient_Edge_A_Missed_Strike_Spends_The_Preparation",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Patient_Edge_Adds_Damage_To_A_Strike_After_2_s_Without_A_Weapon_Attack",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-090",
       "type": "augment",
       "name": "Desperate Guard",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.DesperateGuard"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Desperate_Guard_Cheapens_A_Guard_Below_90_Health_And_Shortens_Every_Guard_By_01_s",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-091",
@@ -5107,9 +6813,22 @@
       "id": "AUG-092",
       "type": "augment",
       "name": "Grand Riposte",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.GrandRiposte"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Grand_Riposte_Boosts_The_Spell_After_A_Perfect_Guard_And_A_Weapon_Hit",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MeleeAndGuardTests.Grand_Riposte_Resets_When_A_Step_Is_Missed",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-093",
@@ -5164,12 +6883,19 @@
       "id": "AUG-097",
       "type": "augment",
       "name": "Economical Sprint",
-      "status": "unstarted",
-      "implemented_by": [],
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.EconomicalSprint"
+      ],
       "verifying_tests": [
         {
           "test": "Confluence.Economy.Tests.DormancyTests.ResolutionIsTopologicalNotSlotOrder",
           "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Economical_Sprint_Lowers_The_Drain_And_Adds_1_To_The_Dodge",
+          "assembly": "Confluence.Sim.Tests",
           "outcome": "passed"
         }
       ]
@@ -5178,65 +6904,179 @@
       "id": "AUG-098",
       "type": "augment",
       "name": "Deliberate Dodge",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.DeliberateDodge"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Deliberate_Dodge_Cheapens_The_Dodge",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Deliberate_Dodge_Drawback_Adds_A_005_s_Recovery_At_The_Destination",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-099",
       "type": "augment",
       "name": "Light Landing",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.LightLanding"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Light_Landing_Cheapens_The_Jump",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Light_Landing_Drawback_Makes_Airborne_Hits_2_Percent_Stronger_Inside_The_Pipeline",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-100",
       "type": "augment",
       "name": "Walking Scholar",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.WalkingScholar"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Walking_Scholar_Discounts_A_Cast_After_1_s_Of_Walking",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Walking_Scholar_Is_Reset_By_Sprinting_And_Needs_A_Walk",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-101",
       "type": "augment",
       "name": "Short Burst",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.ShortBurst"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Short_Burst_Respects_The_20_Percent_Sprint_Cap",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Short_Burst_Speeds_The_First_Second_Of_A_Sprint_Then_Drains_1_More",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.StackingTests.Short_Burst_And_Sand_Route_Add_Up_In_Either_Attach_Order",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-102",
       "type": "augment",
       "name": "Grounded Recovery",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.GroundedRecovery"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Grounded_Recovery_Grants_Stamina_After_05_s_On_The_Ground_After_Landing",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Grounded_Recovery_Is_Interrupted_By_Moving_Above_Walk_And_Has_A_4_s_Cooldown",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-103",
       "type": "augment",
       "name": "Moving Release",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.MovingRelease"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ConditionalTests.Moving_Release_Ignores_Forward_Walking_And_Charges_Sprinting_Casts",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ConditionalTests.Moving_Release_Speeds_A_Projectile_Released_While_Strafing",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-104",
       "type": "augment",
       "name": "Inward Step",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.InwardStep"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Inward_Step_Cheapens_Inward_Dodges_While_The_Boundary_Closes",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Inward_Step_Gives_No_Discount_Before_The_Boundary_Closes_But_Keeps_The_Outward_Cost",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-105",
       "type": "augment",
       "name": "Wall Reading",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.WallReading"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftTests.Wall_Reading_Adds_Lateral_Motion_Away_From_A_Near_Wall_For_Two_Stamina",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftTests.Wall_Reading_Counterplay_A_Shot_Prepared_On_The_Visible_Exit_Lands",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.FieldcraftTests.Wall_Reading_Needs_A_Wall_Within_Half_A_Metre_And_Waits_5_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-106",
@@ -5250,17 +7090,48 @@
       "id": "AUG-107",
       "type": "augment",
       "name": "Exit Interview",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.ExitInterview"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Exit_Interview_Ends_On_Reentering_Steam_And_Ignores_A_Sprinting_Exit",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Exit_Interview_Grants_Walk_Speed_For_1_s_After_Walking_Out_Of_Steam",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.StackingTests.Exit_Interview_Buff_And_Prepared_Patience_Penalty_Add_Up_In_Either_Order",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-108",
       "type": "augment",
       "name": "Ice Route",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.IceRoute"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Ice_Route_Cuts_The_Sprint_Drain_On_Ice_Only",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Ice_Route_Keeps_The_Ice_Traction",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-109",
@@ -5274,9 +7145,32 @@
       "id": "AUG-110",
       "type": "augment",
       "name": "Sand Route",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.SandRoute"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Sand_Route_Drawback_Adds_1_Stamina_Per_Second_Sprinting_On_Wet_Ground",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Sand_Route_Speeds_Sprinting_On_Sand",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.StackingTests.Graduated_Runner_Penalty_Survives_Sand_Route_In_Either_Attach_Order",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.StackingTests.Short_Burst_And_Sand_Route_Add_Up_In_Either_Attach_Order",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-111",
@@ -5314,9 +7208,22 @@
       "id": "AUG-115",
       "type": "augment",
       "name": "Leapfrog",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.Leapfrog"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Leapfrog_Cheapens_A_Jump_Within_04_s_Of_A_Weapon_Hit_Without_Ending_The_Recovery",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.MovementArtsTests.Leapfrog_Gives_Nothing_After_04_s",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-116",
@@ -5330,12 +7237,34 @@
       "id": "AUG-117",
       "type": "augment",
       "name": "Graduated Runner",
-      "status": "unstarted",
-      "implemented_by": [],
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.GraduatedRunner"
+      ],
       "verifying_tests": [
         {
           "test": "Confluence.Economy.Tests.DormancyTests.ResolutionIsTopologicalNotSlotOrder",
           "assembly": "Confluence.Economy.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProofsAndGraduatesTests.Graduated_Runner_Discounts_The_First_Half_Second_Of_A_Sprint",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.ProofsAndGraduatesTests.Graduated_Runner_Waits_5_Seconds_And_Slows_Long_Sprints",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.StackingTests.A_Gait_Penalty_Applies_After_The_20_Percent_Cap",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.StackingTests.Graduated_Runner_Penalty_Survives_Sand_Route_In_Either_Attach_Order",
+          "assembly": "Confluence.Sim.Tests",
           "outcome": "passed"
         }
       ]
@@ -5400,9 +7329,27 @@
       "id": "AUG-125",
       "type": "augment",
       "name": "Dry Kiln",
-      "status": "unstarted",
-      "implemented_by": [],
-      "verifying_tests": []
+      "status": "verified",
+      "implemented_by": [
+        "Confluence.Sim.Content.Augments.AugmentsA.DryKiln"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.WorldReactionsTests.Dry_Kiln_Drawback_Cuts_Direct_Player_Damage_Only",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.WorldReactionsTests.Dry_Kiln_Raises_Heat_Damage_To_A_Dry_Prop",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.AugmentsA.WorldReactionsTests.Dry_Kiln_Skips_Wet_Props_And_Non_Heat_Spells",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-126",
@@ -7103,161 +9050,794 @@
       "id": "AUG-305",
       "type": "augment",
       "name": "Skipping Fire",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
       "target_spell_id": "SPL-009",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.SkippingFire"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Refuses_A_Second_Transformation_Of_The_Same_Exclusive_Group",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Sees_The_Structural_Profile_Of_Each_Transformation",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FireballTransformTests.Skipping_Fire_And_Cinder_Seed_Share_The_Exclusive_Delivery_Group",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FireballTransformTests.Skipping_Fire_Bounced_Splash_Is_20_Or_22_And_Still_Excludes_A_Direct_Hit",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FireballTransformTests.Skipping_Fire_Bounces_Once_Off_The_Ground_And_Hits_At_Its_Bounced_Damage",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FireballTransformTests.Skipping_Fire_Counterplay_Cover_Beyond_The_Bounce_Stops_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FireballTransformTests.Skipping_Fire_Keeps_The_One_Crest_Bonus_After_The_Bounce",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FireballTransformTests.Skipping_Fire_Marks_Its_Bounce_At_Launch_And_A_Direct_Hit_Before_The_Bounce_Is_A_Normal_Fireball",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FireballTransformTests.Skipping_Fire_Rank_2_Chooses_The_Normal_Impact_With_The_Cast_Modifier",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TransformProseTests.Each_Prose_Parameter_Quotes_The_Augment_Record_And_Contains_Its_Number",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-306",
       "type": "augment",
       "name": "Cinder Seed",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
       "target_spell_id": "SPL-009",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.CinderSeed"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Refuses_A_Second_Transformation_Of_The_Same_Exclusive_Group",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Sees_The_Structural_Profile_Of_Each_Transformation",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.CrestRewardScopeTests.A_Crest_Cinder_Seed_Raises_The_Impact_But_Never_The_Secondary_Cinder_Burst",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FireballTransformTests.Cinder_Seed_An_Early_Recast_While_The_Fireball_Flies_Does_Nothing_And_The_Cinder_Still_Bursts",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FireballTransformTests.Cinder_Seed_Burst_Is_Secondary_Stationary_Damage_Heat_Haze_Does_Not_Reduce_And_It_Raises_No_Procs",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FireballTransformTests.Cinder_Seed_Counterplay_Shoot_The_Cinder_Or_Leave_The_Marker",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FireballTransformTests.Cinder_Seed_Plants_A_25_Health_Cinder_And_The_Recast_Bursts_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FireballTransformTests.Cinder_Seed_Recasts_Once_Through_The_Spell_Recast_Binding",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FireballTransformTests.Cinder_Seed_Splashes_16_And_Shares_Heat_2_Between_The_Impact_And_The_Burst",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FireballTransformTests.Skipping_Fire_And_Cinder_Seed_Share_The_Exclusive_Delivery_Group",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TransformProseTests.Each_Prose_Parameter_Quotes_The_Augment_Record_And_Contains_Its_Number",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-307",
       "type": "augment",
       "name": "Sweep Wake",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
       "target_spell_id": "SPL-010",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.SweepWake"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.A_Transformation_That_Adds_A_Field_Raises_The_Equipped_Field_Count",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Refuses_A_Second_Transformation_Of_The_Same_Exclusive_Group",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Sees_The_Structural_Profile_Of_Each_Transformation",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.CinderSweepTransformTests.Sweep_Wake_And_Forked_Sweep_Share_The_Exclusive_Delivery_Group",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.CinderSweepTransformTests.Sweep_Wake_Counterplay_Step_Out_Or_Cool_The_Strip",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.CinderSweepTransformTests.Sweep_Wake_Is_Neutral_So_Its_Owner_Burns_Too_And_It_Is_A_Field_Cast",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.CinderSweepTransformTests.Sweep_Wake_Leaves_A_1_Meter_Neutral_Heat_1_Strip_That_Burns_Whoever_Stands_On_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.CinderSweepTransformTests.Sweep_Wake_Strips_Respect_The_Three_Field_Allocation_With_Oldest_Retiring",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TransformProseTests.Each_Prose_Parameter_Quotes_The_Augment_Record_And_Contains_Its_Number",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-308",
       "type": "augment",
       "name": "Forked Sweep",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
       "target_spell_id": "SPL-010",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.ForkedSweep"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Refuses_A_Second_Transformation_Of_The_Same_Exclusive_Group",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Sees_The_Structural_Profile_Of_Each_Transformation",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.CinderSweepTransformTests.Forked_Sweep_Adds_0_1_Seconds_Of_Windup_And_Announces_Its_Gap_At_Commitment",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.CinderSweepTransformTests.Forked_Sweep_Fixes_Its_Fork_At_Commitment_So_The_Announced_Gap_Is_Safe",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.CinderSweepTransformTests.Forked_Sweep_Keeps_Cover_Guard_Heat_And_The_Crest_Bonus",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.CinderSweepTransformTests.Forked_Sweep_Rank_2_Chooses_The_Gap_Direction_Before_Release",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.CinderSweepTransformTests.Forked_Sweep_Strikes_Two_45_Degree_Lobes_Around_A_30_Degree_Gap",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.CinderSweepTransformTests.Sweep_Wake_And_Forked_Sweep_Share_The_Exclusive_Delivery_Group",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TransformProseTests.Each_Prose_Parameter_Quotes_The_Augment_Record_And_Contains_Its_Number",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-309",
       "type": "augment",
       "name": "Steam Mantle",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
       "target_spell_id": "SPL-011",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.SteamMantle"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Sees_The_Structural_Profile_Of_Each_Transformation",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Ungrouped_Transformations_Of_One_Spell_Can_Be_Owned_Together",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.HeatHazeTests.Steam_Mantle_Consumes_Wet_Into_A_Steam_Puff_Around_The_Caster",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.HeatHazeTests.Steam_Mantle_Counterplay_Close_Range_Still_Acquires_The_Caster_Inside_The_Puff",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.HeatHazeTests.Steam_Mantle_Drawback_Hides_The_Casters_View_From_Inside_The_Puff",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.HeatHazeTests.Steam_Mantle_Makes_No_Puff_When_Dry_And_Its_Shimmer_Reduces_Only_8_Percent",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.HeatHazeTests.Steam_Mantle_Rank_1_Puff_Screens_The_Caster_Who_Steps_Behind_It_Until_The_Opponent_Closes_In",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TransformProseTests.Each_Prose_Parameter_Quotes_The_Augment_Record_And_Contains_Its_Number",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-310",
       "type": "augment",
       "name": "Haze Reservoir",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
       "target_spell_id": "SPL-011",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.HazeReservoir"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Sees_The_Structural_Profile_Of_Each_Transformation",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Ungrouped_Transformations_Of_One_Spell_Can_Be_Owned_Together",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.HeatHazeTests.Haze_Reservoir_Counts_Only_What_The_Shimmer_Absorbs_Never_Unmitigated_Melee",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.HeatHazeTests.Haze_Reservoir_Is_Never_Charged_By_The_Casters_Own_Damage",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.HeatHazeTests.Haze_Reservoir_Lasts_3_Seconds_Adds_No_Reduction_And_Its_Vent_Ends_With_The_Mantle",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.HeatHazeTests.Haze_Reservoir_Needs_The_Full_20_Two_Small_Projectiles_Fill_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.HeatHazeTests.Haze_Reservoir_Vents_Heat_1_Over_A_Forward_Cone_Once_The_Shimmer_Absorbed_20_Damage",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TransformProseTests.Each_Prose_Parameter_Quotes_The_Augment_Record_And_Contains_Its_Number",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-311",
       "type": "augment",
       "name": "Ash Corridor",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
       "target_spell_id": "SPL-012",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.AshCorridor"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Sees_The_Structural_Profile_Of_Each_Transformation",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Ungrouped_Transformations_Of_One_Spell_Can_Be_Owned_Together",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.AshCurtainTests.Ash_Corridor_Has_A_12_Meter_Range_And_Narrow_Ends_To_Move_Around",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.AshCurtainTests.Ash_Corridor_Replaces_The_Cloud_With_A_2_Meter_Wide_Curtain_Across_The_Aim_For_5_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TransformProseTests.Each_Prose_Parameter_Quotes_The_Augment_Record_And_Contains_Its_Number",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-312",
       "type": "augment",
       "name": "Ash Bellows",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
       "target_spell_id": "SPL-012",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.AshBellows"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Sees_The_Structural_Profile_Of_Each_Transformation",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Ungrouped_Transformations_Of_One_Spell_Can_Be_Owned_Together",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.AshCurtainTests.Ash_Bellows_Counterplay_The_Clouds_Original_Location_Opens_After_A_Push",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.AshCurtainTests.Ash_Bellows_Recast_On_The_First_Tick_After_The_Cloud_Appears_Pushes_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.AshCurtainTests.Ash_Bellows_Recast_Pushes_The_Cloud_In_The_Aimed_Direction_For_6_Mana_Without_Extending_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TransformProseTests.Each_Prose_Parameter_Quotes_The_Augment_Record_And_Contains_Its_Number",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-313",
       "type": "augment",
       "name": "Rush Return",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
       "target_spell_id": "SPL-013",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.RushReturn"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Sees_The_Structural_Profile_Of_Each_Transformation",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Ungrouped_Transformations_Of_One_Spell_Can_Be_Owned_Together",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.PhoenixRushTests.Rush_Return_Burst_Drops_To_22_And_Destroying_The_Ember_Cancels_The_Return",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.PhoenixRushTests.Rush_Return_Is_Stopped_By_A_Blocked_Route_And_Waits_For_An_Early_Recast",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.PhoenixRushTests.Rush_Return_Leaves_A_25_Health_Ember_And_The_Recast_Dashes_Back_Toward_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TransformProseTests.Each_Prose_Parameter_Quotes_The_Augment_Record_And_Contains_Its_Number",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-314",
       "type": "augment",
       "name": "Rush Brake",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
       "target_spell_id": "SPL-013",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.RushBrake"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Sees_The_Structural_Profile_Of_Each_Transformation",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Ungrouped_Transformations_Of_One_Spell_Can_Be_Owned_Together",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.PhoenixRushTests.Rush_Brake_Burst_Carries_The_Casts_One_Mastery_Result",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.PhoenixRushTests.Rush_Brake_Counterplay_Standing_Clear_Of_The_Telegraphed_Path_Avoids_Every_Brake",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.PhoenixRushTests.Rush_Brake_Keeps_The_Full_30_Endpoint_Burst_And_Combines_With_Rush_Return",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.PhoenixRushTests.Rush_Brake_Recast_During_The_Dash_Stops_Early_With_A_1_2_Meter_Burst",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TransformProseTests.Each_Prose_Parameter_Quotes_The_Augment_Record_And_Contains_Its_Number",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-315",
       "type": "augment",
       "name": "Boiler Funnel",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
       "target_spell_id": "SPL-014",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.BoilerFunnel"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Refuses_A_Second_Transformation_Of_The_Same_Exclusive_Group",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Sees_The_Structural_Profile_Of_Each_Transformation",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.BoilerOrbTests.An_Early_Recast_While_The_Orb_Flies_Does_Nothing_And_The_Waiting_Orb_Still_Detonates",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.BoilerOrbTests.Boiler_Funnel_Counterplay_Dodging_The_Jet_Line_Keeps_Sight_And_Shooting_The_Orb_Stops_The_Explosion",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.BoilerOrbTests.Boiler_Funnel_Dry_Explosion_Is_26_And_A_Steamed_One_16",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.BoilerOrbTests.Boiler_Funnel_Turns_The_Steam_Reaction_Into_A_Jet_Along_The_Throw",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TransformProseTests.Each_Prose_Parameter_Quotes_The_Augment_Record_And_Contains_Its_Number",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-316",
       "type": "augment",
       "name": "Boiler Mine",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
       "target_spell_id": "SPL-014",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.BoilerMine"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.A_Transformation_That_Adds_A_Field_Raises_The_Equipped_Field_Count",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Refuses_A_Second_Transformation_Of_The_Same_Exclusive_Group",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Sees_The_Structural_Profile_Of_Each_Transformation",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.BoilerOrbTests.Boiler_Mine_Can_Be_Escaped_During_Its_Warning_Has_No_Recast_And_Is_A_Trap",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.BoilerOrbTests.Boiler_Mine_Shot_Down_Never_Bursts_And_Water_Still_Steams_It_To_16",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.BoilerOrbTests.Boiler_Mine_Sticks_5_Seconds_And_Its_First_Entrant_Triggers_A_Warning_Then_The_Burst",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TransformProseTests.Each_Prose_Parameter_Quotes_The_Augment_Record_And_Contains_Its_Number",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-317",
       "type": "augment",
       "name": "Lash Knot",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
       "target_spell_id": "SPL-015",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.LashKnot"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Sees_The_Structural_Profile_Of_Each_Transformation",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Ungrouped_Transformations_Of_One_Spell_Can_Be_Owned_Together",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlameLashTests.Lash_Knot_Breaks_Under_Fire_And_Then_Never_Swings",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlameLashTests.Lash_Knot_Counterplay_Avoiding_Its_Marked_Arc_Avoids_The_Swing",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlameLashTests.Lash_Knot_Leaves_A_20_Health_Knot_And_The_Recast_Swings_From_It_Along_The_Manual_Arc",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlameLashTests.Lash_Knot_Swing_Is_Secondary_Damage_And_Grants_No_Direct_Hit_Rewards",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TransformProseTests.Each_Prose_Parameter_Quotes_The_Augment_Record_And_Contains_Its_Number",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-318",
       "type": "augment",
       "name": "Lash Steam",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
       "target_spell_id": "SPL-015",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.LashSteam"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Sees_The_Structural_Profile_Of_Each_Transformation",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Ungrouped_Transformations_Of_One_Spell_Can_Be_Owned_Together",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlameLashTests.Lash_Steam_Consumes_The_Crossed_Water_Into_A_Steam_Strip",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlameLashTests.Lash_Steam_Counterplay_Wind_Clears_The_Strip",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlameLashTests.Lash_Steam_Reach_Is_5_Meters_With_No_Extra_Damage",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TransformProseTests.Each_Prose_Parameter_Quotes_The_Augment_Record_And_Contains_Its_Number",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-319",
       "type": "augment",
       "name": "Forge Plate",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
       "target_spell_id": "SPL-016",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.ForgePlate"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Sees_The_Structural_Profile_Of_Each_Transformation",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Ungrouped_Transformations_Of_One_Spell_Can_Be_Owned_Together",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlashforgeTests.Forge_Plate_Breaks_Or_Cools_And_Then_Stops_Burning",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlashforgeTests.Forge_Plate_Forges_A_2_Meter_Hot_Plate_Instead_Of_Heating_A_Prop",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TransformProseTests.Each_Prose_Parameter_Quotes_The_Augment_Record_And_Contains_Its_Number",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-320",
       "type": "augment",
       "name": "Forge Vacuum",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-002",
       "target_spell_id": "SPL-016",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.Wiz002.ForgeVacuum"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Economy_Sees_The_Structural_Profile_Of_Each_Transformation",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.Wiz002.Wiz002StructuralProfileTests.Ungrouped_Transformations_Of_One_Spell_Can_Be_Owned_Together",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlashforgeTests.Forge_Vacuum_Adds_0_2_Seconds_Of_Windup_And_Hits_For_52",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlashforgeTests.Forge_Vacuum_Counterplay_Stay_Beyond_The_Burst_And_Hide_In_The_Concentrated_Fog",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.FlashforgeTests.Forge_Vacuum_Pulls_Loose_Steam_Toward_The_Impact_Point_Once",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Wiz002.TransformProseTests.Each_Prose_Parameter_Quotes_The_Augment_Record_And_Contains_Its_Number",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-321",
@@ -8383,161 +10963,819 @@
       "id": "AUG-433",
       "type": "augment",
       "name": "Jet Bank",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
       "target_spell_id": "SPL-073",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.JetBank"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideEconomyTests.Economy_Sees_Each_Transformation_s_Structural_Profile_From_The_Registry",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.Each_Transformation_Is_Registered_And_Quotes_Its_Record",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.JetTransformTests.A_Dry_Wall_Or_A_Dried_One_Takes_The_Jet_And_The_Direct_Hit_Is_28",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.JetTransformTests.A_Jet_Banks_Once_From_A_Wet_Wall_At_The_Bank_Damage_With_The_Normal_Push",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.JetTransformTests.Bank_And_Mist_Combine_In_Stage_Order_With_The_Mist_Push_Winning",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.JetTransformTests.Sidestepping_The_Reflected_Path_Avoids_The_Bank",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-434",
       "type": "augment",
       "name": "Jet Mist",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
       "target_spell_id": "SPL-073",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.JetMist"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideEconomyTests.Economy_Sees_Each_Transformation_s_Structural_Profile_From_The_Registry",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.Each_Transformation_Is_Registered_And_Quotes_Its_Record",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.JetTransformTests.A_Hit_Makes_No_Mist_And_Pushes_Only_1_Meter",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.JetTransformTests.A_Missed_Shot_Leaves_A_Mist_Cloud_At_The_Impact",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.JetTransformTests.Bank_And_Mist_Combine_In_Stage_Order_With_The_Mist_Push_Winning",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.JetTransformTests.The_Mist_Blocks_Sight_But_Wets_Nobody_And_Wind_Disperses_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-435",
       "type": "augment",
       "name": "Hammer Wake",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
       "target_spell_id": "SPL-074",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.HammerWake"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideEconomyTests.Economy_Sees_Each_Transformation_s_Structural_Profile_From_The_Registry",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.Each_Transformation_Is_Registered_And_Quotes_Its_Record",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.The_Exclusive_Groups_Of_The_Kit_Are_Enforced",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HammerTransformTests.A_Hit_Leaves_A_Water_1_Puddle_Under_The_Target_For_Its_Lifetime",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HammerTransformTests.A_Miss_Leaves_No_Puddle_And_Keeps_The_Miss_Recovery",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HammerTransformTests.The_Puddle_Is_A_Neutral_Electricity_Risk_That_A_Dry_Step_Avoids",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HammerTransformTests.Wake_And_Fan_Share_The_Delivery_Group_And_Cannot_Coexist",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PuddleFieldTests.A_Puddle_Lifetime_Is_Its_Owned_Fields_And_Capped_At_8_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PuddleFieldTests.The_Hammer_Wake_Puddle_Consumes_A_Field_Slot",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-436",
       "type": "augment",
       "name": "Hammer Fan",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
       "target_spell_id": "SPL-074",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.HammerFan"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideEconomyTests.An_Owned_Transformation_Changes_Real_Eligibility",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideEconomyTests.Economy_Sees_Each_Transformation_s_Structural_Profile_From_The_Registry",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.Each_Transformation_Is_Registered_And_Quotes_Its_Record",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.The_Exclusive_Groups_Of_The_Kit_Are_Enforced",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HammerTransformTests.A_Cone_That_Misses_Into_A_Wall_Keeps_The_Impact_Spot_Spray_And_The_Miss_Recovery",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HammerTransformTests.A_Guard_Halves_The_Cone",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HammerTransformTests.Flanking_The_Cone_Or_Backing_Out_Avoids_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HammerTransformTests.It_Costs_4_More_Mana_And_Winds_Up_01_Second_Longer",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HammerTransformTests.Rank_2_Widens_The_Cone_To_90_Degrees",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HammerTransformTests.The_Thrust_Becomes_A_Cone_With_No_Push",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HammerTransformTests.Wake_And_Fan_Share_The_Delivery_Group_And_Cannot_Coexist",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-437",
       "type": "augment",
       "name": "Bubble Release",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
       "target_spell_id": "SPL-075",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.BubbleRelease"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideEconomyTests.An_Owned_Transformation_Changes_Real_Eligibility",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideEconomyTests.Economy_Sees_Each_Transformation_s_Structural_Profile_From_The_Registry",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BucklerTransformTests.A_Guard_Halves_The_Thrown_Bubble_And_The_Base_Bubble_Has_No_Recast",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BucklerTransformTests.A_Recast_On_The_Tick_After_The_Break_Throws_Nothing_And_The_Break_Still_Leaves_Water",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BucklerTransformTests.Dodging_The_Bubble_Or_Baiting_The_Release_Wastes_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BucklerTransformTests.Release_And_Steam_Combine_With_The_Release_Shield",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BucklerTransformTests.The_Recast_Throws_The_Remaining_Shield_As_A_20_Meter_Per_Second_Bubble",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BucklerTransformTests.The_Thrown_Bubble_Travels_20_Meters_And_Never_Reflects",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.Each_Transformation_Is_Registered_And_Quotes_Its_Record",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-438",
       "type": "augment",
       "name": "Bubble Steam",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
       "target_spell_id": "SPL-075",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.BubbleSteam"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideEconomyTests.Economy_Sees_Each_Transformation_s_Structural_Profile_From_The_Registry",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BucklerTransformTests.A_Physical_Break_Still_Leaves_Water_And_A_Side_Attack_Goes_Around",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BucklerTransformTests.A_Thermal_Break_Turns_The_Break_Water_Into_A_Steam_Puff",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BucklerTransformTests.Each_Heat_Reaction_Consumes_15_Shield",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.BucklerTransformTests.Release_And_Steam_Combine_With_The_Release_Shield",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.Each_Transformation_Is_Registered_And_Quotes_Its_Record",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-439",
       "type": "augment",
       "name": "Pool Lane",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
       "target_spell_id": "SPL-076",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.PoolLane"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideEconomyTests.Economy_Sees_Each_Transformation_s_Structural_Profile_From_The_Registry",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.Each_Transformation_Is_Registered_And_Quotes_Its_Record",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.The_Exclusive_Groups_Of_The_Kit_Are_Enforced",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PoolTransformTests.Conductivity_Follows_The_Exact_Lane",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PoolTransformTests.Heat_Consumes_The_Lane_Water_Into_Steam",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PoolTransformTests.Lane_And_Divide_Share_The_Delivery_Group_And_Cannot_Coexist",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PoolTransformTests.The_Pool_Becomes_One_Connected_Lane_Of_Water_2_For_6_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-440",
       "type": "augment",
       "name": "Pool Divide",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
       "target_spell_id": "SPL-076",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.PoolDivide"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideEconomyTests.Economy_Sees_Each_Transformation_s_Structural_Profile_From_The_Registry",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.Each_Transformation_Is_Registered_And_Quotes_Its_Record",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.The_Exclusive_Groups_Of_The_Kit_Are_Enforced",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PoolTransformTests.Lane_And_Divide_Share_The_Delivery_Group_And_Cannot_Coexist",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PoolTransformTests.Standing_In_The_Dry_Gap_Keeps_A_Body_Dry",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PoolTransformTests.The_Pools_Are_Disconnected_So_A_Charge_Never_Crosses_The_Gap",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PoolTransformTests.Two_Pools_Use_Two_Field_Allocations_And_The_Oldest_Field_Retires",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PoolTransformTests.Two_Water_1_Pools_Form_Side_By_Side_With_A_Dry_Gap",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Integration.KitFieldAugmentTests.Wide_Foundation_Widens_Both_Pool_Divide_Pools",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-441",
       "type": "augment",
       "name": "Cascade Landing",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
       "target_spell_id": "SPL-077",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.CascadeLanding"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideEconomyTests.Economy_Sees_Each_Transformation_s_Structural_Profile_From_The_Registry",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.Each_Transformation_Is_Registered_And_Quotes_Its_Record",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PuddleFieldTests.A_Puddle_Lifetime_Is_Its_Owned_Fields_And_Capped_At_8_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PuddleFieldTests.The_Cascade_Landing_Puddle_Consumes_A_Field_Slot",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.VaultTransformTests.A_Charge_In_The_Landing_Puddle_Reaches_Halen",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.VaultTransformTests.Landing_And_Brake_Combine_The_Puddle_Lands_At_The_Braked_Point",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.VaultTransformTests.Leap_Range_6_Becomes_5_Meters",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.VaultTransformTests.The_Combined_Source_Cap_Holds_For_A_Hop_Inside_The_Launch_Cell",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.VaultTransformTests.The_Landing_Leaves_A_Water_1_Puddle_For_Its_Lifetime",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-442",
       "type": "augment",
       "name": "Cascade Brake",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
       "target_spell_id": "SPL-077",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.CascadeBrake"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideEconomyTests.Economy_Sees_Each_Transformation_s_Structural_Profile_From_The_Registry",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.Each_Transformation_Is_Registered_And_Quotes_Its_Record",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.VaultTransformTests.A_Midair_Recast_Pulls_The_Landing_Back_Along_The_Arc",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.VaultTransformTests.It_Costs_4_More_Mana_And_Grants_No_Invulnerability_Or_Extra_Jump",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.VaultTransformTests.Landing_And_Brake_Combine_The_Puddle_Lands_At_The_Braked_Point",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.VaultTransformTests.The_Brake_Never_Extends_The_Leap_And_Works_Once",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-443",
       "type": "augment",
       "name": "Riptide Fork",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
       "target_spell_id": "SPL-078",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.RiptideFork"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideEconomyTests.Economy_Sees_Each_Transformation_s_Structural_Profile_From_The_Registry",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.Each_Transformation_Is_Registered_And_Quotes_Its_Record",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.RiptideTransformTests.Each_Lane_Gives_10_Percent_With_Its_Arrow_And_Never_15",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.RiptideTransformTests.Fork_And_Valve_Combine_Shorter_Lanes_Both_Turn",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.RiptideTransformTests.Freezing_The_Junction_Cuts_The_Bonus_There",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.RiptideTransformTests.The_Stream_Splits_Into_Two_Lanes_From_One_Junction_With_Water_Shared",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-444",
       "type": "augment",
       "name": "Riptide Valve",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
       "target_spell_id": "SPL-078",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.RiptideValve"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideEconomyTests.Economy_Sees_Each_Transformation_s_Structural_Profile_From_The_Registry",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.Each_Transformation_Is_Registered_And_Quotes_Its_Record",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.RiptideTransformTests.Fork_And_Valve_Combine_Shorter_Lanes_Both_Turn",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.RiptideTransformTests.Lane_Length_10_Becomes_8_And_The_Recast_Is_A_Pending_State",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.RiptideTransformTests.Rank_2_May_Turn_The_Arrow_90_Degrees_Toward_The_Aim_Instead",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.RiptideTransformTests.Rank_2_Turn_Lifts_Only_The_Lanes_Own_Water_Foreign_Water_Under_It_Stays",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.RiptideTransformTests.Rank_2_Turns_The_Lane_Itself_So_Travel_Along_The_New_Arrow_Gets_The_Bonus",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.RiptideTransformTests.The_Recast_Reverses_The_Arrow_Once_For_5_Mana_Without_Extending_Lifetime",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-445",
       "type": "augment",
       "name": "Prison Roll",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
       "target_spell_id": "SPL-079",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.PrisonRoll"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideEconomyTests.Economy_Sees_Each_Transformation_s_Structural_Profile_From_The_Registry",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.Each_Transformation_Is_Registered_And_Quotes_Its_Record",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PrisonTransformTests.A_Crate_Directly_In_Front_Of_The_Caster_Stops_The_Rolling_Bubble",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PrisonTransformTests.A_Jump_Avoids_The_Rolling_Bubble",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PrisonTransformTests.A_Low_Block_On_The_Route_Stops_It_But_A_Kerb_Below_The_Step_Height_Does_Not",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PrisonTransformTests.Roll_And_Pool_Combine",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PrisonTransformTests.The_Bubble_Rolls_Along_The_Ground_And_Roots_For_06_Seconds_At_22_Damage",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PrisonTransformTests.The_Rolling_Root_Still_Obeys_Hard_Control_Immunity",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-446",
       "type": "augment",
       "name": "Prison Pool",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
       "target_spell_id": "SPL-079",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.PrisonPool"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideEconomyTests.Economy_Sees_Each_Transformation_s_Structural_Profile_From_The_Registry",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.Each_Transformation_Is_Registered_And_Quotes_Its_Record",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PrisonTransformTests.A_Refused_Root_Makes_The_Puddle_At_Once",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PrisonTransformTests.After_The_Root_Ends_A_Water_1_Puddle_Forms_At_The_Impact_Instead_Of_The_Slow",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PrisonTransformTests.Roll_And_Pool_Combine",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PrisonTransformTests.The_Puddle_Is_No_Control_Chain_And_The_Target_Walks_Out_At_Full_Speed",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PuddleFieldTests.A_Puddle_Lifetime_Is_Its_Owned_Fields_And_Capped_At_8_Seconds",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.PuddleFieldTests.The_Prison_Pool_Puddle_Consumes_A_Field_Slot",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-447",
       "type": "augment",
       "name": "Spring Fan",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
       "target_spell_id": "SPL-080",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.SpringFan"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideEconomyTests.Economy_Sees_Each_Transformation_s_Structural_Profile_From_The_Registry",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.Each_Transformation_Is_Registered_And_Quotes_Its_Record",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.SpringTransformTests.A_Ground_Cone_From_The_Feet_Removes_One_Unit_Per_Cell_Within_Its_Reach",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.SpringTransformTests.Fan_And_Steam_Combine_The_Cloud_Forms_At_The_Nearest_Neutralized_Heat",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.SpringTransformTests.Focused_Removal_2_Becomes_1_And_Mana_Rises_By_3",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.SpringTransformTests.Spreading_The_Hazard_Or_Striking_During_The_Windup_Beats_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.SpringTransformTests.The_Cone_Keeps_The_Framework_90_Degree_Angle_And_Needs_No_Surface",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.SpringTransformTests.The_Cone_Keeps_The_Visible_Field_Rule_A_Wall_Shields_The_Hazard_Behind_It",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-448",
       "type": "augment",
       "name": "Spring Steam",
-      "status": "unstarted",
+      "status": "verified",
       "wizard_id": "WIZ-010",
       "target_spell_id": "SPL-080",
-      "implemented_by": [],
-      "verifying_tests": []
+      "implemented_by": [
+        "Confluence.Sim.Content.Wizards.HalenTide.SpringSteam"
+      ],
+      "verifying_tests": [
+        {
+          "test": "Confluence.Hosting.Tests.HalenTide.HalenTideEconomyTests.Economy_Sees_Each_Transformation_s_Structural_Profile_From_The_Registry",
+          "assembly": "Confluence.Hosting.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.HalenTransformRecordTests.Each_Transformation_Is_Registered_And_Quotes_Its_Record",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.SpringTransformTests.Corrosion_Alone_Is_Untouched_Without_Heat_To_Neutralize",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.SpringTransformTests.Fan_And_Steam_Combine_The_Cloud_Forms_At_The_Nearest_Neutralized_Heat",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.SpringTransformTests.Neutralizing_Heat_Leaves_A_Steam_Cloud_And_No_Water",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        },
+        {
+          "test": "Confluence.Sim.Tests.Content.Halen.SpringTransformTests.The_Steam_Can_Be_Shot_Through_Or_Cleared_By_Wind",
+          "assembly": "Confluence.Sim.Tests",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "id": "AUG-449",

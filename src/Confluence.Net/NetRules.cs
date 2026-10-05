@@ -15,7 +15,7 @@ namespace Confluence.Net
         /// Wire-format version of this protocol. Bump whenever any message layout changes; a mismatch is rejected
         /// at the handshake with the unsupported-version state (spec L427).
         /// </summary>
-        public const ushort ProtocolVersion = 3; // 1: Stage 1 foundation; 2: Stage 3 game messages (ids 64-98, ten lanes); 3: recall end tick in the private entry
+        public const ushort ProtocolVersion = 4; // 1: Stage 1 foundation; 2: Stage 3 game messages (ids 64-98, ten lanes); 3: recall end tick in the private entry; 4: marker and public cue duel events
 
         /// <summary>
         /// Version string of the rule code (GlobalRules, Schedules, Sim behaviors). It is hashed together with the

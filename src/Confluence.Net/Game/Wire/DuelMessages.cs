@@ -117,6 +117,16 @@ namespace Confluence.Net.Game.Wire
 
         /// <summary>A Reactions outcome (steam, ice, charge, ignition...; spec L134-L161), from the world's reaction step.</summary>
         Reaction,
+
+        /// <summary>
+        /// A public world marker a record leaves for both players (Sim <c>MarkerEvent</c>: AUG-043's trail, AUG-105's exit):
+        /// Position = its start, Direction = its extent (end = Position + Direction), Extra = its duration in ticks, Text =
+        /// its cue name.
+        /// </summary>
+        Marker,
+
+        /// <summary>A kit's public world cue (Sim <c>IPublicDuelCue</c>, e.g. WIZ-010's bubble, stream and vault cues): Kind = the record's cue kind.</summary>
+        Cue,
     }
 
     /// <summary>
@@ -189,7 +199,7 @@ namespace Confluence.Net.Game.Wire
             {
                 Id = (int)Math.Min(int.MaxValue, r.ReadVarUInt()),
                 Tick = (int)Math.Min(int.MaxValue, r.ReadVarUInt()),
-                Type = (WireEventType)r.ReadByteInRange(0, (byte)WireEventType.Reaction),
+                Type = (WireEventType)r.ReadByteInRange(0, (byte)WireEventType.Cue),
                 Player = r.ReadSeatSide(),
                 Kind = r.ReadByte(),
             };

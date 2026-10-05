@@ -214,6 +214,14 @@ with the Sim's prop bodies (`SyncSolids` skips prop solids so they are not drawn
 layout collide with prop bodies (`CollisionWorld.FromLayoutWithProps`). The client uses the unified
 `Confluence.Casting.InputButtons`.
 
+Stage 2 + 3 batch 1 merge (2026-10-05): rebuilt against the merged libraries (WIZ-002 and WIZ-010 kits with
+signatures and passives, augments-a, the Net game layer); 73 EditMode tests, the player build and all seven smoke
+views pass. `LaboratoryTests.LaboratoryTrainingEffectsGoThroughTheSimRules` now checks the training burn through the
+damage log: the sparring player is WIZ-002, whose Tempered Hands passive answers thermal damage with a 20-point shield,
+so the HUD's health-plus-shield sum no longer measures the burn (the HUD shows "+56 shield": 40 training - 4 burn + 20).
+The slot bar and signature panel show the merged kit (Fireball .. Boiler Orb, Kiln Vent); casting in the Laboratory duel
+is still inert (item 1).
+
 Next:
 1. Spells in the Laboratory duel: plug `SpellRuntime.FromCatalogue` into `LaboratoryController.StartDuel` once
    deliveries can be drawn (item 2), or Hosting's `SimWorldFactory`.

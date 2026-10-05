@@ -485,3 +485,20 @@ Not done, with reasons:
   `bypass-economy-floors`: every round shop, draft (rounds 1-6), alcove, combat, results, the L193 rewards, implemented
   offers only, both kits casting their spells), `KitEntityCaptureTests` (a Pressure Jet in flight is a positioned
   projectile in the frame).
+- Multi-process smoke (2026-10-05, Debug builds): `Confluence.Server --port 7795 --mode duel --players 2
+  --lab-floors-only --seed 312 --accelerated 4 --max-seconds 240` plus two `Confluence.HeadlessClient --host 127.0.0.1
+  --port 7795 --name Ash|Brook --wizard WIZ-002|WIZ-010 --seed 1|2 --max-seconds 235 --status-seconds 30`: the whole
+  Duel match finished (6 rounds, 7 duels with one draw replay, every round shop -> draft -> alcove -> combat -> results),
+  both clients bought and drafted every round, 0 violations, malformed messages or handler faults, 30 Hz snapshots,
+  mean body 188-190 B, max correction 0.092/0.161 m. The headless `ViewPilot` lands few spell hits (2 and 1 in the last
+  duel; most duels went to time): it aims through the replicated view with the Hosting bot profiles, a known weakness.
+- Duel events: record markers (Sim `MarkerEvent`: AUG-043 trail, AUG-105 exit) and kit world cues (Sim
+  `IPublicDuelCue`, implemented by WIZ-010's `TideEvent`) reach the opponent as `WireEventType.Marker` (Position = start,
+  Direction = extent, Extra = duration ticks, Text = cue) and `WireEventType.Cue` (Kind = the record's cue kind); before,
+  the filter's default sent unknown event types to their owner only, so "both clients receive" markers never reached the
+  opponent. Positions and directions are concealed for a hidden actor or cue target like any event.
+  `NetRules.ProtocolVersion` = 4.
+- `ClientDuel` stops predicting at the authoritative end (`Ended`): the server simulates nothing more and never
+  acknowledges later commands, so replaying them over the final state grew a phantom correction (up to 9.5 m at 60 ms,
+  3% loss) once duels ended with players moving. `GameSessionTests.Prediction_Converges...` now plays duels until each
+  player has 1000 reconciliations (the merged kits often finish a duel in seconds) and checks every duel.

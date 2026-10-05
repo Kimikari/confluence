@@ -106,26 +106,36 @@ namespace Confluence.Net.Tests.Game
             {
                 HeadlessPlayer a = rig.AddPlayer("Ash", "WIZ-002", seed: 1);
                 HeadlessPlayer b = rig.AddPlayer("Brook", "WIZ-010", seed: 2);
-                bool done = rig.RunUntil(() => a.Client.View.Results.Count >= 1 && b.Client.View.Results.Count >= 1, 60 * 60 * 6);
+                var ended = new[] { new List<ClientDuel>(), new List<ClientDuel>() };
+                a.Client.DuelEnded += (c, d) => ended[0].Add(d);
+                b.Client.DuelEnded += (c, d) => ended[1].Add(d);
+                // Enough reconciliations to judge convergence (about 33 s of snapshots): the bots can win a duel within
+                // seconds, so the match goes on through further duels until both players have them.
+                bool done = rig.RunUntil(() => ended.All(list => list.Count >= 1 && list.Sum(d => d.Reconciliations) > 1000), 60 * 60 * 12);
                 foreach (string m in rig.Server.Metrics) _output.WriteLine(m);
-                Assert.True(done, "the first duel did not finish");
+                Assert.True(done, "the duels did not finish with enough reconciliations");
                 foreach (HeadlessPlayer p in new[] { a, b })
                 {
-                    ClientDuel duel = p.Client.Duel;
-                    _output.WriteLine(p.Options.Name + ": reconciliations " + duel.Reconciliations + ", corrections " + duel.Corrections + ", p95 " +
-                        duel.CorrectionP95.ToString("0.0000") + " m, max " + duel.MaxCorrection.ToString("0.000") + " m, snaps " + duel.Snaps + ", authoritative displacements " + duel.DisplacementCorrections + " (max " + duel.MaxDisplacementCorrection.ToString("0.000") + " m)" +
-                        ", interpolation " + duel.Interpolation.DelayTicks.ToString("0.00") + " ticks, lead adjust " + duel.Lead.Adjust +
-                        ", starved renders " + duel.StarvedRenders + ", lateness p95 " + duel.Interpolation.LatenessP95.ToString("0.00"));
-                    Assert.True(duel.Reconciliations > 1000);
-                    // Converges: almost every reconciliation agrees with the prediction; nothing needed a snap. Corrections from
-                    // authoritative displacement (spell dashes and leaps, knockback; the server owns cast results, L419) are
-                    // counted apart and stay within the 8 m dash bound plus about 1 m of walking during the latency (L124, L173).
-                    Assert.True(duel.MaxDisplacementCorrection <= GlobalRules.Modifiers.MaxDashDistance + 1f, "displacement correction " + duel.MaxDisplacementCorrection);
-                    Assert.True(duel.CorrectionP95 < 0.05f, "p95 correction " + duel.CorrectionP95);
-                    Assert.True(duel.MaxCorrection < 1.5f, "max correction " + duel.MaxCorrection);
-                    Assert.Equal(0, duel.Snaps);
+                    List<ClientDuel> duels = ended[p == a ? 0 : 1];
+                    Assert.True(duels.Sum(d => d.Reconciliations) > 1000);
+                    foreach (ClientDuel duel in duels)
+                    {
+                        _output.WriteLine(p.Options.Name + " duel " + duel.DuelId + ": reconciliations " + duel.Reconciliations + ", corrections " + duel.Corrections + ", p95 " +
+                            duel.CorrectionP95.ToString("0.0000") + " m, max " + duel.MaxCorrection.ToString("0.000") + " m, snaps " + duel.Snaps + ", authoritative displacements " + duel.DisplacementCorrections + " (max " + duel.MaxDisplacementCorrection.ToString("0.000") + " m)" +
+                            ", interpolation " + duel.Interpolation.DelayTicks.ToString("0.00") + " ticks, lead adjust " + duel.Lead.Adjust +
+                            ", starved renders " + duel.StarvedRenders + ", lateness p95 " + duel.Interpolation.LatenessP95.ToString("0.00"));
+                        // Converges: almost every reconciliation agrees with the prediction; nothing needed a snap. Corrections
+                        // from authoritative displacement (spell dashes and leaps, knockback; the server owns cast results, L419)
+                        // are counted apart and stay within the 8 m dash bound plus about 1 m of walking during the latency
+                        // (L124, L173). After the authoritative end nothing is predicted.
+                        Assert.True(duel.MaxDisplacementCorrection <= GlobalRules.Modifiers.MaxDashDistance + 1f, "displacement correction " + duel.MaxDisplacementCorrection);
+                        Assert.True(duel.CorrectionP95 < 0.05f, "p95 correction " + duel.CorrectionP95);
+                        Assert.True(duel.MaxCorrection < 1.5f, "max correction " + duel.MaxCorrection);
+                        Assert.Equal(0, duel.Snaps);
+                        Assert.True(duel.Interpolation.DelayTicks >= InterpolationClock.MinDelayTicks - 1e-6 && duel.Interpolation.DelayTicks <= InterpolationClock.MaxDelayTicks + 1e-6);
+                    }
+
                     Assert.Equal(0, p.Client.RejectedMessages);
-                    Assert.True(duel.Interpolation.DelayTicks >= InterpolationClock.MinDelayTicks - 1e-6 && duel.Interpolation.DelayTicks <= InterpolationClock.MaxDelayTicks + 1e-6);
                 }
 
                 // Honest clients' view claims are accepted (research §2.2.3) and rewinds never exceed 150 ms (L423).

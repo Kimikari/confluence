@@ -48,7 +48,7 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
     }
 
     /// <summary>A WIZ-010 kit event in the duel's ordered stream (one id sequence, spec L359, L419).</summary>
-    public sealed class TideEvent : DuelEvent
+    public sealed class TideEvent : DuelEvent, IPublicDuelCue
     {
         public TideEventKind Kind { get; internal set; }
         public string SpellId { get; internal set; }
@@ -58,6 +58,17 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
         public int TargetPlayer { get; internal set; } = -1;
 
         public override DuelEventType Type => DuelEventType.Spell;
+
+        // Every kit cue is perceptible to both players (Duel/IPublicDuelCue.cs: the network layer sends it to the opponent).
+        string IPublicDuelCue.CueSourceId => SpellId;
+
+        int IPublicDuelCue.CueKind => (int)Kind;
+
+        Vec3 IPublicDuelCue.CuePosition => Position;
+
+        float IPublicDuelCue.CueAmount => Amount;
+
+        int IPublicDuelCue.CueTarget => TargetPlayer;
 
         public override string ToString() => base.ToString() + " " + Kind + " " + SpellId;
     }

@@ -340,6 +340,18 @@ namespace Confluence.Net.Game.Client
         {
             _inputs.Acknowledge(LatestAck);
             if (Predictor == null || LatestPrivate == null) return;
+            if (Latest.Phase == DuelPhase.Ended)
+            {
+                // The duel is over: the server simulates nothing more and never acknowledges the commands sent since, so the
+                // final authoritative state is the prediction (no replay, and the gap to it is no prediction error).
+                Predicted = LatestPrivate.Motor;
+                PreviousPredicted = Predicted;
+                CorrectionOffset = Vec3.Zero;
+                _predictedStamina = LatestPrivate.Stamina;
+                HasPrediction = true;
+                return;
+            }
+
             MotorState state = LatestPrivate.Motor;
             float stamina = LatestPrivate.Stamina;
             InputButtons previous = PreviousButtonsBefore(LatestAck + 1);
@@ -423,7 +435,7 @@ namespace Confluence.Net.Game.Client
             _sentCast[slot] = cast;
             LocalTick = tick;
 
-            if (Predictor != null && HasPrediction)
+            if (Predictor != null && HasPrediction && !Ended) // nothing moves after the authoritative end
             {
                 MotorState state = Predicted;
                 PreviousPredicted = state;

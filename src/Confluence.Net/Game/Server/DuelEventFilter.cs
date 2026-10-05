@@ -123,6 +123,9 @@ namespace Confluence.Net.Game.Server
                 case MeleeEvent melee:
                     involved |= melee.TargetPlayer == hiddenPlayer;
                     break;
+                case IPublicDuelCue cue:
+                    involved |= cue.CueTarget == hiddenPlayer;
+                    break;
             }
 
             if (!involved) return;
@@ -269,6 +272,28 @@ namespace Confluence.Net.Game.Server
                     w.SourceId = effect.SourceId;
                     w.Text = effect.Cue;
                     if (own) w.Amount = effect.Amount;
+                    return w;
+                case MarkerEvent marker:
+                    // A public world marker both players read (Sim Effects/MarkerEvent.cs: a record's counterplay tell).
+                    w.Type = WireEventType.Marker;
+                    w.SourceId = marker.SourceId;
+                    w.Text = marker.Cue;
+                    w.PositionSet = true;
+                    w.Position = marker.From;
+                    w.DirectionSet = true;
+                    w.Direction = marker.To - marker.From; // the end is Position + Direction
+                    w.Amount = marker.Amount;
+                    w.Extra = marker.DurationTicks;
+                    return w;
+                case IPublicDuelCue cue:
+                    // A kit's public world cue (Sim Duel/IPublicDuelCue.cs); its position is concealed like any other.
+                    w.Type = WireEventType.Cue;
+                    w.Kind = (byte)System.Math.Max(0, System.Math.Min(255, cue.CueKind));
+                    w.SourceId = cue.CueSourceId;
+                    w.PositionSet = true;
+                    w.Position = cue.CuePosition;
+                    w.Amount = cue.CueAmount;
+                    w.Target = cue.CueTarget;
                     return w;
                 default:
                     return own ? w : null;
