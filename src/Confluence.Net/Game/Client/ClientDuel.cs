@@ -159,6 +159,20 @@ namespace Confluence.Net.Game.Client
 
         public int Snaps { get; private set; }
 
+        /// <summary>
+        /// Reconciliations (over 1 cm) caused by an authoritative displacement the client does not predict: spell dashes,
+        /// leaps and their halts, and hostile knockback are cast and hit results the server owns (spec L419 predicts
+        /// movement and preparation only). They are smoothed or snapped like any correction but kept out of the
+        /// prediction-error metrics (<see cref="MaxCorrection"/>, <see cref="CorrectionP95"/>, <see cref="Snaps"/>).
+        /// </summary>
+        public int DisplacementCorrections { get; private set; }
+
+        public float MaxDisplacementCorrection { get; private set; }
+
+        /// <summary>Displacement corrections larger than <see cref="SnapDistance"/> (snapped).</summary>
+        public int DisplacementSnaps { get; private set; }
+
+        private bool _baseWasDisplaced;
         private readonly float[] _corrections = new float[1024];
         private int _correctionNext;
         private int _correctionCount;
@@ -341,20 +355,34 @@ namespace Confluence.Net.Game.Client
             }
 
             Reconciliations++;
+            // A displacement in the authoritative base state, or one that ended since the previous base (its halt), was
+            // started by a cast or a hit on the server; the local motor never begins one, so the gap is not a prediction error.
+            bool displaced = LatestPrivate.Motor.IsDisplaced || _baseWasDisplaced;
+            _baseWasDisplaced = LatestPrivate.Motor.IsDisplaced;
             if (HasPrediction)
             {
                 Vec3 delta = Predicted.Position - state.Position;
                 float distance = delta.Length();
                 LastCorrection = distance;
-                _corrections[_correctionNext] = distance;
-                _correctionNext = (_correctionNext + 1) % _corrections.Length;
-                if (_correctionCount < _corrections.Length) _correctionCount++;
-                if (distance > MaxCorrection) MaxCorrection = distance;
-                if (distance > 0.01f) Corrections++;
+                if (displaced)
+                {
+                    if (distance > MaxDisplacementCorrection) MaxDisplacementCorrection = distance;
+                    if (distance > 0.01f) DisplacementCorrections++;
+                    if (distance > SnapDistance) DisplacementSnaps++;
+                }
+                else
+                {
+                    _corrections[_correctionNext] = distance;
+                    _correctionNext = (_correctionNext + 1) % _corrections.Length;
+                    if (_correctionCount < _corrections.Length) _correctionCount++;
+                    if (distance > MaxCorrection) MaxCorrection = distance;
+                    if (distance > 0.01f) Corrections++;
+                    if (distance > SnapDistance) Snaps++;
+                }
+
                 if (distance > SnapDistance)
                 {
                     CorrectionOffset = Vec3.Zero;
-                    Snaps++;
                 }
                 else
                 {

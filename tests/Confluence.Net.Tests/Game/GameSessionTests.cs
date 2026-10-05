@@ -113,11 +113,14 @@ namespace Confluence.Net.Tests.Game
                 {
                     ClientDuel duel = p.Client.Duel;
                     _output.WriteLine(p.Options.Name + ": reconciliations " + duel.Reconciliations + ", corrections " + duel.Corrections + ", p95 " +
-                        duel.CorrectionP95.ToString("0.0000") + " m, max " + duel.MaxCorrection.ToString("0.000") + " m, snaps " + duel.Snaps +
+                        duel.CorrectionP95.ToString("0.0000") + " m, max " + duel.MaxCorrection.ToString("0.000") + " m, snaps " + duel.Snaps + ", authoritative displacements " + duel.DisplacementCorrections + " (max " + duel.MaxDisplacementCorrection.ToString("0.000") + " m)" +
                         ", interpolation " + duel.Interpolation.DelayTicks.ToString("0.00") + " ticks, lead adjust " + duel.Lead.Adjust +
                         ", starved renders " + duel.StarvedRenders + ", lateness p95 " + duel.Interpolation.LatenessP95.ToString("0.00"));
                     Assert.True(duel.Reconciliations > 1000);
-                    // Converges: almost every reconciliation agrees with the prediction; nothing needed a snap.
+                    // Converges: almost every reconciliation agrees with the prediction; nothing needed a snap. Corrections from
+                    // authoritative displacement (spell dashes and leaps, knockback; the server owns cast results, L419) are
+                    // counted apart and stay within the 8 m dash bound plus about 1 m of walking during the latency (L124, L173).
+                    Assert.True(duel.MaxDisplacementCorrection <= GlobalRules.Modifiers.MaxDashDistance + 1f, "displacement correction " + duel.MaxDisplacementCorrection);
                     Assert.True(duel.CorrectionP95 < 0.05f, "p95 correction " + duel.CorrectionP95);
                     Assert.True(duel.MaxCorrection < 1.5f, "max correction " + duel.MaxCorrection);
                     Assert.Equal(0, duel.Snaps);
