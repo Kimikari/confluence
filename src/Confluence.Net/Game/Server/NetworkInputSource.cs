@@ -6,6 +6,7 @@ using Confluence.Net.Sync;
 using Confluence.Sim;
 using Confluence.Sim.Duel;
 using Confluence.Sim.Input;
+using Confluence.Sim.Players;
 
 namespace Confluence.Net.Game.Server
 {
@@ -223,9 +224,12 @@ namespace Confluence.Net.Game.Server
             }
         }
 
-        public void BeginDuel(DuelSeat seat)
+        public void BeginDuel(DuelSeat seat) => BeginDuel(seat.DuelId);
+
+        /// <summary>Starts the input stream of a duel (also used directly by tests).</summary>
+        public void BeginDuel(int duelId)
         {
-            DuelId = seat.DuelId;
+            DuelId = duelId;
             ResetTimeline();
             Stats = new InputTimingStats();
         }
@@ -251,8 +255,13 @@ namespace Confluence.Net.Game.Server
         public PlayerInput NextInput(DuelSeat seat)
         {
             DuelWorld world = seat.World;
-            int stepTick = world.Tick + 1;
-            float yaw = world.Player(seat.Index).Motor.YawDeg;
+            DuelPlayer player = world.Player(seat.Index);
+            return NextInput(world.Tick + 1, player.Motor.YawDeg, player.SelectedSlot);
+        }
+
+        /// <summary>The command for the step that will run as <paramref name=stepTick/> (the world tick after its increment).</summary>
+        public PlayerInput NextInput(int stepTick, float yaw, int selectedSlot)
+        {
             if (!Connected) return PlayerInput.Idle(yaw);
 
             ConsumedInput<PlayerInput> consumed = _buffer.ConsumeNext();
@@ -263,7 +272,7 @@ namespace Confluence.Net.Game.Server
                 case InputSource.None:
                 case InputSource.Neutral:
                     input = PlayerInput.Idle(yaw);
-                    input.SelectedSlot = world.Player(seat.Index).SelectedSlot;
+                    input.SelectedSlot = selectedSlot;
                     break;
                 default:
                     input = consumed.Input;

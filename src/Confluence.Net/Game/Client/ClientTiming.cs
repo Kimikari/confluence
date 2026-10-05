@@ -108,16 +108,17 @@ namespace Confluence.Net.Game.Client
 
     /// <summary>
     /// Closed-loop input lead (docs/research/netcode.md §2.1.1): the server consumes one command per step by sequence and
-    /// reports its queue depth and starvation count in every snapshot. Every half second the client looks at the smallest
-    /// queue depth of the last second: deeper than <see cref="NetRules.InputQueueTargetTicks"/> means its commands wait
-    /// (added latency), so it produces one command less (a 3% dilation); starved ticks with an empty queue mean its
-    /// commands arrive late, so it produces one more. The queue therefore returns to about one tick after any hiccup
-    /// instead of keeping the slip for the rest of the session.
+    /// reports its queue depth and starvation count in every snapshot. Every quarter second the client looks at the
+    /// smallest queue depth of the last half second: deeper than <see cref="NetRules.InputQueueTargetTicks"/> means its
+    /// commands wait (added latency), so it produces one command less (at most one tick per quarter second, under 7%
+    /// dilation). Starved steps with an empty queue in two evaluations in a row mean its commands arrive late, so it
+    /// produces one more; a single stall (a burst follows) is not lateness. The queue therefore returns to about one
+    /// tick after any hiccup instead of keeping the slip for the rest of the session.
     /// </summary>
     public sealed class InputLeadControl
     {
-        public const int EvaluateEverySnapshots = 15;
-        private const int Window = 30;
+        public const int EvaluateEverySnapshots = 8;
+        private const int Window = 15;
 
         private readonly int[] _queue = new int[Window];
         private int _count;
@@ -125,6 +126,7 @@ namespace Confluence.Net.Game.Client
         private int _sinceEval;
         private long _starvedAtEval = -1;
         private long _lastStarved;
+        private bool _latePending;
 
         /// <summary>Lead adjustment in ticks added to the base lead.</summary>
         public int Adjust { get; private set; }
@@ -153,8 +155,14 @@ namespace Confluence.Net.Game.Client
             MinQueue = min;
             long starved = _lastStarved - _starvedAtEval;
             _starvedAtEval = _lastStarved;
-            if (starved > 0 && min == 0)
+            bool late = starved > 0 && min == 0;
+            if (late && !_latePending)
             {
+                _latePending = true; // confirm at the next evaluation: a stall is followed by a burst, lateness repeats
+            }
+            else if (late)
+            {
+                _latePending = false;
                 if (Adjust < maxAdjust)
                 {
                     Adjust++;
@@ -165,6 +173,7 @@ namespace Confluence.Net.Game.Client
             }
             else if (min > NetRules.InputQueueTargetTicks)
             {
+                _latePending = false;
                 if (Adjust > minAdjust)
                 {
                     Adjust--;
@@ -172,6 +181,10 @@ namespace Confluence.Net.Game.Client
                     _count = 0;
                     _next = 0;
                 }
+            }
+            else
+            {
+                _latePending = false;
             }
         }
 
@@ -181,6 +194,7 @@ namespace Confluence.Net.Game.Client
             _next = 0;
             _sinceEval = 0;
             _starvedAtEval = -1;
+            _latePending = false;
             Adjust = 0;
         }
     }

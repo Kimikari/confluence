@@ -6,14 +6,23 @@ namespace Confluence.Sim.Duel
     /// <summary>
     /// Lag compensation (spec L423): a bounded ring of player hit volumes for the last 150 ms (9 ticks). Hitscan and
     /// melee validation may rewind a player's capsule to the tick the attacker was viewing; projectiles, fields, and
-    /// props are never rewound.
+    /// props are never rewound. A rewind never crosses a discontinuity (Source's "lost track" rule; Net research
+    /// section 2.2.4 of docs/research/netcode.md): when a volume jumps more than <see cref="DiscontinuityDistance"/> in one tick (teleport, recall,
+    /// alcove placement), older records of that player are no longer used.
     /// </summary>
     public sealed class HitVolumeHistory
     {
+        /// <summary>
+        /// A move this far in one tick (90 m/s) cannot be locomotion, dodge, or dash (spec L80-L82, L124: at most 8 m
+        /// dashes over their duration), only a teleport or placement (L124: up to 10 m).
+        /// </summary>
+        public const float DiscontinuityDistance = 1.5f;
+
         private readonly int _depth;
         private readonly int[] _ticks;
         private readonly Capsule[][] _volumes;
         private readonly int _players;
+        private readonly int[] _breakTick;
 
         public HitVolumeHistory(int players, int maxRewindTicks)
         {
@@ -26,6 +35,8 @@ namespace Confluence.Sim.Duel
             _depth = Math.Max(0, maxRewindTicks) + 1;
             _ticks = new int[_depth];
             _volumes = new Capsule[_depth][];
+            _breakTick = new int[players];
+            for (int p = 0; p < players; p++) _breakTick[p] = int.MinValue;
             for (int i = 0; i < _depth; i++)
             {
                 _ticks[i] = int.MinValue;
@@ -43,6 +54,15 @@ namespace Confluence.Sim.Duel
             if (volumes == null || volumes.Length != _players)
             {
                 throw new ArgumentException("One volume per player is required.", nameof(volumes));
+            }
+
+            int previous = Slot(tick - 1);
+            if (_ticks[previous] == tick - 1)
+            {
+                for (int p = 0; p < _players; p++)
+                {
+                    if (Vec3.Distance(_volumes[previous][p].A, volumes[p].A) > DiscontinuityDistance) _breakTick[p] = tick;
+                }
             }
 
             int slot = Slot(tick);
@@ -66,6 +86,7 @@ namespace Confluence.Sim.Duel
 
             int tick = Math.Min(requestedTick, LatestTick);
             tick = Math.Max(tick, LatestTick - MaxRewindTicks);
+            tick = Math.Max(tick, _breakTick[player]);
             for (; tick <= LatestTick; tick++)
             {
                 int slot = Slot(tick);
@@ -79,6 +100,9 @@ namespace Confluence.Sim.Duel
 
             return false;
         }
+
+        /// <summary>The newest tick at which the player's volume jumped (int.MinValue when never).</summary>
+        public int DiscontinuityTick(int player) => player >= 0 && player < _players ? _breakTick[player] : int.MinValue;
 
         private int Slot(int tick) => ((tick % _depth) + _depth) % _depth;
     }
