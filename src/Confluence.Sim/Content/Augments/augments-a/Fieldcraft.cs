@@ -318,22 +318,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
     /// <summary>Field-spell structure tests shared by the Fieldcraft records (spec L128: fields, traps and owned areas).</summary>
     internal static class FieldForms
     {
-        /// <summary>A form that creates a field: a field delivery, or a form tagged "field" (trails, deployable traps).</summary>
-        public static bool IsFieldSpell(Spells.SpellForm form)
-        {
-            if (form == null) return false;
-            if (form.Delivery is Spells.FieldDelivery) return true;
-            return form.Tags != null && Contains(form.Tags, "field");
-        }
-
-        private static bool Contains(IEnumerable<string> tags, string tag)
-        {
-            foreach (string t in tags)
-            {
-                if (string.Equals(t, tag, StringComparison.Ordinal)) return true;
-            }
-
-            return false;
-        }
+        /// <summary>A form that creates a field: a field delivery, or a form counted as a field or trap by its tags.</summary>
+        public static bool IsFieldSpell(Spells.SpellForm form) => form != null && (form.Delivery is Spells.FieldDelivery || form.CountsAsField);
     }
 }

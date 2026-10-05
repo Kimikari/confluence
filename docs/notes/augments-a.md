@@ -7,10 +7,11 @@ reactions (144 records with empty `target_spell_ids`). Code: `src/Confluence.Sim
 ## Status / next steps
 
 - Done with tests (ContentBehavior + Verifies): Melee and guard (AUG-073..078, 080, 083..087, 089, 090, 092),
-  Movement arts (AUG-097..102, 104, 107..110, 115), Casting mastery (AUG-001, 005, 009, 012, 013, 017..020).
-- Projectile and beam shaping: code for AUG-025..028, 031, 038, 039, 041..044 in ProjectileShaping.cs; tests in progress.
-- Next: remaining unconditional records (AUG-059, 062, 067, 105), then Bram/Halen-satisfiable conditionals
-  (field, Heat/Water reactions, projectile with movement/terrain equipment), then the floor-count test.
+  Movement arts (AUG-097..102, 104, 105, 107..110, 115), Casting mastery (AUG-001, 005, 009, 012, 013, 017..020),
+  Projectile and beam shaping (AUG-025..028, 031, 038, 039, 041..044), Fieldcraft and terrain (AUG-049..055, 059, 060,
+  062, 065..068). Every unconditional record of the six families is done.
+- Draft floor (`DraftFloorTests`, Economy floor API, default loadouts of WIZ-002 and WIZ-010) is printed by the test.
+- Next: World reactions for Heat/Water kits (AUG-121, 125, 128, 129), AUG-030 Ground Skimmer, AUG-114 Dash Brake.
 
 ## Framework additions (shared files, additive)
 
