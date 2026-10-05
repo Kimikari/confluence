@@ -171,7 +171,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
         public void ApplyToForm(SpellFormBuilder form, int rank)
         {
-            FieldDelivery f = FieldStages.FieldOf(form);
+            IFieldDelivery f = FieldStages.FieldOf(form);
             if (f == null) return;
             if (f.Placement == PlacementMode.AtAimPoint && form.Range >= MinRange - 1e-4f)
             {

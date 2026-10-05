@@ -39,7 +39,7 @@ namespace Confluence.Sim.Spells
     /// footprint on creation, one unit per covered cell by default (spec L163), and belong to the field for dispels.
     /// Field contact is area damage: never guarded (spec L104 "guard does not stop ground fields").
     /// </summary>
-    public sealed class FieldDelivery : DeliverySpec
+    public sealed class FieldDelivery : DeliverySpec, IFieldDelivery
     {
         private FieldShape _shape;
         private float _radius;
@@ -86,6 +86,14 @@ namespace Confluence.Sim.Spells
         public PayloadSpec EnterPayload { get => _enter; set => _enter = Set(value); }
         public PayloadSpec TickPayload { get => _tick; set => _tick = Set(value); }
         public PayloadSpec ExitPayload { get => _exit; set => _exit = Set(value); }
+
+        // The shared field shape (Spells/Deliveries/FieldShapes.cs) for the Fieldcraft records.
+        bool IFieldDelivery.IsDamaging => Deals(_enter) || Deals(_tick) || Deals(_exit);
+
+        void IFieldDelivery.FootprintAt(Vec3 ground, Vec3 aim, out Footprint footprint, out Vec3 center) =>
+            FieldFootprints.Of(Shape, Radius, Width, Length, ground, aim, out footprint, out center);
+
+        private static bool Deals(PayloadSpec p) => p != null && (p.Direct > 0f || p.Splash > 0f);
 
         public int LifetimeTicks => Ticks.FromSeconds(LifetimeSec);
 
@@ -154,7 +162,7 @@ namespace Confluence.Sim.Spells
     }
 
     /// <summary>A live field (see <see cref="FieldDelivery"/>). Contact rules run in tick-order step 6.</summary>
-    public sealed class FieldEntity : SpellEntity, IOwnedEntityBehavior
+    public sealed class FieldEntity : SpellEntity, IOwnedEntityBehavior, IFieldBody
     {
         private readonly FieldDelivery _spec;
         private readonly SpellContext _ctx;
@@ -178,6 +186,11 @@ namespace Confluence.Sim.Spells
 
         /// <summary>The ownership-registry entry that counts against the three-field limit (spec L128).</summary>
         public OwnedEntity Owned { get; private set; }
+
+        bool IFieldBody.HasAppeared => true; // created with its footprint at release
+
+        // A lane runs from its placement point along the aim (Footprint.Lane: a rectangle whose length lies along its yaw).
+        Vec2 IFieldBody.PlacementPoint => _spec.Shape == FieldShape.Lane ? Footprint.A - Vec2.FromYaw(Footprint.YawDeg) * Footprint.HalfSize.Y : Footprint.A;
 
         public bool IsInside(int player) => _inside[player];
 

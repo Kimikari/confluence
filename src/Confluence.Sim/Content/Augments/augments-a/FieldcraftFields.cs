@@ -22,30 +22,29 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
     internal static class FieldStages
     {
-        public static FieldDelivery FieldOf(SpellFormBuilder form) => form.Delivery as FieldDelivery;
+        // A field delivery is the framework FieldDelivery or a kit's own (ash cloud, stream): the shared field shape,
+        // Spells/Deliveries/FieldShapes.cs.
+        public static IFieldDelivery FieldOf(SpellFormBuilder form) => form.Delivery as IFieldDelivery;
 
-        public static FieldDelivery FieldOf(SpellForm form) => form?.Delivery as FieldDelivery;
+        public static IFieldDelivery FieldOf(SpellForm form) => form?.Delivery as IFieldDelivery;
 
-        public static bool IsDamaging(FieldDelivery f) =>
-            Deals(f.EnterPayload) || Deals(f.TickPayload) || Deals(f.ExitPayload);
-
-        private static bool Deals(PayloadSpec p) => p != null && (p.Direct > 0f || p.Splash > 0f);
+        public static bool IsDamaging(IFieldDelivery f) => f.IsDamaging;
 
         /// <summary>Scales the radius (circle) or the half-width (lane, rectangle) by adding <paramref name="metres"/>.</summary>
-        public static void AddRadius(FieldDelivery f, float metres)
+        public static void AddRadius(IFieldDelivery f, float metres)
         {
             if (f.Shape == FieldShape.Circle) f.Radius = Math.Max(0.1f, f.Radius + metres);
             else f.Width = Math.Max(0.2f, f.Width + 2f * metres);
         }
 
-        public static void ScaleRadius(FieldDelivery f, float factor)
+        public static void ScaleRadius(IFieldDelivery f, float factor)
         {
             if (f.Shape == FieldShape.Circle) f.Radius *= factor;
             else f.Width *= factor;
         }
 
         /// <summary>Scales the damage of first contact (the enter payload's direct and splash parts).</summary>
-        public static void ScaleInitialDamage(FieldDelivery f, float factor)
+        public static void ScaleInitialDamage(IFieldDelivery f, float factor)
         {
             if (f.EnterPayload == null) return;
             f.EnterPayload.Direct *= factor;
@@ -82,7 +81,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
         public void ApplyToForm(SpellFormBuilder form, int rank)
         {
-            FieldDelivery f = FieldStages.FieldOf(form);
+            IFieldDelivery f = FieldStages.FieldOf(form);
             if (f == null || FieldStages.IsDamaging(f)) return;
             FieldStages.AddRadius(f, AugmentsAKit.ByRank(rank, Rank1Radius, Rank2Radius));
         }
@@ -118,7 +117,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
         public void ApplyToForm(SpellFormBuilder form, int rank)
         {
-            FieldDelivery f = FieldStages.FieldOf(form);
+            IFieldDelivery f = FieldStages.FieldOf(form);
             if (f == null || !FieldStages.IsDamaging(f)) return;
             FieldStages.ScaleInitialDamage(f, 1f + AugmentsAKit.ByRank(rank, Rank1Damage, Rank2Damage));
             FieldStages.ScaleRadius(f, 1f - RadiusCut);
@@ -144,7 +143,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
         public void ApplyToForm(SpellFormBuilder form, int rank)
         {
-            FieldDelivery f = FieldStages.FieldOf(form);
+            IFieldDelivery f = FieldStages.FieldOf(form);
             if (f == null || f.LifetimeSec > MaxNormalLifetime + 1e-4f) return;
             f.LifetimeSec += AugmentsAKit.ByRank(rank, Rank1Lifetime, Rank2Lifetime);
             FieldStages.ScaleInitialDamage(f, 1f - DamageCut);
@@ -170,7 +169,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
         public void ApplyToForm(SpellFormBuilder form, int rank)
         {
-            FieldDelivery f = FieldStages.FieldOf(form);
+            IFieldDelivery f = FieldStages.FieldOf(form);
             if (f == null) return;
             FieldStages.ScaleInitialDamage(f, 1f + AugmentsAKit.ByRank(rank, Rank1Damage, Rank2Damage));
             f.LifetimeSec = Math.Max(Math.Min(MinLifetime, f.LifetimeSec), f.LifetimeSec - LifetimeCut);

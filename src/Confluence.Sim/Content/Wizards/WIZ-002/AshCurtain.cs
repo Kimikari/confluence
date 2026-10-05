@@ -9,6 +9,8 @@ using Confluence.Reactions.Events;
 using Confluence.Reactions.Grid;
 using Confluence.Reactions.Operations;
 using Confluence.Reactions.Volumes;
+using Confluence.Sim.Duel;
+using Confluence.Sim.Fields;
 using Confluence.Sim.Hashing;
 using Confluence.Sim.Players;
 using Confluence.Sim.Spells;
@@ -47,7 +49,7 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
     }
 
     /// <summary>The ash cloud placement and its AUG-311 curtain shape and AUG-312 recast push.</summary>
-    public sealed class AshCloudDelivery : DeliverySpec
+    public sealed class AshCloudDelivery : DeliverySpec, IFieldDelivery
     {
         private float _radius;
         private float _lifetimeSec;
@@ -70,6 +72,34 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
 
         public bool IsCurtain => CurtainLength > 0f;
 
+        // The shared field shape (Spells/Deliveries/FieldShapes.cs): the cloud counts as a field (spec L128), placed at the
+        // aimed ground point, a circle or (AUG-311) a curtain rectangle across the aim; it never deals damage.
+        FieldShape IFieldDelivery.Shape => IsCurtain ? FieldShape.Rectangle : FieldShape.Circle;
+
+        float IFieldDelivery.Width
+        {
+            get => IsCurtain ? CurtainWidth : Radius * 2f;
+            set
+            {
+                if (IsCurtain) CurtainWidth = value;
+                else Radius = value * 0.5f;
+            }
+        }
+
+        float IFieldDelivery.Length => IsCurtain ? CurtainLength : Radius * 2f;
+
+        PlacementMode IFieldDelivery.Placement => PlacementMode.AtAimPoint;
+
+        bool IFieldDelivery.IsDamaging => false;
+
+        PayloadSpec IFieldDelivery.EnterPayload => null;
+
+        void IFieldDelivery.FootprintAt(Vec3 ground, Vec3 aim, out Footprint footprint, out Vec3 center)
+        {
+            footprint = FootprintAt(ground, aim);
+            center = ground;
+        }
+
         internal override void ApplyGlobalCaps()
         {
             _lifetimeSec = Math.Min(_lifetimeSec, GlobalRules.FieldsAndSummons.MaxLifetimeSec); // spec L128
@@ -90,6 +120,7 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
         {
             Vec3 ground = ctx.GroundPoint(cast.Caster, cast.Form.Range);
             Vec3 aim = AimDirection(ctx, cast);
+            ctx.World.Effects.BindFieldPlacement(cast, ref ground, ref aim); // a placement priced at commitment (Effects/EffectHooks.cs)
             ReactionMaterials materials = KitSupport.Materials(ctx);
             if (materials == null)
             {
@@ -107,7 +138,7 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
                 Owner = cast.Caster,
                 SourceEventId = cast.OriginEventId,
             });
-            ctx.Spawn(new AshCloudEntity(cast, this, ground));
+            ctx.Spawn(new AshCloudEntity(cast, this, ground, FootprintAt(ground, aim)));
         }
     }
 
@@ -115,7 +146,7 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
     /// The live ash cloud: follows its reaction-world volume (created at step 5 of the release tick), collapses it when
     /// liquid water lies under any of its columns, and performs the AUG-312 recast push.
     /// </summary>
-    public sealed class AshCloudEntity : SpellEntity
+    public sealed class AshCloudEntity : SpellEntity, IFieldBody
     {
         private const int SearchTicks = 2;
 
@@ -126,17 +157,33 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
         private bool _pushed;
         private bool _collapsed;
 
-        internal AshCloudEntity(CastRecord cast, AshCloudDelivery spec, Vec3 ground)
+        internal AshCloudEntity(CastRecord cast, AshCloudDelivery spec, Vec3 ground, Footprint footprint)
             : base(cast)
         {
             _spec = spec;
             Ground = ground;
+            Footprint = footprint;
         }
 
         public Vec3 Ground { get; }
 
+        /// <summary>The cloud's footprint at its release placement (circle or AUG-311 curtain).</summary>
+        public Footprint Footprint { get; }
+
         /// <summary>The cloud's reaction-world volume id (0 before it exists).</summary>
         public int VolumeId => _volumeId;
+
+        // The shared field body (Spells/Deliveries/FieldShapes.cs): the field appears with its volume, and its registry
+        // entry is the cloud field the reaction materials allocate for that volume (spec L128 "clouds count as fields").
+        bool IFieldBody.HasAppeared => _volumeId != 0;
+
+        Vec3 IFieldBody.Center => Ground;
+
+        Vec2 IFieldBody.PlacementPoint => Ground.XZ();
+
+        OwnedEntity IFieldBody.Owned => _owned;
+
+        private OwnedEntity _owned;
 
         public bool Pushed => _pushed;
         public bool Collapsed => _collapsed;
@@ -212,9 +259,24 @@ namespace Confluence.Sim.Content.Wizards.Wiz002
             ObscurationVolume found = Find(world);
             if (found == null) return false;
             _volumeId = found.Id;
+            _owned = CloudField(ctx);
             ctx.Emit(SpellEventKind.FieldCreated, Cast, Ground, default, Id, _spec.IsCurtain ? _spec.CurtainLength * 0.5f : _spec.Radius,
                 ticks: found.RemainingTicks(world.Tick));
             return true;
+        }
+
+        // The registry entry the reaction materials created for this cloud (ReactionMaterials, MaterialRules.CloudFieldPrefix).
+        private OwnedEntity CloudField(SpellContext ctx)
+        {
+            IReadOnlyList<OwnedEntity> all = ctx.World.Owned.Entities;
+            string definition = MaterialRules.CloudFieldPrefix + VolumeKind.Ash;
+            for (int i = 0; i < all.Count; i++)
+            {
+                OwnedEntity e = all[i];
+                if (e.Active && e.Kind == OwnedEntityKind.Field && e.Owner == Owner && e.OriginEventId == Cast.OriginEventId && e.DefinitionId == definition) return e;
+            }
+
+            return null;
         }
 
         private ObscurationVolume Find(ReactionWorld world)

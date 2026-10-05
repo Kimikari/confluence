@@ -42,39 +42,24 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
 
         /// <summary>
         /// The footprint and center a field cast of this form would create now: the delivery's own placement rule
-        /// (<see cref="FieldDelivery.PredictTarget"/>) along the caster's current aim, built as <see cref="FieldDelivery.Spawn"/>
-        /// builds it. False when the form is not a field delivery or the spell runtime is absent.
+        /// (<see cref="DeliverySpec.PredictTarget"/>) along the caster's current aim, built by the delivery's own footprint rule
+        /// (<see cref="IFieldDelivery.FootprintAt"/>; the framework field builds it as <see cref="FieldDelivery.Spawn"/>
+        /// does). False when the form is not a field delivery or the spell runtime is absent.
         /// </summary>
-        public static bool TryPredict(DuelWorld world, SpellForm form, int caster, out Footprint footprint, out Vec3 center)
+        public static bool TryPredict(DuelWorld world, SpellForm form, int caster, out Footprint footprint, out Vec3 center) =>
+            TryPredict(world, form, caster, out footprint, out center, out _);
+
+        /// <summary>As above, with the predicted placement point (<paramref name="ground"/>: a circle's center, a lane's start).</summary>
+        public static bool TryPredict(DuelWorld world, SpellForm form, int caster, out Footprint footprint, out Vec3 center, out Vec3 ground)
         {
             footprint = default;
             center = Vec3.Zero;
+            ground = Vec3.Zero;
             SpellRuntime runtime = AugmentsAKit.Runtime(world);
-            if (runtime == null || !(form?.Delivery is FieldDelivery field)) return false;
+            if (runtime == null || !(form?.Delivery is IFieldDelivery field)) return false;
             SpellContext ctx = runtime.Context;
-            Vec3 ground = field.PredictTarget(ctx, form, caster);
-            Vec3 aim = ctx.AimDirection(caster);
-            Vec2 dir = new Vec2(aim.X, aim.Z);
-            dir = dir.LengthSquared() > 1e-8f ? dir.Normalized() : new Vec2(0f, 1f);
-            if (field.Shape == FieldShape.Rectangle)
-            {
-                footprint = Footprint.Rectangle(ground.XZ(), new Vec2(field.Width * 0.5f, field.Length * 0.5f), CMath.YawOf(dir));
-                center = ground;
-            }
-            else if (field.Shape == FieldShape.Lane)
-            {
-                Vec2 from = ground.XZ();
-                Vec2 to = from + dir * field.Length;
-                footprint = Footprint.Lane(from, to, field.Width);
-                Vec2 mid = (from + to) * 0.5f;
-                center = new Vec3(mid.X, ground.Y, mid.Y);
-            }
-            else
-            {
-                footprint = Footprint.Circle(ground.XZ(), field.Radius);
-                center = ground;
-            }
-
+            ground = form.Delivery.PredictTarget(ctx, form, caster);
+            field.FootprintAt(ground, ctx.AimDirection(caster), out footprint, out center); // the delivery's own footprint rule
             return true;
         }
 

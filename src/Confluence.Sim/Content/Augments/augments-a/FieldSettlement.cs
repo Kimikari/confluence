@@ -22,8 +22,11 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
         /// <summary>The live field this placement describes (null for a prediction): excluded from overlap tests.</summary>
         public OwnedEntity Self;
 
-        /// <summary>The placement point: a circle's or rectangle's center, a lane's starting point (FieldDelivery.Spawn).</summary>
-        public Vec2 Anchor => Footprint.A;
+        /// <summary>
+        /// The placement point: a circle's or rectangle's center, a lane's starting point (the predicted ground point, or
+        /// the created field's IFieldBody.PlacementPoint; a lane's footprint center is its midpoint, not where it was placed).
+        /// </summary>
+        public Vec2 Anchor;
     }
 
     /// <summary>
@@ -70,9 +73,10 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
         protected bool TryPredict(SpellForm form, out FieldPlacement placement)
         {
             placement = default;
-            if (!FieldGeometry.TryPredict(World, form, Player, out Footprint footprint, out Vec3 center)) return false;
+            if (!FieldGeometry.TryPredict(World, form, Player, out Footprint footprint, out Vec3 center, out Vec3 ground)) return false;
             placement.Footprint = footprint;
             placement.Center = center;
+            placement.Anchor = ground.XZ();
             placement.Feet = Self.Position;
             return true;
         }
@@ -102,7 +106,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 if (_bound)
                 {
                     SpellRuntime runtime = AugmentsAKit.Runtime(World);
-                    _boundGround = FieldStages.FieldOf(form).PredictTarget(runtime.Context, form, Player);
+                    _boundGround = form.Delivery.PredictTarget(runtime.Context, form, Player);
                     _boundDirection = runtime.Context.AimDirection(Player);
                 }
             }
@@ -120,7 +124,7 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
                 return;
             }
 
-            FieldEntity field = FindField(_cast);
+            IFieldBody field = FindField(_cast);
             if (field == null)
             {
                 if (Now - _commitTick > MaxWaitTicks) _cast = CastEventId.None;
@@ -132,11 +136,11 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
             Settle(cast, field);
         }
 
-        private void Settle(CastEventId cast, FieldEntity field)
+        private void Settle(CastEventId cast, IFieldBody field)
         {
             SpellForm form = AugmentsAKit.FormOf(Self, _spellId);
             if (form == null || !InCombat) return;
-            var actual = new FieldPlacement { Footprint = field.Footprint, Center = field.Center, Feet = Self.Position, Self = field.Owned };
+            var actual = new FieldPlacement { Footprint = field.Footprint, Center = field.Center, Anchor = field.PlacementPoint, Feet = Self.Position, Self = field.Owned };
             Price(form, actual, form.Mana, out float decrease, out float increase);
             float back = Math.Max(0f, decrease) + Math.Max(0f, _charged - Math.Max(0f, increase));
             float owed = Math.Max(0f, increase) - _charged;
@@ -152,14 +156,14 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
             }
         }
 
-        private FieldEntity FindField(CastEventId cast)
+        private IFieldBody FindField(CastEventId cast)
         {
             SpellRuntime runtime = AugmentsAKit.Runtime(World);
             if (runtime == null) return null;
             IReadOnlyList<SpellEntity> entities = runtime.Entities;
             for (int i = 0; i < entities.Count; i++)
             {
-                if (entities[i] is FieldEntity f && f.Cast.CastId == cast && f.Owned != null) return f;
+                if (entities[i] is IFieldBody f && f.Cast.CastId == cast && f.HasAppeared && f.Owned != null) return f; // a framework or kit field
             }
 
             return null;

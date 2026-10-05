@@ -61,7 +61,7 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
     /// current that gives bodies travelling with its arrow a movement bonus. AUG-444 lets the recast reverse (or at rank 2
     /// turn by 90 degrees) the arrow once without extending the lifetime.
     /// </summary>
-    public sealed class StreamDelivery : DeliverySpec
+    public sealed class StreamDelivery : DeliverySpec, IFieldDelivery
     {
         private float _length;
         private float _width;
@@ -94,6 +94,21 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
 
         public int Branches => _forkHalfAngleDeg > 0f ? 2 : 1;
 
+        // The shared field shape (Spells/Deliveries/FieldShapes.cs): one non-damaging lane from the aimed ground point
+        // (with AUG-443 the first branch), so the Fieldcraft records see the stream like a framework lane field.
+        FieldShape IFieldDelivery.Shape => FieldShape.Lane;
+
+        float IFieldDelivery.Radius { get => Width * 0.5f; set => Width = value * 2f; }
+
+        PlacementMode IFieldDelivery.Placement => PlacementMode.AtAimPoint;
+
+        bool IFieldDelivery.IsDamaging => false;
+
+        PayloadSpec IFieldDelivery.EnterPayload => null;
+
+        void IFieldDelivery.FootprintAt(Vec3 ground, Vec3 aim, out Confluence.Reactions.Grid.Footprint footprint, out Vec3 center) =>
+            FieldFootprints.Of(FieldShape.Lane, 0f, Width, Length, ground, Arrows(aim)[0].ToXZ(), out footprint, out center);
+
         internal override void ApplyGlobalCaps()
         {
             _bonus = CMath.Clamp(_bonus, 0f, GlobalRules.Modifiers.MovementBonusCap); // the stat block caps the sum too (spec L124)
@@ -125,7 +140,9 @@ namespace Confluence.Sim.Content.Wizards.HalenTide
         public override void Release(SpellContext ctx, CastRecord cast)
         {
             Vec3 start = PredictTarget(ctx, cast.Form, cast.Caster);
-            Vec2[] arrows = Arrows(AimDirection(ctx, cast));
+            Vec3 aim = AimDirection(ctx, cast);
+            ctx.World.Effects.BindFieldPlacement(cast, ref start, ref aim); // a placement priced at commitment (Effects/EffectHooks.cs)
+            Vec2[] arrows = Arrows(aim);
             var lanes = new List<FieldEntity>();
             var kept = new List<Vec2>();
             for (int i = 0; i < arrows.Length; i++)

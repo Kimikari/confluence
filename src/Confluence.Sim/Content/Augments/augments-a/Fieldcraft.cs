@@ -320,6 +320,6 @@ namespace Confluence.Sim.Content.Augments.AugmentsA
     internal static class FieldForms
     {
         /// <summary>A form that creates a field: a field delivery, or a form counted as a field or trap by its tags.</summary>
-        public static bool IsFieldSpell(Spells.SpellForm form) => form != null && (form.Delivery is Spells.FieldDelivery || form.CountsAsField);
+        public static bool IsFieldSpell(Spells.SpellForm form) => form != null && (form.Delivery is Spells.IFieldDelivery || form.CountsAsField);
     }
 }
