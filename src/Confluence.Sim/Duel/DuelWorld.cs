@@ -957,6 +957,7 @@ namespace Confluence.Sim.Duel
             DuelPlayer target = _players[request.Target];
             DuelPlayer attacker = request.Attacker >= 0 && request.Attacker < PlayerCount ? _players[request.Attacker] : null;
             Effects.ModifyOutgoing(request); // attacker's damage stats and next-hit bonuses on original hits only
+            Effects.ModifyIncoming(request); // target's incoming hooks (Effects/IncomingHooks.cs)
             DamageResolution resolution = DamagePipeline.Resolve(request, target, Tick);
             var ev = new DamageEvent
             {
@@ -1126,7 +1127,7 @@ namespace Confluence.Sim.Duel
             }
 
             DuelPlayer p = _players[target];
-            StatusApplyResult result = p.Statuses.Apply(application, Tick);
+            StatusApplyResult result = p.Statuses.Apply(Effects.AdjustIncomingStatus(target, application), Tick); // Effects/IncomingHooks.cs
             switch (result.Outcome)
             {
                 case StatusOutcome.Applied:
@@ -1208,7 +1209,7 @@ namespace Confluence.Sim.Duel
         public bool ApplyKnockback(int target, int sourcePlayer, Vec3 direction, float distance, string sourceId)
         {
             DuelPlayer p = _players[target];
-            distance = Math.Min(distance, GlobalRules.Terrain.PlayerKnockbackCap);
+            distance = Math.Min(Effects.AdjustIncomingKnockback(target, sourcePlayer, distance, sourceId), GlobalRules.Terrain.PlayerKnockbackCap); // Effects/IncomingHooks.cs
             Vec3 dir = new Vec3(direction.X, 0f, direction.Z).Normalized();
             if (Phase != DuelPhase.Combat || !(distance > 0f) || dir.LengthSquared() == 0f || !p.Alive || p.IsRecalling)
             {

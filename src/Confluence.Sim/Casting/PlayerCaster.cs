@@ -126,6 +126,7 @@ namespace Confluence.Sim.Casting
 
             // Permanent cooldown reduction caps at 25% and no recharge falls below 0.5 s (spec L124).
             float seconds = _player.Stats.EffectiveCooldownSec(Ticks.ToSeconds(spell.CooldownTicks));
+            seconds = _world.Effects.AdjustCooldown(_player.Index, spell.Id, seconds); // Effects/IncomingHooks.cs ICastCooldownHook
             _readyTick[spell.Id] = _world.Tick + Ticks.FromSeconds(seconds);
         }
 
