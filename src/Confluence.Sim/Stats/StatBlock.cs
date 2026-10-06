@@ -191,14 +191,21 @@ namespace Confluence.Sim.Stats
         public float RefundFraction => Clamp01(Raw(StatKind.RefundFraction), GlobalRules.Modifiers.RefundCapFraction);
 
         /// <summary>Recharge after permanent cooldown reduction; never below 0.5 s unless the base already is (spec L124).</summary>
-        public float EffectiveCooldownSec(float baseSec)
+        public float EffectiveCooldownSec(float baseSec) => EffectiveCooldownSec(baseSec, 0f);
+
+        /// <summary>
+        /// As <see cref="EffectiveCooldownSec(float)"/> with a spell-specific reduction (EQP-099 "counting toward 25%
+        /// permanent reduction cap"): it joins the stat's raw value under the one 25% cap (spec L124).
+        /// </summary>
+        public float EffectiveCooldownSec(float baseSec, float extraReduction)
         {
             if (!(baseSec > 0f))
             {
                 return 0f;
             }
 
-            float reduced = baseSec * (1f - CooldownReduction);
+            float cdr = Clamp01(Raw(StatKind.CooldownReduction) + Math.Max(0f, extraReduction), GlobalRules.Modifiers.CooldownReductionCap);
+            float reduced = baseSec * (1f - cdr);
             return Math.Max(reduced, Math.Min(baseSec, GlobalRules.Modifiers.MinRechargeSec));
         }
 

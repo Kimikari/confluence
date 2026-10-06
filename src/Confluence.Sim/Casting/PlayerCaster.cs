@@ -125,7 +125,8 @@ namespace Confluence.Sim.Casting
             if (spell == null || spell.CooldownTicks <= 0) return;
 
             // Permanent cooldown reduction caps at 25% and no recharge falls below 0.5 s (spec L124).
-            float seconds = _player.Stats.EffectiveCooldownSec(Ticks.ToSeconds(spell.CooldownTicks));
+            float seconds = _player.Stats.EffectiveCooldownSec(Ticks.ToSeconds(spell.CooldownTicks),
+                _world.Effects.SpellCooldownReduction(_player.Index, spell.Id)); // spell-specific hooks (Effects/EffectHookPoints.cs)
             _readyTick[spell.Id] = _world.Tick + Ticks.FromSeconds(seconds);
         }
 
@@ -188,6 +189,7 @@ namespace Confluence.Sim.Casting
                     case CastBlockReason.GuardRelease:
                     case CastBlockReason.Melee:
                     case CastBlockReason.Swapping:
+                    case CastBlockReason.ItemUse:
                         return true;
                     default:
                         return _world.Phase == DuelPhase.Ended || !_player.Alive;

@@ -555,7 +555,8 @@ namespace Confluence.Sim.Duel
             // spec L80: sprint disallows normal melee strikes; guard, swaps, and casts are separate actions. A melee press
             // during a preparation, windup, or channel performs the strike and the spell yields (spec L474, D-049); cast
             // recovery cannot be cancelled (spec L92).
-            if (p.Motor.Sprinting || p.Guard.Active || p.Guard.InReleaseWindow(Tick) || p.IsSwapping || Spells.GetStatus(p.Index).InRecovery)
+            if (p.Motor.Sprinting || p.Guard.Active || p.Guard.InReleaseWindow(Tick) || p.IsSwapping || Spells.GetStatus(p.Index).InRecovery
+                || Effects.LocksAttacks(p.Index)) // an equipment use that forbids attacks (EffectHookPoints.cs)
             {
                 return;
             }
@@ -668,6 +669,10 @@ namespace Confluence.Sim.Duel
             else if (p.IsSwapping)
             {
                 reason = CastBlockReason.Swapping;
+            }
+            else if (Effects.LocksCasting(p.Index))
+            {
+                reason = CastBlockReason.ItemUse; // an equipment use time (EffectHookPoints.cs, spec L575)
             }
 
             bool blocked = reason != CastBlockReason.None;
@@ -957,6 +962,7 @@ namespace Confluence.Sim.Duel
             DuelPlayer target = _players[request.Target];
             DuelPlayer attacker = request.Attacker >= 0 && request.Attacker < PlayerCount ? _players[request.Attacker] : null;
             Effects.ModifyOutgoing(request); // attacker's damage stats and next-hit bonuses on original hits only
+            Effects.AdjustIncoming(request); // target's conditional reductions and vulnerabilities (Effects/EffectHookPoints.cs)
             DamageResolution resolution = DamagePipeline.Resolve(request, target, Tick);
             var ev = new DamageEvent
             {
@@ -1126,7 +1132,7 @@ namespace Confluence.Sim.Duel
             }
 
             DuelPlayer p = _players[target];
-            StatusApplyResult result = p.Statuses.Apply(application, Tick);
+            StatusApplyResult result = p.Statuses.Apply(Effects.AdjustIncomingStatus(target, application), Tick); // EffectHookPoints.cs
             switch (result.Outcome)
             {
                 case StatusOutcome.Applied:
@@ -1208,6 +1214,7 @@ namespace Confluence.Sim.Duel
         public bool ApplyKnockback(int target, int sourcePlayer, Vec3 direction, float distance, string sourceId)
         {
             DuelPlayer p = _players[target];
+            distance = Effects.AdjustIncomingDisplacement(target, sourcePlayer, sourceId, distance); // hostile only (EffectHookPoints.cs)
             distance = Math.Min(distance, GlobalRules.Terrain.PlayerKnockbackCap);
             Vec3 dir = new Vec3(direction.X, 0f, direction.Z).Normalized();
             if (Phase != DuelPhase.Combat || !(distance > 0f) || dir.LengthSquared() == 0f || !p.Alive || p.IsRecalling)

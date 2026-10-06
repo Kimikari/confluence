@@ -16,6 +16,7 @@ namespace Confluence.Sim.Duel
         Swapping,       // spec L106: equip and swap take 0.35 s
         Recalling,      // spec L175: 0.5 s visible recall
         DuelEnded,
+        ItemUse,        // spec L575: an equipment use time that forbids casting ("Cannot cast during the 0.3 s use")
     }
 
     /// <summary>What the world allows a player's casting to do this tick (tick-order step 3).</summary>

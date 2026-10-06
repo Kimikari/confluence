@@ -137,11 +137,13 @@ namespace Confluence.Sim.Combat
         private static float PassiveMultiplier(DuelPlayer target, DamageChannel channel, float extraReduction)
         {
             float m = target.Stats.PassiveMultiplier(channel);
-            if (!(extraReduction > 0f))
+            if (extraReduction == 0f || float.IsNaN(extraReduction))
             {
                 return m;
             }
 
+            // A negative value is a conditional vulnerability of the target against this hit (Effects/EffectHookPoints.cs,
+            // "deals 5% more damage to wearer"): it combines multiplicatively like any passive value.
             return Math.Max(m * (1f - Math.Min(extraReduction, 1f)), 1f - GlobalRules.Damage.PassiveReductionCap);
         }
 
