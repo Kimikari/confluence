@@ -51,6 +51,7 @@ namespace Confluence.Sim.World.Materials
         private readonly Dictionary<int, string> _sourceIds = new Dictionary<int, string>();
         private readonly HashSet<long> _clearedClouds = new HashSet<long>();
         private readonly Dictionary<int, int> _volumeOwners = new Dictionary<int, int>();
+        private readonly List<IMaterialObserver> _observers = new List<IMaterialObserver>();
 
         /// <summary>A reaction world built from the duel's layout when attached.</summary>
         public ReactionMaterials()
@@ -75,6 +76,16 @@ namespace Confluence.Sim.World.Materials
 
         /// <summary>The result of the last step (events for presentation and audit).</summary>
         public StepResult LastStep { get; private set; }
+
+        /// <summary>Observers of queued deposits, impacts, and finished steps (props, biome objects), in registration order.</summary>
+        public IReadOnlyList<IMaterialObserver> Observers => _observers;
+
+        /// <summary>Registers an observer of deposits, impacts, and steps (MaterialObservers.cs); duplicates are ignored.</summary>
+        public void AddObserver(IMaterialObserver observer)
+        {
+            if (observer == null) throw new ArgumentNullException(nameof(observer));
+            if (!_observers.Contains(observer)) _observers.Add(observer);
+        }
 
         public void Attach(DuelWorld world)
         {
@@ -181,6 +192,7 @@ namespace Confluence.Sim.World.Materials
         public void QueueDeposit(in WorldDeposit d)
         {
             ReactionWorld world = RequireWorld();
+            for (int i = 0; i < _observers.Count; i++) _observers[i].OnDeposit(this, d); // props, biome objects
             int owner = d.SourcePlayer >= 0 && d.SourcePlayer < DuelWorld.PlayerCount ? d.SourcePlayer : ReactionRules.MapOwner;
             RecordSource(d.OriginEventId, d.SourceId);
             bool heavy = d.AdjacentStrength > 0 && d.AdjacentRadius > 0f;
@@ -245,6 +257,7 @@ namespace Confluence.Sim.World.Materials
         public void QueueImpact(in WorldImpact impact)
         {
             ReactionWorld world = RequireWorld();
+            for (int i = 0; i < _observers.Count; i++) _observers[i].OnImpact(this, impact); // props, biome objects
             RecordSource(impact.OriginEventId, impact.SourceId);
             int solidId = impact.SolidId;
             CollisionSolid struck = solidId >= 0 ? Duel?.Collision.Find(solidId) : null;
@@ -340,6 +353,8 @@ namespace Confluence.Sim.World.Materials
 
                 ApplyWetFromCells();
             }
+
+            for (int i = 0; i < _observers.Count; i++) _observers[i].OnStepped(this, result);
         }
 
         private void BuildBodies(IMaterialsContext context)
@@ -594,6 +609,7 @@ namespace Confluence.Sim.World.Materials
             }
 
             hasher.Add(_clearedClouds.Count);
+            for (int i = 0; i < _observers.Count; i++) _observers[i].Hash(ref hasher);
         }
 
         private ReactionWorld RequireWorld()

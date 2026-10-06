@@ -72,6 +72,7 @@ namespace Confluence.Reactions
             }
 
             _impacts.Clear();
+            ApplyObjectRequests(); // shard bursts and burn zones of Sim objects (ReactionWorld.Objects.cs)
 
             _forces.Sort((a, b) => CompareSourceOwner(a.SourceEventId, a.Owner, b.SourceEventId, b.Owner, a.PropId.CompareTo(b.PropId)));
             for (int i = 0; i < _forces.Count; i++)
